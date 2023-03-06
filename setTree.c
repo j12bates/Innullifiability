@@ -21,24 +21,24 @@
 typedef struct Base Base;
 typedef struct Node Node;
 
-// Tree Information Structure
+// Set Tree Information Structure
 struct Base {
-    Node *root;             // Root node
-    size_t levels;          // Number of levels of nodes
-    unsigned long maxNodes; // Max number of nodes a node can point to
+    Node *root;                 // Root node
+    size_t levels;              // Number of levels of nodes
+    unsigned long maxSuperc;    // Max number of possible child nodes
 };
 
 // Tree Node Structure
 struct Node {
-    Node **supers;          // Pointers to child nodes
-    unsigned long superc;   // Number of child nodes
-    bool flag;              // Flag
+    Node **supers;              // Pointers to child nodes
+    bool flag;                  // Flag
 };
 
 // Function Declarations
 Node *treeAlloc(size_t, unsigned long);
 void treeFree(Node *, size_t, unsigned long);
-void treeMark(Node *, size_t, unsigned long, unsigned long *, size_t);
+void treeMark(Node *, size_t, unsigned long,
+        unsigned long, unsigned long *, size_t);
 
 // Construct Tree
 Base *treeConstruct(size_t levels, unsigned long value,
@@ -52,7 +52,7 @@ Base *treeConstruct(size_t levels, unsigned long value,
 
     // Populate Information Structure
     base->levels = levels;
-    base->maxNodes = max - levels + 1;
+    base->maxSuperc = max - levels + 1;
 
     // Allocate Entire Tree
     base->root = treeAlloc(levels, max - levels + 1);
@@ -64,7 +64,7 @@ Base *treeConstruct(size_t levels, unsigned long value,
 void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
-    treeFree(base->root, base->levels, base->maxNodes);
+    treeFree(base->root, base->levels, base->maxSuperc);
 
     // Deallocate Information Strucure
     free(base);
@@ -80,14 +80,12 @@ Node *treeAlloc(size_t levels, unsigned long superc)
 
     // Initialize Values to Defaults
     node->supers = NULL;
-    node->superc = 0;
     node->flag = false;
 
     // Base case: if there are no more levels, nothing to enumerate
     if (levels == 0) return node;
 
     // Allocate Array of Children
-    node->superc = superc;
     node->supers = calloc(superc, sizeof(Node *));
 
     // Recurse to Allocate all Children
@@ -132,7 +130,8 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
     }
 
     // Mark Nodes
-    treeMark(base->root, base->levels, rel, rels, valuec - 1);
+    treeMark(base->root, base->levels, base->maxSuperc,
+            rel, rels, valuec - 1);
 
     // Deallocate Memory
     free(rels);
@@ -141,14 +140,14 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
 }
 
 // Recursively Mark Nodes
-void treeMark(Node *node, size_t levels,
+void treeMark(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, unsigned long *rels, size_t relc)
 {
     // If we got here, there's nothing we can do
     if (levels == 0) return;
 
     // This Node Points to the Value Specified
-    if (rel < node->superc)
+    if (rel < superc)
     {
         // The Child Node of this Value
         Node *super = node->supers[rel];
@@ -157,16 +156,17 @@ void treeMark(Node *node, size_t levels,
         if (relc == 0) super->flag = true;
 
         // Otherwise, Recurse on that Child Node
-        else treeMark(super, levels - 1, rels[0], rels + 1, relc - 1);
+        else treeMark(super, levels - 1, superc - rel,
+                rels[0], rels + 1, relc - 1);
     }
 
     // We have Spare Levels, so Enumerate Intermediary Values
     if (relc + 1 < levels)
     {
-        for (unsigned long i = 0; i < rel; i++)
+        for (unsigned long i = 0; i < rel && i < superc; i++)
         {
             // New Node, Adjust Current Relative Value
-            treeMark(node->supers[i], levels - 1,
+            treeMark(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
         }
     }
