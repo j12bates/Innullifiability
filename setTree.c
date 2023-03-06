@@ -41,7 +41,8 @@ void treeFree(Node *, size_t, unsigned long);
 void treeMark(Node *, size_t, unsigned long, unsigned long *, size_t);
 
 // Construct Tree
-Base *treeConstruct(size_t levels, unsigned long value, unsigned long max)
+Base *treeConstruct(size_t levels, unsigned long value,
+        unsigned long max)
 {
     // We can't have more elements than possible values
     if (max < levels) return NULL;
@@ -54,7 +55,7 @@ Base *treeConstruct(size_t levels, unsigned long value, unsigned long max)
     base->maxNodes = max - levels + 1;
 
     // Allocate Entire Tree
-    base->root = treeAlloc(levels, maxNodes);
+    base->root = treeAlloc(levels, max - levels + 1);
 
     return base;
 }
@@ -90,19 +91,19 @@ Node *treeAlloc(size_t levels, unsigned long superc)
     node->supers = calloc(superc, sizeof(Node *));
 
     // Recurse to Allocate all Children
-    for (int i = 0; i < supers; i++)
-        node->super[i] = treeAlloc(levels - 1, supers - i);
+    for (int i = 0; i < superc; i++)
+        node->supers[i] = treeAlloc(levels - 1, superc - i);
 
     return node;
 }
 
 // Recursively Deallocate Tree Nodes
-void treeFree(Node *node, size_t levels, unsigned long supers)
+void treeFree(Node *node, size_t levels, unsigned long superc)
 {
     // If there are Children, Deallocate them First
     if (levels != 0)
-        for (int i = 0; i < supers; i++)
-            treeFree(node->super[i], levels - 1, supers - i);
+        for (int i = 0; i < superc; i++)
+            treeFree(node->supers[i], levels - 1, superc - i);
 
     // Deallocate Node
     free(node);
@@ -150,7 +151,7 @@ void treeMark(Node *node, size_t levels,
     if (rel < node->superc)
     {
         // The Child Node of this Value
-        Node super = node->supers[rel];
+        Node *super = node->supers[rel];
 
         // If there are no further values to catch, we're done here
         if (relc == 0) super->flag = true;
