@@ -26,13 +26,19 @@ struct Base {
     Node *root;             // Root node
     size_t levels;          // Number of levels of nodes
     unsigned long maxNodes; // Max number of nodes a node can point to
-}
+};
 
 // Tree Node Structure
 struct Node {
-    Node **super;       // Pointer to array of pointers to supersets
-    bool nullifiable;   // Flag
+    Node **supers;          // Pointers to child nodes
+    unsigned long superc;   // Number of child nodes
+    bool flag;              // Flag
 };
+
+// Function Declarations
+Node *treeAlloc(size_t, unsigned long);
+void treeFree(Node *, size_t, unsigned long);
+void treeMark(Node *, size_t, unsigned long, unsigned long *, size_t);
 
 // Construct Tree
 Base *treeConstruct(size_t levels, unsigned long value, unsigned long max)
@@ -66,20 +72,22 @@ void treeDestruct(Base *base)
 }
 
 // Recursively Allocate Tree Nodes
-Node *treeAlloc(size_t levels, unsigned long supers)
+Node *treeAlloc(size_t levels, unsigned long superc)
 {
     // Allocate Memory for Node
     Node *node = malloc(sizeof(Node));
 
-    // Default Values
-    node->super = NULL;
-    node->nullifiable = false;
+    // Initialize Values to Defaults
+    node->supers = NULL;
+    node->superc = 0;
+    node->flag = false;
 
     // Base case: if there are no more levels, nothing to enumerate
     if (levels == 0) return node;
 
     // Allocate Array of Children
-    node->super = calloc(supers, sizeof(Node *));
+    node->superc = superc;
+    node->supers = calloc(superc, sizeof(Node *));
 
     // Recurse to Allocate all Children
     for (int i = 0; i < supers; i++)
@@ -102,8 +110,8 @@ void treeFree(Node *node, size_t levels, unsigned long supers)
     return;
 }
 
-// Mark Set and Supersets as Nullifiable
-void treeMark(Base *base, unsigned long *values, size_t valuec)
+// Query a Certain Set and Supersets (actually just set the flag)
+void treeQuery(Base *base, unsigned long *values, size_t valuec)
 {
     // First Relative Value (must be 1 or greater)
     if (values[0] < 1) return;
@@ -123,15 +131,44 @@ void treeMark(Base *base, unsigned long *values, size_t valuec)
     }
 
     // Mark Nodes
-    treeMarkSuper(base->root, base->levels, rel, rels, valuec - 1);
+    treeMark(base->root, base->levels, rel, rels, valuec - 1);
 
     // Deallocate Memory
     free(rels);
+
+    return;
 }
 
 // Recursively Mark Nodes
-void treeMarkSuper(Node *node, size_t levels,
+void treeMark(Node *node, size_t levels,
         unsigned long rel, unsigned long *rels, size_t relc)
 {
+    // If we got here, there's nothing we can do
+    if (levels == 0) return;
 
+    // This Node Points to the Value Specified
+    if (rel < node->superc)
+    {
+        // The Child Node of this Value
+        Node super = node->supers[rel];
+
+        // If there are no further values to catch, we're done here
+        if (relc == 0) super->flag = true;
+
+        // Otherwise, Recurse on that Child Node
+        else treeMark(super, levels - 1, rels[0], rels + 1, relc - 1);
+    }
+
+    // We have Spare Levels, so Enumerate Intermediary Values
+    if (relc + 1 < levels)
+    {
+        for (unsigned long i = 0; i < rel; i++)
+        {
+            // New Node, Adjust Current Relative Value
+            treeMark(node->supers[i], levels - 1,
+                    rel - i - 1, rels, relc);
+        }
+    }
+
+    return;
 }
