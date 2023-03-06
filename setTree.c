@@ -37,6 +37,9 @@ struct Node {
 // Construct Tree
 Base *treeConstruct(size_t levels, unsigned long value, unsigned long max)
 {
+    // We can't have more elements than possible values
+    if (max < levels) return NULL;
+
     // Allocate Memory for Information Structure
     Base *base = malloc(sizeof(Base));
 
@@ -97,4 +100,38 @@ void treeFree(Node *node, size_t levels, unsigned long supers)
     free(node);
 
     return;
+}
+
+// Mark Set and Supersets as Nullifiable
+void treeMark(Base *base, unsigned long *values, size_t valuec)
+{
+    // First Relative Value (must be 1 or greater)
+    if (values[0] < 1) return;
+    unsigned long rel = values[0] - 1;
+
+    // Allocate Memory for Relative Values
+    unsigned long *rels = calloc(valuec - 1, sizeof(unsigned long));
+
+    // Translate Values into Relative Values
+    for (size_t i = 1; i < valuec; i++)
+    {
+        // Values must be in ascending order
+        if (values[i] <= values[i - 1]) return;
+
+        // Difference of Values, Subtract One because No Repetition
+        rels[i - 1] = values[i] - values[i - 1] - 1;
+    }
+
+    // Mark Nodes
+    treeMarkSuper(base->root, base->levels, rel, rels, valuec - 1);
+
+    // Deallocate Memory
+    free(rels);
+}
+
+// Recursively Mark Nodes
+void treeMarkSuper(Node *node, size_t levels,
+        unsigned long rel, unsigned long *rels, size_t relc)
+{
+
 }
