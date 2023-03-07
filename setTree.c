@@ -7,6 +7,17 @@
 // children corresponding to the set's lowest value, and their children
 // correspond to the next highest values in sets.
 
+// Here's an example of what a tree like this would look like, where the
+// total number of set elements is 3 and the values are 1-6:
+
+//                                       <root>
+//             ┌──────────────────────────┬┴┴───────────────┬──────────┐
+//             1                          2                 3          4
+//    ┌────────┼──────┬────┐         ┌────┴─┬────┐        ┌─┴──┐       │
+//    2        3      4    5         3      4    5        4    5       5
+// ┌─┬┴┬─┐   ┌─┼─┐   ┌┴┐   │       ┌─┼─┐   ┌┴┐   │       ┌┴┐   │       │
+// 3 4 5 6   4 5 6   5 6   6       4 5 6   5 6   6       5 6   6       6
+
 // Since these sets cannot have duplicates, a higher-level node cannot
 // have children corresponding to certain higher values, as that would
 // exhaust the number of possible values for further elements of a set.
@@ -18,6 +29,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+// Typedefs
 typedef struct Base Base;
 typedef struct Node Node;
 
@@ -145,6 +157,9 @@ void treeMark(Node *node, size_t levels, unsigned long superc,
 {
     // If we got here, there's nothing we can do
     if (levels == 0) return;
+
+    // If this node is already marked, do nothing
+    if (node->flag) return;
 
     // This Node Points to the Value Specified
     if (rel < superc)
