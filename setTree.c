@@ -81,11 +81,21 @@ struct Node {
     bool flag;                  // Flag
 };
 
+// Print Mode
+enum PrintMode {
+    PRINT_SETS_UNMARKED = false,
+    PRINT_SETS_MARKED = true,
+    PRINT_SETS_ALL
+}
+
 // Function Declarations
 Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
 void nodeMark(Node *, size_t, unsigned long,
         unsigned long, unsigned long *, size_t);
+void nodePrint(const Node *, size_t, unsigned long,
+        unsigned long *, size_t, enum Print);
+void setPrint(unsigned long *, size_t);
 
 // ============ User-Level Functions
 
@@ -158,6 +168,22 @@ void treeMark(const Base *base, unsigned long *values, size_t valuec)
     return;
 }
 
+// Print (Un)Marked Sets
+void treePrint(const Base *base, enum PrintMode mode)
+{
+    // Allocate Memory to Store Relative Values
+    unsigned long *rels = calloc(base->levels, sizeof(unsigned long));
+
+    // Print Nodes
+    nodePrint(base->root, base->levels, base->maxSuperc,
+            rels, base->levels, mode);
+
+    // Deallocate Memory
+    free(rels);
+
+    return;
+}
+
 // ============ Helper Functions
 
 // These functions are helper functions for the main user-level
@@ -187,7 +213,7 @@ Node *nodeAlloc(size_t levels, unsigned long superc)
     node->supers = calloc(superc, sizeof(Node *));
 
     // Recurse to Allocate all Descendants
-    for (int i = 0; i < superc; i++)
+    for (unsigned long i = 0; i < superc; i++)
         node->supers[i] = nodeAlloc(levels - 1, superc - i);
 
     return node;
@@ -205,7 +231,7 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 
     // If there are Children, Deallocate them First
     if (levels != 0)
-        for (int i = 0; i < superc; i++)
+        for (unsigned long i = 0; i < superc; i++)
             nodeFree(node->supers[i], levels - 1, superc - i);
 
     // Deallocate Node
@@ -266,10 +292,8 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
                 rels[0], rels + 1, relc - 1);
     }
 
-    // We have spare levels
+    // We have spare levels, so enumerate intermediary values
     if (relc + 1 < levels)
-    {
-        // So enumerate intermediary values
         for (unsigned long i = 0; i < rel && i < superc; i++)
         {
             // Recurse with the new node; adjust the relative value
@@ -278,6 +302,33 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
             nodeMark(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
         }
+
+    return;
+}
+
+// Recursively Print Nodes
+void nodePrint(const Node *node, size_t levels, unsigned long superc,
+        unsigned long *rels, size_t relc, enum Print mode)
+{
+    // Set is flagged
+    if (node->flag)
+    {
+        // Descendants are considered marked regardless of the flag, so
+        // either stop or make sure to print everything
+        if (mode == PRINT_SETS_UNMARKED) return;
+        else mode = PRINT_SETS_ALL;
+    }
+
+    // If we are at the bottom of the tree, print the set (we've handled
+    // the mode already)
+    if (levels == 0) setPrint(rels, relc);
+
+    // Otherwise, iterate through children
+    else for (unsigned long i = 0; i < superc; i++)
+    {
+        rels[levels] = i;
+        nodePrint(node->supers[i], levels - 1, superc - i,
+                rels, relc, mode);
     }
 
     return;
