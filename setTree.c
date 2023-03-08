@@ -95,8 +95,7 @@ void nodeMark(Node *, size_t, unsigned long,
 // helper functions, which are defined later on.
 
 // Construct A Tree
-Base *treeConstruct(size_t levels, unsigned long value,
-        unsigned long max)
+Base *treeConstruct(size_t levels, unsigned long max)
 {
     // We can't have more elements than possible values
     if (max < levels) return NULL;
@@ -127,7 +126,7 @@ void treeDestruct(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-void treeMark(Base *base, unsigned long *values, size_t valuec)
+void treeMark(const Base *base, unsigned long *values, size_t valuec)
 {
     // First Relative Value (must be 1 or greater)
     if (values[0] < 1) return;
@@ -239,7 +238,7 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // tree than constraining values (as otherwise we would never reach the
 // final one).
 void nodeMark(Node *node, size_t levels, unsigned long superc,
-        unsigned long rel, unsigned long *rels, size_t relc)
+        unsigned long rel, const unsigned long *rels, size_t relc)
 {
     // If this node doesn't exist, exit
     if (node == NULL) return;
