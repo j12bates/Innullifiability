@@ -45,7 +45,7 @@
 // the level maximum, which increases by one for every level. Therefore,
 // a node has a number of children equal to its total number of larger
 // siblings (values which the children represent) plus one (for the
-// increase in level. For example, in the tree above, the level-1 node
+// increase in level). For example, in the tree above, the level-1 node
 // representing 1 has 4 children, the node for 2 has 3, that for 3 has
 // 2, and the node for the value 4 has only 1 child. This pattern
 // continues across all tree levels.
@@ -56,7 +56,7 @@
 // the number of child nodes; after performing some operation, if the
 // level counter is not zero (i.e. there are child nodes), it will
 // iterate over the node's children, recursing on them with the level
-// counter decremented (as a child node is one level down) once and the
+// counter decremented once (as a child node is one level down) and the
 // child counter decremented for each iteration (as for each successive
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
@@ -221,7 +221,8 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // addition, it takes in a set of constraining 'relative values,' which
 // work like child node indices while representing the node's proper
 // value, so that the function need not keep track of its current
-// position.
+// position. For example, if the proper values are 1 and 4, the relative
+// values would be 0 and 2.
 
 // When a node has a child with the next constraining value (i.e. the
 // relative value is less than the child counter), the function recurses
