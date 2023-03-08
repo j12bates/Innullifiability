@@ -82,16 +82,17 @@ struct Node {
 };
 
 // Function Declarations
-Node *treeAlloc(size_t, unsigned long);
-void treeFree(Node *, size_t, unsigned long);
-void treeMark(Node *, size_t, unsigned long,
+Node *nodeAlloc(size_t, unsigned long);
+void nodeFree(Node *, size_t, unsigned long);
+void nodeMark(Node *, size_t, unsigned long,
         unsigned long, unsigned long *, size_t);
 
 // ============ User-Level Functions
 
 // These functions are for the main program to interact with, and they
-// make reference to proper values and the base information structure.
-// They make use of the helper functions, which are defined later on.
+// make reference to proper values and the base information structure,
+// abstracting nodes away from the user level. They make use of the
+// helper functions, which are defined later on.
 
 // Construct A Tree
 Base *treeConstruct(size_t levels, unsigned long value,
@@ -108,7 +109,7 @@ Base *treeConstruct(size_t levels, unsigned long value,
     base->maxSuperc = max - levels + 1;
 
     // Allocate Entire Tree
-    base->root = treeAlloc(levels, max - levels + 1);
+    base->root = nodeAlloc(levels, max - levels + 1);
 
     return base;
 }
@@ -117,7 +118,7 @@ Base *treeConstruct(size_t levels, unsigned long value,
 void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
-    treeFree(base->root, base->levels, base->maxSuperc);
+    nodeFree(base->root, base->levels, base->maxSuperc);
 
     // Deallocate Information Strucure
     free(base);
@@ -126,7 +127,7 @@ void treeDestruct(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-void treeQuery(Base *base, unsigned long *values, size_t valuec)
+void treeMark(Base *base, unsigned long *values, size_t valuec)
 {
     // First Relative Value (must be 1 or greater)
     if (values[0] < 1) return;
@@ -149,7 +150,7 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
     }
 
     // Mark Nodes
-    treeMark(base->root, base->levels, base->maxSuperc,
+    nodeMark(base->root, base->levels, base->maxSuperc,
             rel, rels, valuec - 1);
 
     // Deallocate Memory
@@ -163,14 +164,15 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
 // These functions are helper functions for the main user-level
 // functions. They're defined separately so that they can have a cleaner
 // recursive definition, independent of the nodes' proper corresponding
-// values.
+// values, which can be viewed as a user-level abstraction. Due to the
+// consistent pattern, we can simply ignore them here.
 
 // Recursively Allocate Tree Nodes
 
 // This is a recursive function for allocating and constructing a tree.
 // It uses the standard method for traversal to allocate nodes and
 // arrays for children.
-Node *treeAlloc(size_t levels, unsigned long superc)
+Node *nodeAlloc(size_t levels, unsigned long superc)
 {
     // Allocate Memory for Node
     Node *node = malloc(sizeof(Node));
@@ -187,7 +189,7 @@ Node *treeAlloc(size_t levels, unsigned long superc)
 
     // Recurse to Allocate all Descendants
     for (int i = 0; i < superc; i++)
-        node->supers[i] = treeAlloc(levels - 1, superc - i);
+        node->supers[i] = nodeAlloc(levels - 1, superc - i);
 
     return node;
 }
@@ -197,7 +199,7 @@ Node *treeAlloc(size_t levels, unsigned long superc)
 // This function works in a similar fashion to the allocation function,
 // except that it has to free memory AFTER iterating over children
 // rather than before. I think it's fairly obvious why this is.
-void treeFree(Node *node, size_t levels, unsigned long superc)
+void nodeFree(Node *node, size_t levels, unsigned long superc)
 {
     // If this node doesn't exist, exit
     if (node == NULL) return;
@@ -205,7 +207,7 @@ void treeFree(Node *node, size_t levels, unsigned long superc)
     // If there are Children, Deallocate them First
     if (levels != 0)
         for (int i = 0; i < superc; i++)
-            treeFree(node->supers[i], levels - 1, superc - i);
+            nodeFree(node->supers[i], levels - 1, superc - i);
 
     // Deallocate Node
     free(node);
@@ -236,7 +238,7 @@ void treeFree(Node *node, size_t levels, unsigned long superc)
 // intermediary values at all if there are more levels remaining in the
 // tree than constraining values (as otherwise we would never reach the
 // final one).
-void treeMark(Node *node, size_t levels, unsigned long superc,
+void nodeMark(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, unsigned long *rels, size_t relc)
 {
     // If this node doesn't exist, exit
@@ -260,7 +262,7 @@ void treeMark(Node *node, size_t levels, unsigned long superc,
 
         // Otherwise, recurse on that child node, shifting the set of
         // constraints up
-        else treeMark(super, levels - 1, superc - rel,
+        else nodeMark(super, levels - 1, superc - rel,
                 rels[0], rels + 1, relc - 1);
     }
 
@@ -273,7 +275,7 @@ void treeMark(Node *node, size_t levels, unsigned long superc,
             // Recurse with the new node; adjust the relative value
             // similarly to child count, but decrement as we're passing
             // to a lower level
-            treeMark(node->supers[i], levels - 1, superc - i,
+            nodeMark(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
         }
     }
