@@ -73,31 +73,24 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-// Typedefs
-typedef struct Base Base;
-typedef struct Node Node;
-
-// Set Tree Information Structure
-struct Base {
-    Node *root;                 // Root node
-    size_t levels;              // Number of levels of nodes
-    unsigned long maxSuperc;    // Max number of possible child nodes
-};
+#include "setTree.h"
 
 // Tree Node Structure
+typedef struct Node Node;
 struct Node {
     Node **supers;              // Pointers to child nodes
     bool flag;                  // Flag
 };
 
-// Print Mode
-enum PrintMode {
-    PRINT_SETS_UNMARKED = false,
-    PRINT_SETS_MARKED = true,
-    PRINT_SETS_ALL
+// Set Tree Information Structure
+typedef struct Base Base;
+struct Base {
+    Node *root;                 // Root node
+    size_t levels;              // Number of levels of nodes
+    unsigned long superc;       // Max number of possible child nodes
 };
 
-// Function Declarations
+// Helper Function Declarations
 Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
 void nodeMark(Node *, size_t, unsigned long,
@@ -124,7 +117,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
 
     // Populate Information Structure
     base->levels = levels;
-    base->maxSuperc = max - levels + 1;
+    base->superc = max - levels + 1;
 
     // Allocate Entire Tree
     base->root = nodeAlloc(levels, max - levels + 1);
@@ -136,7 +129,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
 void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
-    nodeFree(base->root, base->levels, base->maxSuperc);
+    nodeFree(base->root, base->levels, base->superc);
 
     // Deallocate Information Strucure
     free(base);
@@ -145,7 +138,8 @@ void treeDestruct(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-void treeMark(const Base *base, unsigned long *values, size_t valuec)
+void treeMark(const Base *base,
+        const unsigned long *values, size_t valuec)
 {
     // First Relative Value (must be 1 or greater)
     if (values[0] < 1) return;
@@ -158,7 +152,7 @@ void treeMark(const Base *base, unsigned long *values, size_t valuec)
     for (size_t i = 1; i < valuec; i++)
     {
         // Values must be below the maximum of the lowest level
-        if (values[i] >= base->maxSuperc + base->levels) return;
+        if (values[i] >= base->superc + base->levels) return;
 
         // Values must be in ascending order
         if (values[i] <= values[i - 1]) return;
@@ -168,7 +162,7 @@ void treeMark(const Base *base, unsigned long *values, size_t valuec)
     }
 
     // Mark Nodes
-    nodeMark(base->root, base->levels, base->maxSuperc,
+    nodeMark(base->root, base->levels, base->superc,
             rel, rels, valuec - 1);
 
     // Deallocate Memory
@@ -184,8 +178,11 @@ void treePrint(const Base *base, enum PrintMode mode)
     unsigned long *rels = calloc(base->levels, sizeof(unsigned long));
 
     // Print Nodes
-    nodePrint(base->root, base->levels, base->maxSuperc,
+    nodePrint(base->root, base->levels, base->superc,
             rels, base->levels, mode);
+
+    // Newlines
+    printf("\n");
 
     // Deallocate Memory
     free(rels);
