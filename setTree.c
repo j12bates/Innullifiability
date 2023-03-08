@@ -16,7 +16,10 @@
 // set, and the lowest-level node represents the complete set. Values
 // are in ascending order. In other words, the root node has children
 // corresponding to the set's lowest value, and their children
-// correspond to the next highest values in sets.
+// correspond to the next highest values in sets. Each node has a flag,
+// and if the flag is set, it means that any complete sets that descend
+// from that node (or that node itself, if on the lowest level) are
+// considered 'marked'.
 
 // Here's an example of what a tree like this would look like, where the
 // total number of set elements (N) is 3 and the maximum value (M) is 6:
@@ -61,6 +64,12 @@
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
 
+// TODO:    maybe relative values should be described up here?
+// TODO:    naming change; you flag a node but mark a set
+// TODO:    consistency check: recursive helper functions don't mention
+//          'sets'
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -95,7 +104,7 @@ void nodeMark(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
 void nodePrint(const Node *, size_t, unsigned long,
         unsigned long *, size_t, enum PrintMode);
-void setPrint(unsigned long *, size_t);
+void setPrint(const unsigned long *, size_t);
 
 // ============ User-Level Functions
 
@@ -307,6 +316,12 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
 }
 
 // Recursively Print Nodes
+
+// This is a recursive function for printing out sets depending on
+// whether they are marked or not. It uses the standard method for
+// traversal while keeping a record of the child indices of its current
+// path, which are used as relative values when printing out the final
+// set.
 void nodePrint(const Node *node, size_t levels, unsigned long superc,
         unsigned long *rels, size_t relc, enum PrintMode mode)
 {
@@ -326,10 +341,33 @@ void nodePrint(const Node *node, size_t levels, unsigned long superc,
     // Otherwise, iterate through children
     else for (unsigned long i = 0; i < superc; i++)
     {
-        rels[levels] = i;
+        // Keep track of relative value
+        rels[relc - levels] = i;
+
+        // Simple traversal recurse
         nodePrint(node->supers[i], levels - 1, superc - i,
                 rels, relc, mode);
     }
+
+    return;
+}
+
+// Print a Set from Relative Values
+void setPrint(const unsigned long *rels, size_t relc)
+{
+    // Proper value
+    unsigned long value = 0;
+
+    // Iterate over elements
+    for (size_t i = 0; i < relc; i++)
+    {
+        // Proper value is incremented each level and offset by relative
+        // value
+        value += rels[i] + 1;
+        printf("%c%d", (i == 0 ? '(' : ','), value);
+    }
+
+    printf("%c ", ')');
 
     return;
 }
