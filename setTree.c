@@ -87,6 +87,12 @@ void treeFree(Node *, size_t, unsigned long);
 void treeMark(Node *, size_t, unsigned long,
         unsigned long, unsigned long *, size_t);
 
+// ============ User-Level Functions
+
+// These functions are for the main program to interact with, and they
+// make reference to proper values and the base information structure.
+// They make use of the helper functions, which are defined later on.
+
 // Construct A Tree
 Base *treeConstruct(size_t levels, unsigned long value,
         unsigned long max)
@@ -118,6 +124,46 @@ void treeDestruct(Base *base)
 
     return;
 }
+
+// Mark a Certain Set and Supersets
+void treeQuery(Base *base, unsigned long *values, size_t valuec)
+{
+    // First Relative Value (must be 1 or greater)
+    if (values[0] < 1) return;
+    unsigned long rel = values[0] - 1;
+
+    // Allocate Memory for Relative Values
+    unsigned long *rels = calloc(valuec - 1, sizeof(unsigned long));
+
+    // Translate Values into Relative Values, or Child Indices
+    for (size_t i = 1; i < valuec; i++)
+    {
+        // Values must be below the maximum of the lowest level
+        if (values[i] >= base->maxSuperc + base->levels) return;
+
+        // Values must be in ascending order
+        if (values[i] <= values[i - 1]) return;
+
+        // Difference of Values, Subtract One because No Repetition
+        rels[i - 1] = values[i] - values[i - 1] - 1;
+    }
+
+    // Mark Nodes
+    treeMark(base->root, base->levels, base->maxSuperc,
+            rel, rels, valuec - 1);
+
+    // Deallocate Memory
+    free(rels);
+
+    return;
+}
+
+// ============ Helper Functions
+
+// These functions are helper functions for the main user-level
+// functions. They're defined separately so that they can have a cleaner
+// recursive definition, independent of the nodes' proper corresponding
+// values.
 
 // Recursively Allocate Tree Nodes
 
@@ -163,39 +209,6 @@ void treeFree(Node *node, size_t levels, unsigned long superc)
 
     // Deallocate Node
     free(node);
-
-    return;
-}
-
-// Mark a Certain Set and Supersets
-void treeQuery(Base *base, unsigned long *values, size_t valuec)
-{
-    // First Relative Value (must be 1 or greater)
-    if (values[0] < 1) return;
-    unsigned long rel = values[0] - 1;
-
-    // Allocate Memory for Relative Values
-    unsigned long *rels = calloc(valuec - 1, sizeof(unsigned long));
-
-    // Translate Values into Relative Values, or Child Indices
-    for (size_t i = 1; i < valuec; i++)
-    {
-        // Values must be below the maximum of the lowest level
-        if (values[i] >= base->maxSuperc + base->levels) return;
-
-        // Values must be in ascending order
-        if (values[i] <= values[i - 1]) return;
-
-        // Difference of Values, Subtract One because No Repetition
-        rels[i - 1] = values[i] - values[i - 1] - 1;
-    }
-
-    // Mark Nodes
-    treeMark(base->root, base->levels, base->maxSuperc,
-            rel, rels, valuec - 1);
-
-    // Deallocate Memory
-    free(rels);
 
     return;
 }
