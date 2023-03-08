@@ -86,15 +86,15 @@ enum PrintMode {
     PRINT_SETS_UNMARKED = false,
     PRINT_SETS_MARKED = true,
     PRINT_SETS_ALL
-}
+};
 
 // Function Declarations
 Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
 void nodeMark(Node *, size_t, unsigned long,
-        unsigned long, unsigned long *, size_t);
+        unsigned long, const unsigned long *, size_t);
 void nodePrint(const Node *, size_t, unsigned long,
-        unsigned long *, size_t, enum Print);
+        unsigned long *, size_t, enum PrintMode);
 void setPrint(unsigned long *, size_t);
 
 // ============ User-Level Functions
@@ -308,7 +308,7 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
 
 // Recursively Print Nodes
 void nodePrint(const Node *node, size_t levels, unsigned long superc,
-        unsigned long *rels, size_t relc, enum Print mode)
+        unsigned long *rels, size_t relc, enum PrintMode mode)
 {
     // Set is flagged
     if (node->flag)
