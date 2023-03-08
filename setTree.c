@@ -1,13 +1,22 @@
-// ============ Set Tree
+// ============================= SET TREE =============================
 
-// This part of the program controls a tree that has nodes representing
-// all the sets. These sets contain values from 1 to a particular
-// maximum value (M), and are without repetition. A certain set's
-// details can be accessed on this tree simply by accessing child nodes
-// corresponding to the set's element values, in ascending order. In
-// other words, the root node has children corresponding to the set's
-// lowest value, and their children correspond to the next highest
-// values in sets.
+// This library controls a tree that has nodes representing sets. These
+// sets are without repetition (i.e. do not contain the same value
+// twice), and contain a certain number of elements (N) ranging in value
+// from 1 to a particular maximum value (M).
+
+// The purpose of this library with regards to the main Innullifiability
+// program is to keep record of which sets have been shown to be
+// nullifiable. Sets which have been identified as nullifiable can be
+// marked on the tree, as well as their supersets, as a superset of a
+// nullifiable set is also nullifiable. Once all nullifiable sets have
+// been marked, the tree can be traversed to extract innullifiable sets.
+
+// Each node on the tree corresponds to a specific successive value in a
+// set, and the lowest-level node represents the complete set. Values
+// are in ascending order. In other words, the root node has children
+// corresponding to the set's lowest value, and their children
+// correspond to the next highest values in sets.
 
 // Here's an example of what a tree like this would look like, where the
 // total number of set elements (N) is 3 and the maximum value (M) is 6:
@@ -50,7 +59,7 @@
 // counter decremented (as a child node is one level down) once and the
 // child counter decremented for each iteration (as for each successive
 // child there is one fewer value to represent). It is not important for
-// a traversal function to know its position within the table.
+// a traversal function to know its position within the tree.
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -78,7 +87,7 @@ void treeFree(Node *, size_t, unsigned long);
 void treeMark(Node *, size_t, unsigned long,
         unsigned long, unsigned long *, size_t);
 
-// Construct Tree
+// Construct A Tree
 Base *treeConstruct(size_t levels, unsigned long value,
         unsigned long max)
 {
@@ -98,7 +107,7 @@ Base *treeConstruct(size_t levels, unsigned long value,
     return base;
 }
 
-// Destruct Tree
+// Destruct A Tree (Deallocate/Free)
 void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
@@ -130,7 +139,7 @@ Node *treeAlloc(size_t levels, unsigned long superc)
     // Allocate Array of Children
     node->supers = calloc(superc, sizeof(Node *));
 
-    // Recurse to Allocate all Children
+    // Recurse to Allocate all Descendants
     for (int i = 0; i < superc; i++)
         node->supers[i] = treeAlloc(levels - 1, superc - i);
 
@@ -158,7 +167,7 @@ void treeFree(Node *node, size_t levels, unsigned long superc)
     return;
 }
 
-// Query a Certain Set and Supersets
+// Mark a Certain Set and Supersets
 void treeQuery(Base *base, unsigned long *values, size_t valuec)
 {
     // First Relative Value (must be 1 or greater)
@@ -168,7 +177,7 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
     // Allocate Memory for Relative Values
     unsigned long *rels = calloc(valuec - 1, sizeof(unsigned long));
 
-    // Translate Values into Relative Values
+    // Translate Values into Relative Values, or Child Indices
     for (size_t i = 1; i < valuec; i++)
     {
         // Values must be below the maximum of the lowest level
@@ -191,7 +200,7 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
     return;
 }
 
-// Recursively Mark Nodes
+// Recursively Mark Tree Nodes
 
 // This function is a recursive function for marking nodes which have
 // particular ancestors. It uses the standard method for traversal. In
@@ -201,23 +210,19 @@ void treeQuery(Base *base, unsigned long *values, size_t valuec)
 // position.
 
 // When a node has a child with the next constraining value (i.e. the
-// relative value is less than the child counter), the function
-// recurses, removing the constraining value, unless there are no more,
-// in which case a satisfactory node has been found and is marked.
-// Marking a node means that all its descendant nodes are treated as
-// though they are marked already.
+// relative value is less than the child counter), the function recurses
+// on it, unless there are no more constraining values, in which case a
+// satisfactory node has been found and is marked. Marking a node means
+// that all its descendant nodes are treated as though they are marked
+// already.
 
 // The function also needs to account for paths through the tree that
 // contain intermediary values. For example, if the constraining values
 // are 2 and 5, the path 2 -> 3 -> 5 is satisfactory, even though 5 is
-// not immediately following 2. The way this is dealt with using
-// relative values is that the next constraining value is decremented
-// (as we are passing to a lower level) and the relative value of the
-// intermediary is subtracted as well. We can only do this with
-// intermediary values lesser than the next constraining value, and it
-// is only worth dealing with intermediary values at all if there are
-// more levels remaining in the table than constraining values (as
-// otherwise we would never reach the final one).
+// not immediately following 2. It is only worth dealing with
+// intermediary values at all if there are more levels remaining in the
+// tree than constraining values (as otherwise we would never reach the
+// final one).
 void treeMark(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, unsigned long *rels, size_t relc)
 {
@@ -240,17 +245,21 @@ void treeMark(Node *node, size_t levels, unsigned long superc,
         // satisfactory
         if (relc == 0) super->flag = true;
 
-        // Otherwise, Recurse on that Child Node
+        // Otherwise, recurse on that child node, shifting the set of
+        // constraints up
         else treeMark(super, levels - 1, superc - rel,
                 rels[0], rels + 1, relc - 1);
     }
 
-    // We have Spare Levels, so Enumerate Intermediary Values
+    // We have spare levels
     if (relc + 1 < levels)
     {
+        // So enumerate intermediary values
         for (unsigned long i = 0; i < rel && i < superc; i++)
         {
-            // New Node, Adjust Current Relative Value
+            // Recurse with the new node; adjust the relative value
+            // similarly to child count, but decrement as we're passing
+            // to a lower level
             treeMark(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
         }
