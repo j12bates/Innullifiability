@@ -6,8 +6,8 @@
 // from 1 to a particular maximum value (M).
 
 // The purpose of this library with regards to the main Innullifiability
-// program is to keep record of which sets have been shown to be
-// nullifiable. Sets which have been identified as nullifiable can be
+// program is to keep a record of which sets have been shown to be
+// nullifiable. Sets that have been identified as nullifiable can be
 // marked on the tree, as well as their supersets, as a superset of a
 // nullifiable set is also nullifiable. Once all nullifiable sets have
 // been marked, the tree can be traversed to extract innullifiable sets.
