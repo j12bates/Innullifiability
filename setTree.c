@@ -17,9 +17,8 @@
 // are in ascending order. In other words, the root node has children
 // corresponding to the set's lowest value, and their children
 // correspond to the next highest values in sets. Each node has a flag,
-// and if the flag is set, it means that any complete sets that descend
-// from that node (or that node itself, if on the lowest level) are
-// considered 'marked'.
+// and if the flag is set, it means that any sets that descend from that
+// node are considered 'marked'.
 
 // Here's an example of what a tree like this would look like, where the
 // total number of set elements (N) is 3 and the maximum value (M) is 6:
@@ -39,6 +38,9 @@
 // cannot be too great such that later elements cannot take on a valid
 // value (if the first value is 5, the second must be 6, so what can the
 // third be?).
+
+// The 'relative value' of a node is essentially its index as a child.
+// TODO talk about relative value a bit more?
 
 // The number of children a node has is simple to calculate. The root
 // has the maximum number of values, which is calculated by the
@@ -64,11 +66,6 @@
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
 
-// TODO:    maybe relative values should be described up here?
-// TODO:    naming change; you flag a node but mark a set
-// TODO:    consistency check: recursive helper functions don't mention
-//          'sets'
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -93,7 +90,7 @@ struct Base {
 // Helper Function Declarations
 Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
-void nodeMark(Node *, size_t, unsigned long,
+void nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
 void nodePrint(const Node *, size_t, unsigned long,
         unsigned long *, size_t, enum PrintMode);
@@ -161,8 +158,8 @@ void treeMark(const Base *base,
         rels[i - 1] = values[i] - values[i - 1] - 1;
     }
 
-    // Mark Nodes
-    nodeMark(base->root, base->levels, base->superc,
+    // Flag Nodes Appropriately
+    nodeFlag(base->root, base->levels, base->superc,
             rel, rels, valuec - 1);
 
     // Deallocate Memory
@@ -246,9 +243,9 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
     return;
 }
 
-// Recursively Mark Tree Nodes
+// Recursively Flag Tree Nodes
 
-// This function is a recursive function for marking nodes which have
+// This function is a recursive function for flagging nodes which have
 // particular ancestors. It uses the standard method for traversal. In
 // addition, it takes in a set of constraining 'relative values,' which
 // work like child node indices while representing the node's proper
@@ -259,9 +256,9 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // When a node has a child with the next constraining value (i.e. the
 // relative value is less than the child counter), the function recurses
 // on it, unless there are no more constraining values, in which case a
-// satisfactory node has been found and is marked. Marking a node means
-// that all its descendant nodes are treated as though they are marked
-// already.
+// satisfactory node has been found and is flagged. Flagging a node
+// means that all its descendant nodes are treated as though they are
+// flagged already.
 
 // The function also needs to account for paths through the tree that
 // contain intermediary values. For example, if the constraining values
@@ -270,7 +267,7 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // intermediary values at all if there are more levels remaining in the
 // tree than constraining values (as otherwise we would never reach the
 // final one).
-void nodeMark(Node *node, size_t levels, unsigned long superc,
+void nodeFlag(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, const unsigned long *rels, size_t relc)
 {
     // If this node doesn't exist, exit
@@ -279,7 +276,7 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
     // If we got to the lowest level, there's nothing to do
     if (levels == 0) return;
 
-    // If this node is already marked, no need to go further
+    // If this node is already flagged, no need to go further
     if (node->flag) return;
 
     // This node has a child that represents the value we want
@@ -294,7 +291,7 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
 
         // Otherwise, recurse on that child node, shifting the set of
         // constraints up
-        else nodeMark(super, levels - 1, superc - rel,
+        else nodeFlag(super, levels - 1, superc - rel,
                 rels[0], rels + 1, relc - 1);
     }
 
@@ -305,14 +302,14 @@ void nodeMark(Node *node, size_t levels, unsigned long superc,
             // Recurse with the new node; adjust the relative value
             // similarly to child count, but decrement as we're passing
             // to a lower level
-            nodeMark(node->supers[i], levels - 1, superc - i,
+            nodeFlag(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
         }
 
     return;
 }
 
-// Recursively Print Nodes
+// Recursively Print Sets
 
 // This is a recursive function for printing out sets depending on
 // whether they are marked or not. It uses the standard method for
@@ -325,8 +322,8 @@ void nodePrint(const Node *node, size_t levels, unsigned long superc,
     // Set is flagged
     if (node->flag)
     {
-        // Descendants are considered marked regardless of the flag, so
-        // either stop or make sure to print everything
+        // Descendant sets are considered marked regardless, so either
+        // stop or make sure to print everything
         if (mode == PRINT_SETS_UNMARKED) return;
         else mode = PRINT_SETS_ALL;
     }
