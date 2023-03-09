@@ -66,6 +66,8 @@
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
 
+// TODO error messages (maybe return codes?)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -319,6 +321,9 @@ void nodeFlag(Node *node, size_t levels, unsigned long superc,
 void nodePrint(const Node *node, size_t levels, unsigned long superc,
         unsigned long *rels, size_t relc, enum PrintMode mode)
 {
+    // If this node doesn't exist, exit
+    if (node == NULL) return;
+
     // Set is flagged
     if (node->flag)
     {
@@ -328,9 +333,12 @@ void nodePrint(const Node *node, size_t levels, unsigned long superc,
         else mode = PRINT_SETS_ALL;
     }
 
-    // If we are at the bottom of the tree, print the set (we've handled
-    // the mode already)
-    if (levels == 0) setPrint(rels, relc);
+    // If we are at the bottom of the tree, print the set (unless we're
+    // still in MARKED mode, in which case we already know it isn't)
+    if (levels == 0)
+    {
+        if (mode != PRINT_SETS_MARKED) setPrint(rels, relc);
+    }
 
     // Otherwise, iterate through children
     else for (unsigned long i = 0; i < superc; i++)
