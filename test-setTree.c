@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
     treeMark(tree, subset, 2);
     printf("Sets containing 2 and 4 marked\n");
 
-    treeDestruct(tree);
     unsigned long three[1] = {3};
     treeMark(tree, three, 1);
     printf("Sets containing 3 marked\n\n");
@@ -27,6 +26,7 @@ int main(int argc, char *argv[])
     treePrint(tree, PRINT_SETS_UNMARKED);
     printf("Should be all the others\n\n");
 
+    treeDestruct(tree);
     printf("Tree freed\n");
 
     return 0;
