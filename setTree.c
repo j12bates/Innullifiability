@@ -92,9 +92,9 @@ struct Base {
 // Helper Function Declarations
 Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
-void nodeFlag(Node *, size_t, unsigned long,
+int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
-void nodePrint(const Node *, size_t, unsigned long,
+long long nodePrint(const Node *, size_t, unsigned long,
         unsigned long *, size_t, enum PrintMode);
 void setPrint(const unsigned long *, size_t);
 
@@ -106,6 +106,7 @@ void setPrint(const unsigned long *, size_t);
 // helper functions, which are defined later on.
 
 // Construct A Tree
+// Returns NULL on input or memory error
 Base *treeConstruct(size_t levels, unsigned long max)
 {
     // We can't have more elements than possible values
@@ -113,6 +114,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
 
     // Allocate Memory for Information Structure
     Base *base = malloc(sizeof(Base));
+    if (base == NULL) return NULL;
 
     // Populate Information Structure
     base->levels = levels;
@@ -120,6 +122,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
 
     // Allocate Entire Tree
     base->root = nodeAlloc(levels, max - levels + 1);
+    if (base->root == NULL) return NULL;
 
     return base;
 }
@@ -137,47 +140,57 @@ void treeDestruct(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-void treeMark(const Base *base,
+// Returns 0 on success, -1 on memory or error, -2 on input error
+int treeMark(const Base *base,
         const unsigned long *values, size_t valuec)
 {
+    // If tree doesn't exist, exit
+    if (base == NULL) return -1;
+
     // First Relative Value (must be 1 or greater)
-    if (values[0] < 1) return;
+    if (values[0] < 1) return -2;
     unsigned long rel = values[0] - 1;
 
     // Allocate Memory for Relative Values
     unsigned long *rels = calloc(valuec - 1, sizeof(unsigned long));
+    if (rels == NULL) return -1;
 
     // Translate Values into Relative Values, or Child Indices
     for (size_t i = 1; i < valuec; i++)
     {
         // Values must be below the maximum of the lowest level
-        if (values[i] >= base->superc + base->levels) return;
+        if (values[i] >= base->superc + base->levels) return -2;
 
         // Values must be in ascending order
-        if (values[i] <= values[i - 1]) return;
+        if (values[i] <= values[i - 1]) return -2;
 
         // Difference of Values, Subtract One because No Repetition
         rels[i - 1] = values[i] - values[i - 1] - 1;
     }
 
     // Flag Nodes Appropriately
-    nodeFlag(base->root, base->levels, base->superc,
-            rel, rels, valuec - 1);
+    if (nodeFlag(base->root, base->levels, base->superc,
+            rel, rels, valuec - 1) == -1) return -1;
 
     // Deallocate Memory
     free(rels);
 
-    return;
+    return 0;
 }
 
 // Print (Un)Marked Sets
-void treePrint(const Base *base, enum PrintMode mode)
+// Returns 0 on success, -1 on memory error
+long long treePrint(const Base *base, enum PrintMode mode)
 {
+    // If tree doesn't exist, exit
+    if (base == NULL) return -1;
+
     // Allocate Memory to Store Relative Values
     unsigned long *rels = calloc(base->levels, sizeof(unsigned long));
+    if (rels == NULL) return -1;
 
     // Print Nodes
-    nodePrint(base->root, base->levels, base->superc,
+    long long n = nodePrint(base->root, base->levels, base->superc,
             rels, base->levels, mode);
 
     // Newlines
@@ -186,7 +199,7 @@ void treePrint(const Base *base, enum PrintMode mode)
     // Deallocate Memory
     free(rels);
 
-    return;
+    return n;
 }
 
 // ============ Helper Functions
@@ -198,6 +211,7 @@ void treePrint(const Base *base, enum PrintMode mode)
 // consistent pattern, we can simply ignore them here.
 
 // Recursively Allocate Tree Nodes
+// Returns NULL on memory error
 
 // This is a recursive function for allocating and constructing a tree.
 // It uses the standard method for traversal to allocate nodes and
@@ -206,6 +220,7 @@ Node *nodeAlloc(size_t levels, unsigned long superc)
 {
     // Allocate Memory for Node
     Node *node = malloc(sizeof(Node));
+    if (node == NULL) return NULL;
 
     // Initialize Values to Defaults
     node->supers = NULL;
@@ -216,6 +231,7 @@ Node *nodeAlloc(size_t levels, unsigned long superc)
 
     // Allocate Array of Children
     node->supers = calloc(superc, sizeof(Node *));
+    if (node->supers == NULL) return NULL;
 
     // Recurse to Allocate all Descendants
     for (unsigned long i = 0; i < superc; i++)
@@ -246,6 +262,7 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 }
 
 // Recursively Flag Tree Nodes
+// Returns 0 on success, -1 on memory error
 
 // This function is a recursive function for flagging nodes which have
 // particular ancestors. It uses the standard method for traversal. In
@@ -269,17 +286,17 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // intermediary values at all if there are more levels remaining in the
 // tree than constraining values (as otherwise we would never reach the
 // final one).
-void nodeFlag(Node *node, size_t levels, unsigned long superc,
+int nodeFlag(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, const unsigned long *rels, size_t relc)
 {
     // If this node doesn't exist, exit
-    if (node == NULL) return;
+    if (node == NULL) return -1;
 
     // If we got to the lowest level, there's nothing to do
-    if (levels == 0) return;
+    if (levels == 0) return 0;
 
     // If this node is already flagged, no need to go further
-    if (node->flag) return;
+    if (node->flag) return 0;
 
     // This node has a child that represents the value we want
     if (rel < superc)
@@ -304,32 +321,33 @@ void nodeFlag(Node *node, size_t levels, unsigned long superc,
             // Recurse with the new node; adjust the relative value
             // similarly to child count, but decrement as we're passing
             // to a lower level
-            nodeFlag(node->supers[i], levels - 1, superc - i,
-                    rel - i - 1, rels, relc);
+            if (nodeFlag(node->supers[i], levels - 1, superc - i,
+                    rel - i - 1, rels, relc) == -1) return -1;
         }
 
-    return;
+    return 0;
 }
 
 // Recursively Print Sets
+// Returns 0 on success, -1 on memory error
 
 // This is a recursive function for printing out sets depending on
 // whether they are marked or not. It uses the standard method for
 // traversal while keeping a record of the child indices of its current
 // path, which are used as relative values when printing out the final
 // set.
-void nodePrint(const Node *node, size_t levels, unsigned long superc,
+long long nodePrint(const Node *node, size_t levels, unsigned long superc,
         unsigned long *rels, size_t relc, enum PrintMode mode)
 {
     // If this node doesn't exist, exit
-    if (node == NULL) return;
+    if (node == NULL) return -1;
 
     // Set is flagged
     if (node->flag)
     {
         // Descendant sets are considered marked regardless, so either
         // stop or make sure to print everything
-        if (mode == PRINT_SETS_UNMARKED) return;
+        if (mode == PRINT_SETS_UNMARKED) return 0;
         else mode = PRINT_SETS_ALL;
     }
 
@@ -347,11 +365,11 @@ void nodePrint(const Node *node, size_t levels, unsigned long superc,
         rels[relc - levels] = i;
 
         // Simple traversal recurse
-        nodePrint(node->supers[i], levels - 1, superc - i,
-                rels, relc, mode);
+        if (nodePrint(node->supers[i], levels - 1, superc - i,
+                rels, relc, mode) == -1) return -1;
     }
 
-    return;
+    return 0;
 }
 
 // Print a Set from Relative Values

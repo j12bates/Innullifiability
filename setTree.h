@@ -25,9 +25,9 @@ Base *treeConstruct(size_t, unsigned long);
 void treeDestruct(Base *);
 
 // Mark a Certain Set and Supersets
-void treeMark(const Base *, const unsigned long *, size_t);
+int treeMark(const Base *, const unsigned long *, size_t);
 
 // Print (Un)Marked Sets
-void treePrint(const Base *, enum PrintMode);
+long long treePrint(const Base *, enum PrintMode);
 
 #endif
