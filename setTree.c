@@ -66,8 +66,6 @@
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
 
-// TODO error messages (maybe return codes?)
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -94,9 +92,9 @@ Node *nodeAlloc(size_t, unsigned long);
 void nodeFree(Node *, size_t, unsigned long);
 int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
-long long nodePrint(const Node *, size_t, unsigned long,
-        unsigned long *, size_t, enum PrintMode);
-void setPrint(const unsigned long *, size_t);
+long long nodeQuery(const Node *, size_t, unsigned long,
+        unsigned long *, size_t, PrintMode, FILE *);
+void setPrint(FILE *, const unsigned long *, size_t);
 
 // ============ User-Level Functions
 
@@ -178,9 +176,9 @@ int treeMark(const Base *base,
     return 0;
 }
 
-// Print (Un)Marked Sets
-// Returns 0 on success, -1 on memory error
-long long treePrint(const Base *base, enum PrintMode mode)
+// Query (Un)Marked Sets
+// Returns number of sets on success, -1 on memory error
+long long treeQuery(const Base *base, PrintMode mode, FILE *out)
 {
     // If tree doesn't exist, exit
     if (base == NULL) return -1;
@@ -190,8 +188,8 @@ long long treePrint(const Base *base, enum PrintMode mode)
     if (rels == NULL) return -1;
 
     // Print Nodes
-    long long n = nodePrint(base->root, base->levels, base->superc,
-            rels, base->levels, mode);
+    long long n = nodeQuery(base->root, base->levels, base->superc,
+            rels, base->levels, mode, out);
 
     // Newlines
     printf("\n");
@@ -328,16 +326,16 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     return 0;
 }
 
-// Recursively Print Sets
-// Returns 0 on success, -1 on memory error
+// Recursively Query Nodes
+// Returns number of sets on success, -1 on memory error
 
-// This is a recursive function for printing out sets depending on
-// whether they are marked or not. It uses the standard method for
+// This is a recursive function for querying sets descending from a node
+// based on marked/unmarked status. It uses the standard method for
 // traversal while keeping a record of the child indices of its current
 // path, which are used as relative values when printing out the final
 // set.
-long long nodePrint(const Node *node, size_t levels, unsigned long superc,
-        unsigned long *rels, size_t relc, enum PrintMode mode)
+long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
+        unsigned long *rels, size_t relc, PrintMode mode, FILE *out)
 {
     // If this node doesn't exist, exit
     if (node == NULL) return -1;
@@ -351,11 +349,19 @@ long long nodePrint(const Node *node, size_t levels, unsigned long superc,
         else mode = PRINT_SETS_ALL;
     }
 
-    // If we are at the bottom of the tree, print the set (unless we're
-    // still in MARKED mode, in which case we already know it isn't)
+    // Counter for number of sets
+    long long setc = 0;
+
+    // If we are at the bottom of the tree, print/count the set (unless
+    // we're still in MARKED mode, in which case we already know it
+    // isn't)
     if (levels == 0)
     {
-        if (mode != PRINT_SETS_MARKED) setPrint(rels, relc);
+        if (mode != PRINT_SETS_MARKED)
+        {
+            setPrint(out, rels, relc);
+            setc = 1;
+        }
     }
 
     // Otherwise, iterate through children
@@ -365,15 +371,21 @@ long long nodePrint(const Node *node, size_t levels, unsigned long superc,
         rels[relc - levels] = i;
 
         // Simple traversal recurse
-        if (nodePrint(node->supers[i], levels - 1, superc - i,
-                rels, relc, mode) == -1) return -1;
+        long long n = nodeQuery(node->supers[i], levels - 1, superc - i,
+                rels, relc, mode, out);
+
+        // Propogate any error
+        if (n == -1) return -1;
+
+        // Add to counter
+        setc += n;
     }
 
-    return 0;
+    return setc;
 }
 
 // Print a Set from Relative Values
-void setPrint(const unsigned long *rels, size_t relc)
+void setPrint(FILE *out, const unsigned long *rels, size_t relc)
 {
     // Proper value
     unsigned long value = 0;
@@ -384,7 +396,7 @@ void setPrint(const unsigned long *rels, size_t relc)
         // Proper value is incremented each level and offset by relative
         // value
         value += rels[i] + 1;
-        printf("%c%d", (i == 0 ? '(' : ','), value);
+        fprintf(out, "%c%d", (i == 0 ? '(' : ','), value);
     }
 
     printf("%c ", ')');

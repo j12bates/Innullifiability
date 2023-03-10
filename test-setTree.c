@@ -26,16 +26,16 @@ int main(int argc, char *argv[])
 
     long long queryReturnCode;
 
-    queryReturnCode = treePrint(tree, PRINT_SETS_ALL);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_ALL, stdout);
     printf("Should be all the sets, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treePrint(tree, PRINT_SETS_MARKED);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_MARKED, stdout);
     printf("Should be all those we marked, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treePrint(tree, PRINT_SETS_UNMARKED);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_UNMARKED, stdout);
     printf("Should be all the others, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treePrint(NULL, PRINT_SETS_ALL);
+    queryReturnCode = treeQuery(NULL, PRINT_SETS_ALL, stdout);
     printf("Should be an error, %d\n\n", queryReturnCode);
 
     treeDestruct(tree);
