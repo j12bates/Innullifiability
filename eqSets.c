@@ -6,12 +6,16 @@
 // Maximum Set Value (M)
 unsigned long max;
 
+// Final Set Size (N)
+size_t size;
+
 // 2-D Array of Equivalent Pairs by Value
 long long **eqPairs = NULL;
+size_t maxPairs;
 
 // Function Declarations
-void enumerateEqPairs(int);
-bool storeEqPair(int, size_t, int, int);
+void enumerateEqPairs(unsigned long);
+bool storeEqPair(unsigned long, size_t, unsigned long, unsigned long);
 
 // Reset Equivalent Set Generation
 // Returns 0 on success, -1 on memory error
@@ -49,68 +53,132 @@ bool storeEqPair(int, size_t, int, int);
 //     M - 3 + M / 2 - 2
 // or:
 //     3M / 2 - 5
-int eqSetsInit(unsigned long maxValue)
+int eqSetsInit(unsigned long maxValue, size_t setSize)
 {
     // Free everything in case there was something here before
     if (eqPairs != NULL)
         for (unsigned long i = 0; i < max; i++)
             free(eqPairs[i]);
 
-    // Set Maximum Set Value
+    // Set Variables
     max = maxValue;
+    size = setSize;
 
     // Each value gets an array
     eqPairs = calloc(max, sizeof(long long *));
     if (eqPairs == NULL) return -1;
 
     // Max equivalent pairs calculation from earlier
-    size_t maxEqPairs = max - 2;
-    if (max > 5) maxEqPairs = 3 * max / 2 - 5;
+    maxPairs = max - 2;
+    if (max > 5) maxPairs = 3 * max / 2 - 5;
 
     // Allocate Memory and Enumerate for all Values
-    for (int i = 1; i <= max; i++) {
-        eqPairs[i - 1] = calloc(maxEqPairs, sizeof(long long int));
+    for (unsigned long i = 1; i <= max; i++) {
+        eqPairs[i - 1] = calloc(maxPairs, sizeof(long long));
         if (eqPairs[i - 1] == NULL) return -1;
 
         enumerateEqPairs(i);
     }
 }
 
+// Recursively Expand Nullifiable Set
+// Returns 0 on success, -1 on memory error
+int eqSets(const unsigned long *set, size_t setc,
+        void (*fn)(const unsigned long *, size_t))
+{
+    // If we've reached the maximum, exit successfully
+    if (setc == size) return 0;
+
+    // Iterate over the values in the set
+    for (size_t i = 0; i < setc; i++)
+    {
+        // Iterate over the equivalent pairs for that value
+        for (size_t j = 0; j < maxPairs; j++)
+        {
+            // Exit this loop if there are no more equivalent pairs
+            if (eqPairs[i][j] == 0) break;
+
+            // The values in that equivalent pair
+            unsigned long pairA = (unsigned long) eqPairs[i][j];
+            unsigned long pairB = (unsigned long) (eqPairs[i][j] >> 32);
+
+            // Allocate space for expanded set
+            unsigned long *newSet =
+                calloc(setc + 1, sizeof(unsigned long));
+            if (newSet == NULL) return -1;
+
+            // Insert values one at a time: `pairA` will contain the
+            // next new value until both values have been inserted, at
+            // which point it will be 0
+            size_t index = 0;
+            for (size_t k = 0; k < setc; k++)
+            {
+                // We can't have a repetition
+                if (set[k] == pairA) break;
+
+                // Insert the next new value if needed
+                if (set[k] > pairA && pairA != 0)
+                {
+                    newSet[index++] = pairA;
+                    pairA = pairB;
+                    pairB = 0;
+                }
+
+                // Insert the next value unless it's being replaced
+                if (k != i) newSet[index++] = set[k];
+            }
+
+            // If we haven't populated every index, we don't have a set
+            if (index < setc + 1) continue;
+
+            // Otherwise, call function
+            fn(newSet, setc + 1);
+
+            // Recurse on this new set
+            if (eqSets(newSet, setc + 1, fn) == -1) return -1;
+        }
+    }
+}
+
 // ============ Helper Functions
 
 // Enumerate Equivalent Pairs for a Given Value
-void enumerateEqPairs(int value)
+void enumerateEqPairs(unsigned long value)
 {
     size_t index = 0;
 
     // Sums: iterate over smaller addends
-    for (int i = 1; i <= value / 2; i++)
+    for (unsigned long i = 1; i <= value / 2; i++)
         if (storeEqPair(value, index, i, value - i)) index++;
 
     // Diffs: iterate over subtrahends
-    for (int i = 1; i <= max - value; i++)
+    for (unsigned long i = 1; i <= max - value; i++)
         if (storeEqPair(value, index, i, value + i)) index++;
 
     // Prods: iterate over smaller factors
-    for (int i = 2; i <= value / i; i++) {
+    for (unsigned long i = 2; i <= value / i; i++) {
         if (value % i != 0) continue;               // only if it works
         if (storeEqPair(value, index, i, value / i)) index++;
     }
 
     // Quots: iterate over divisors
-    for (int i = 2; i <= max / value; i++)
+    for (unsigned long i = 2; i <= max / value; i++)
         if (storeEqPair(value, index, i, value * i)) index++;
 }
 
 // Check if Two Values are a Valid Equivalent Pair and Store if so
-bool storeEqPair(int value, size_t index, int a, int b)
+bool storeEqPair(unsigned long value, size_t index,
+        unsigned long a, unsigned long b)
 {
     // No duplicates rule
     if (a == value || b == value || a == b) return false;
 
+    // Smaller value rule
+    if (a > b) return false;
+
     // Store as a single long long
-    eqPairs[value - 1][index]   = (long long int) a
-                                | (long long int) b << 32;
+    eqPairs[value - 1][index]   = (long long) a
+                                | (long long) b << 32;
 
     return true;
 }
