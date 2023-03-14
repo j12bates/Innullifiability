@@ -1,5 +1,52 @@
 // ========================== EQUIVALENT SETS ==========================
 
+// This program is my approach to finding nullifiable sets quickly and
+// efficiently. Rather than enumerating each set and performing some
+// exhaustive test on it to see if it's nullifiable, this will instead
+// 'dream up' nullifiable sets based on patterns that lead to
+// nullifiability.
+
+// This all works based off the notion of 'equivalent pairs'--pairs of
+// values that, by some allowed arithmetic operation, equal a particular
+// value. For example, the value 2 could have the equivalent pair
+// (3, 5), since 5 - 3 = 2, and (4, 8), since 8 / 4 = 2. Since we are
+// only dealing with sets without repetition, things like (1, 1) or 
+// (2, 4) don't count. Given a set, any value can be substituted with
+// any of its equivalent pairs (assuming that wouldn't cause a
+// repetition with some other value), and that set can still equal at
+// least all the same values by performing arithmetic operations, since
+// we know the values of the equivalent pair can definitely be made
+// equal to the original value.
+
+// This program computes all equivalent pairs of values that can occur
+// in a set, that is, pairs equivalent to values 1-M by means of only
+// values 1-M. Then, for any set given, it can find 'equivalent sets' by
+// iterating over every value in a set and replacing it with every
+// equivalent pair for that value, all the while calling some
+// function provided by a function pointer, passing in sets as they are
+// generated, and recursing on new sets as they are generated.
+
+// So what does this have to do with nullifiability? Well, the only way
+// for a set to be nullifiable is by it having some means of getting a
+// value to equal another value, so that they can be subtracted and then
+// that zero can be multiplied to any remaining values. Given this, we
+// can start from a base set containing two of the same value, and then
+// repeatedly expand by equivalent pairs up to as many elements as a set
+// can allow. As we keep going, the set will continue to have a route to
+// equalling zero. Any sets we calculate along the way, as well as their
+// supersets, can be marked as nullifiable.
+
+// It's important to realize though that this cannot cover all possible
+// equivalent sets. The equivalent pairs, being 1-M only, cannot cover
+// arithmetic results going outside the range of values used within the
+// sets, even though those may be necessary for a set being equivalent
+// to a particular value. I could fix this by implementing something
+// complex which keeps track of the number of arithmetic steps and all
+// the possible values at each step and blah blah blah complicated, but
+// for what it's worth, this will eliminate a whole lot of sets anyways,
+// and quickly. Nevertheless, there will have to be a sort of manual
+// check to essentially weed out any stragglers after this passes over.
+
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -17,12 +64,16 @@ size_t maxPairs;
 void enumerateEqPairs(unsigned long);
 bool storeEqPair(unsigned long, size_t, unsigned long, unsigned long);
 
-// Reset Equivalent Set Generation
-// Returns 0 on success, -1 on memory error
+// Reconfigure Equivalent Set Generation
+// Returns 0 on success, -1 on memory error, -2 on input error
 
 // This function will reset the equivalent set generation program, which
 // just involves making space for all the equivalent pairs we need and
-// generating them.
+// generating them. It takes in the maximum set value (M) and the number
+// of set elements (N). To avoid repetition, N cannot be less than M,
+// and also it doesn't make any sense for N to be less than 2. But you
+// could just call this function with invalid values to deallocate the
+// dynamic memory. That'd be much appreciated.
 
 // In order to calculate how much space we need to allocate, we'd like
 // to know the maximum number of equivalent pairs a value could have.
@@ -60,6 +111,10 @@ int eqSetsInit(unsigned long maxValue, size_t setSize)
         for (unsigned long i = 0; i < max; i++)
             free(eqPairs[i]);
 
+    // Exit if these values don't make sense
+    eqPairs = NULL;
+    if (size > max || max < 2) return -2;
+
     // Set Variables
     max = maxValue;
     size = setSize;
@@ -81,13 +136,35 @@ int eqSetsInit(unsigned long maxValue, size_t setSize)
     }
 }
 
-// Recursively Expand Nullifiable Set
-// Returns 0 on success, -1 on memory error
+// Enumerate Equivalent Sets
+// Returns 0 on success, -1 on memory error, -2 on input error
+
+// This function iteratively and recursively expands a set using
+// equivalent pairs. It takes in a set, which must be an array of
+// numbers in ascending order and with no repetitions, except for the
+// important case in which the set is of length two, as either way one
+// of the values will be replaced with an equivalent pair which cannot
+// contain the same value anyways. The sets it generates are guaranteed
+// to have no repetitions and be in ascending order as well. These sets
+// are passed into the function passed in here the moment they are
+// generated.
 int eqSets(const unsigned long *set, size_t setc,
         void (*fn)(const unsigned long *, size_t))
 {
     // If we've reached the maximum, exit successfully
     if (setc == size) return 0;
+
+    // Exit with input error if we're not in ascending order, or if
+    // there are no repetitions, except for the length-two case
+    for (size_t i = 1; i < setc; i++)
+    {
+        if (set[k - 1] > set[k]) return -2;
+        if (set[k - 1] == set[k] && setc != 2) return -2;
+    }
+
+    // Allocate space for expanded set
+    unsigned long *newSet = calloc(setc + 1, sizeof(unsigned long));
+    if (newSet == NULL) return -1;
 
     // Iterate over the values in the set
     for (size_t i = 0; i < setc; i++)
@@ -98,25 +175,20 @@ int eqSets(const unsigned long *set, size_t setc,
             // Exit this loop if there are no more equivalent pairs
             if (eqPairs[i][j] == 0) break;
 
-            // The values in that equivalent pair
+            // The values in the equivalent pair
             unsigned long pairA = (unsigned long) eqPairs[i][j];
             unsigned long pairB = (unsigned long) (eqPairs[i][j] >> 32);
 
-            // Allocate space for expanded set
-            unsigned long *newSet =
-                calloc(setc + 1, sizeof(unsigned long));
-            if (newSet == NULL) return -1;
-
             // Insert values one at a time: `pairA` will contain the
-            // next new value until both values have been inserted, at
-            // which point it will be 0
+            // next new (equivalent pair) value until both values have
+            // been inserted, at which point it will be 0
             size_t index = 0;
             for (size_t k = 0; k < setc; k++)
             {
-                // We can't have a repetition
+                // Try again if the new value causes a repetition
                 if (set[k] == pairA) break;
 
-                // Insert the next new value if needed
+                // Insert the next new value if it would be in order
                 if (set[k] > pairA && pairA != 0)
                 {
                     newSet[index++] = pairA;
@@ -124,7 +196,8 @@ int eqSets(const unsigned long *set, size_t setc,
                     pairB = 0;
                 }
 
-                // Insert the next value unless it's being replaced
+                // Insert the next original value unless it's being
+                // replaced
                 if (k != i) newSet[index++] = set[k];
             }
 
@@ -138,6 +211,9 @@ int eqSets(const unsigned long *set, size_t setc,
             if (eqSets(newSet, setc + 1, fn) == -1) return -1;
         }
     }
+
+    // Deallocate memory
+    free(newSet);
 }
 
 // ============ Helper Functions
@@ -166,7 +242,9 @@ void enumerateEqPairs(unsigned long value)
         if (storeEqPair(value, index, i, value * i)) index++;
 }
 
-// Check if Two Values are a Valid Equivalent Pair and Store if so
+// Store an Equivalent Pair if Valid
+// Returns a boolean corresponding to whether it was stored or not, to
+// aid in keeping count
 bool storeEqPair(unsigned long value, size_t index,
         unsigned long a, unsigned long b)
 {
