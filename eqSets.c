@@ -171,17 +171,20 @@ int eqSets(const unsigned long *set, size_t setc,
     // Iterate over the values in the set
     for (size_t i = 0; i < setc; i++)
     {
+	// Get the value in that position
+	unsigned long value = set[i];
+
         // Iterate over the equivalent pairs for that value
         for (size_t j = 0; j < maxPairs; j++)
         {
             // Exit this loop if there are no more equivalent pairs
-            if (eqPairs[i][j] == 0) break;
+            if (eqPairs[value][j] == 0) break;
 
             // The values in the equivalent pair
-            unsigned long pairA =
-                    (unsigned long) eqPairs[i][j] & 0xFFFFFFFF;
-            unsigned long pairB =
-                    (unsigned long) (eqPairs[i][j] >> 32) & 0xFFFFFFFF;
+            unsigned long pairA = (unsigned long)
+                    eqPairs[value][j] & 0xFFFFFFFF;
+            unsigned long pairB = (unsigned long)
+                    (eqPairs[value][j] >> 32) & 0xFFFFFFFF;
 
             // Insert values one at a time: `pairA` will contain the
             // next new (equivalent pair) value until both values have
