@@ -57,6 +57,8 @@ unsigned long max;
 size_t size;
 
 // 2-D Array of Equivalent Pairs by Value
+// It's worth noting that this is indexed from zero, but the first
+// element points to the equivalent pairs of the value one.
 long long **eqPairs = NULL;
 size_t maxPairs;
 
@@ -174,17 +176,20 @@ int eqSets(const unsigned long *set, size_t setc,
 	// Get the value in that position
 	unsigned long value = set[i];
 
+	// If this is a repeat, it won't result in anything new
+	if (i > 0) if (set[i] == set[i - 1]) continue;
+
         // Iterate over the equivalent pairs for that value
         for (size_t j = 0; j < maxPairs; j++)
         {
             // Exit this loop if there are no more equivalent pairs
-            if (eqPairs[value][j] == 0) break;
+            if (eqPairs[value - 1][j] == 0) break;
 
             // The values in the equivalent pair
             unsigned long pairA = (unsigned long)
-                    eqPairs[value][j] & 0xFFFFFFFF;
+                    eqPairs[value - 1][j] & 0xFFFFFFFF;
             unsigned long pairB = (unsigned long)
-                    (eqPairs[value][j] >> 32) & 0xFFFFFFFF;
+                    (eqPairs[value - 1][j] >> 32) & 0xFFFFFFFF;
 
             // Insert values one at a time: `pairA` will contain the
             // next new (equivalent pair) value until both values have
@@ -196,7 +201,7 @@ int eqSets(const unsigned long *set, size_t setc,
                 if (set[k] == pairA) break;
 
                 // Insert the next new value if it would be in order
-                if (set[k] > pairA && pairA != 0)
+                while (set[k] > pairA && pairA != 0)
                 {
                     newSet[index++] = pairA;
                     pairA = pairB;
