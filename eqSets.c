@@ -104,7 +104,7 @@ bool storeEqPair(unsigned long, size_t, unsigned long, unsigned long);
 //     M - 3 + M / 2 - 2
 // or:
 //     3M / 2 - 5
-int eqSetsInit(unsigned long maxValue, size_t setSize)
+int eqSetsInit(unsigned long newMax, size_t newSize)
 {
     // Free everything in case there was something here before
     if (eqPairs != NULL)
@@ -113,11 +113,11 @@ int eqSetsInit(unsigned long maxValue, size_t setSize)
 
     // Exit if these values don't make sense
     eqPairs = NULL;
-    if (size > max || max < 2) return -2;
+    if (newSize > newMax || newMax < 2) return -2;
 
     // Set Variables
-    max = maxValue;
-    size = setSize;
+    max = newMax;
+    size = newSize;
 
     // Each value gets an array
     eqPairs = calloc(max, sizeof(long long *));
@@ -134,6 +134,8 @@ int eqSetsInit(unsigned long maxValue, size_t setSize)
 
         enumerateEqPairs(i);
     }
+
+    return 0;
 }
 
 // Enumerate Equivalent Sets
@@ -158,8 +160,8 @@ int eqSets(const unsigned long *set, size_t setc,
     // there are no repetitions, except for the length-two case
     for (size_t i = 1; i < setc; i++)
     {
-        if (set[k - 1] > set[k]) return -2;
-        if (set[k - 1] == set[k] && setc != 2) return -2;
+        if (set[i - 1] > set[i]) return -2;
+        if (set[i - 1] == set[i] && setc != 2) return -2;
     }
 
     // Allocate space for expanded set
@@ -176,8 +178,10 @@ int eqSets(const unsigned long *set, size_t setc,
             if (eqPairs[i][j] == 0) break;
 
             // The values in the equivalent pair
-            unsigned long pairA = (unsigned long) eqPairs[i][j];
-            unsigned long pairB = (unsigned long) (eqPairs[i][j] >> 32);
+            unsigned long pairA =
+                    (unsigned long) eqPairs[i][j] & 0xFFFFFFFF;
+            unsigned long pairB =
+                    (unsigned long) (eqPairs[i][j] >> 32) & 0xFFFFFFFF;
 
             // Insert values one at a time: `pairA` will contain the
             // next new (equivalent pair) value until both values have
@@ -201,6 +205,10 @@ int eqSets(const unsigned long *set, size_t setc,
                 if (k != i) newSet[index++] = set[k];
             }
 
+	    // Place the new values if we haven't done that yet
+	    if (pairA != 0) newSet[index++] = pairA;
+	    if (pairB != 0) newSet[index++] = pairB;
+
             // If we haven't populated every index, we don't have a set
             if (index < setc + 1) continue;
 
@@ -214,6 +222,8 @@ int eqSets(const unsigned long *set, size_t setc,
 
     // Deallocate memory
     free(newSet);
+
+    return 0;
 }
 
 // ============ Helper Functions
@@ -240,6 +250,8 @@ void enumerateEqPairs(unsigned long value)
     // Quots: iterate over divisors
     for (unsigned long i = 2; i <= max / value; i++)
         if (storeEqPair(value, index, i, value * i)) index++;
+
+    return;
 }
 
 // Store an Equivalent Pair if Valid
