@@ -65,6 +65,8 @@ size_t maxPairs;
 // Function Declarations
 void enumerateEqPairs(unsigned long);
 bool storeEqPair(unsigned long, size_t, unsigned long, unsigned long);
+bool insertPair(const unsigned long *, size_t, size_t,
+        unsigned long *, long long);
 
 // Reconfigure Equivalent Set Generation
 // Returns 0 on success, -1 on memory error, -2 on input error
@@ -182,45 +184,17 @@ int eqSets(const unsigned long *set, size_t setc,
         // Iterate over the equivalent pairs for that value
         for (size_t j = 0; j < maxPairs; j++)
         {
+            // The equivalent pair
+            long long pair = eqPairs[value - 1][j];
+
             // Exit this loop if there are no more equivalent pairs
-            if (eqPairs[value - 1][j] == 0) break;
+            if (pair == 0) break;
 
-            // The values in the equivalent pair
-            unsigned long pairA = (unsigned long)
-                    eqPairs[value - 1][j] & 0xFFFFFFFF;
-            unsigned long pairB = (unsigned long)
-                    (eqPairs[value - 1][j] >> 32) & 0xFFFFFFFF;
+            // Otherwise, try inserting it
+            if (insertPair(set, setc, i, newSet, pair) == false)
+                continue;
 
-            // Insert values one at a time: `pairA` will contain the
-            // next new (equivalent pair) value until both values have
-            // been inserted, at which point it will be 0
-            size_t index = 0;
-            for (size_t k = 0; k < setc; k++)
-            {
-                // Insert the next new value if it would be in order
-                while (pairA < set[k] && pairA != 0)
-                {
-                    newSet[index++] = pairA;
-                    pairA = pairB;
-                    pairB = 0;
-                }
-
-                // Try again if the next new value causes a repetition
-                if (pairA == set[k]) break;
-
-                // Insert the next original value unless it's being
-                // replaced
-                if (k != i) newSet[index++] = set[k];
-            }
-
-            // Place the new values if we haven't done that yet
-            if (pairA != 0) newSet[index++] = pairA;
-            if (pairB != 0) newSet[index++] = pairB;
-
-            // If we haven't populated every index, we don't have a set
-            if (index < setc + 1) continue;
-
-            // Otherwise, call function
+            // If it worked, call function
             fn(newSet, setc + 1);
 
             // Recurse on this new set
@@ -283,4 +257,43 @@ bool storeEqPair(unsigned long value, size_t index,
                                 | (long long) b << 32;
 
     return true;
+}
+
+// Insert Pair into Sorted Array
+// Returns a boolean for whether or not the insertion could be made
+bool insertPair(const unsigned long *set, size_t setc, size_t replace,
+        unsigned long *newSet, long long pair)
+{
+    // The values in the equivalent pair
+    unsigned long pairA = (unsigned long) pair & 0xFFFFFFFF;
+    unsigned long pairB = (unsigned long) (pair >> 32) & 0xFFFFFFFF;
+
+    // Insert values one at a time: `pairA` will contain the
+    // next new (equivalent pair) value until both values have
+    // been inserted, at which point it will be 0
+    size_t index = 0;
+    for (size_t i = 0; i < setc; i++)
+    {
+        // Insert the next new value if it would be in order
+        while (pairA < set[i] && pairA != 0)
+        {
+            newSet[index++] = pairA;
+            pairA = pairB;
+            pairB = 0;
+        }
+
+        // Exit if the next new value causes a repetition
+        if (pairA == set[i]) return false;
+
+        // Insert the next original value unless it's being
+        // replaced
+        if (i != replace) newSet[index++] = set[i];
+    }
+
+    // Place the new values if we haven't done that yet
+    if (pairA != 0) newSet[index++] = pairA;
+    if (pairB != 0) newSet[index++] = pairB;
+
+    // If we haven't populated every index, we don't have a set
+    return index == setc + 1;
 }
