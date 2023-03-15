@@ -6,7 +6,6 @@
 #define SETTREE_H
 
 #include <stdlib.h>
-#include <stdbool.h>
 
 // Set Tree Information Structure
 typedef struct Base Base;

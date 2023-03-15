@@ -5,6 +5,8 @@
 #ifndef EQSETS_H
 #define EQSETS_H
 
+#include <stdlib.h>
+
 // Reconfigure Equivalent Set Generation
 int eqSetsInit(unsigned long, size_t);
 

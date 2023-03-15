@@ -9,9 +9,10 @@
 // nullifiable. It is a recursive function, and it starts by checking if
 // there is a trivial way to nullify the set, and then it performs every
 // single possible operation on the set, before recursing and checking
-// again. If it finds that the set is nullifiable at any point, that
-// means the set was always nullifiable. A set is only innullifiable if
-// the test always returns that result after every operation.
+// again as though that were a new set. If it finds that the set is
+// nullifiable at any point, that means the set was always nullifiable.
+// A set is only innullifiable if the test always returns that result
+// after every operation.
 int nulTest(const unsigned long *set, size_t setc)
 {
     // Base case: singleton set is nullifiable if zero, innullifiable
