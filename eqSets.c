@@ -173,11 +173,11 @@ int eqSets(const unsigned long *set, size_t setc,
     // Iterate over the values in the set
     for (size_t i = 0; i < setc; i++)
     {
-	// Get the value in that position
-	unsigned long value = set[i];
+        // Get the value in that position
+        unsigned long value = set[i];
 
-	// If this is a repeat, it won't result in anything new
-	if (i > 0) if (set[i] == set[i - 1]) continue;
+        // If this is a repeat, it won't result in anything new
+        if (i > 0) if (set[i] == set[i - 1]) continue;
 
         // Iterate over the equivalent pairs for that value
         for (size_t j = 0; j < maxPairs; j++)
@@ -213,9 +213,9 @@ int eqSets(const unsigned long *set, size_t setc,
                 if (k != i) newSet[index++] = set[k];
             }
 
-	    // Place the new values if we haven't done that yet
-	    if (pairA != 0) newSet[index++] = pairA;
-	    if (pairB != 0) newSet[index++] = pairB;
+            // Place the new values if we haven't done that yet
+            if (pairA != 0) newSet[index++] = pairA;
+            if (pairB != 0) newSet[index++] = pairB;
 
             // If we haven't populated every index, we don't have a set
             if (index < setc + 1) continue;
