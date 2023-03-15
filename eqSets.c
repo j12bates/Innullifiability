@@ -197,16 +197,16 @@ int eqSets(const unsigned long *set, size_t setc,
             size_t index = 0;
             for (size_t k = 0; k < setc; k++)
             {
-                // Try again if the new value causes a repetition
-                if (set[k] == pairA) break;
-
                 // Insert the next new value if it would be in order
-                while (set[k] > pairA && pairA != 0)
+                while (pairA < set[k] && pairA != 0)
                 {
                     newSet[index++] = pairA;
                     pairA = pairB;
                     pairB = 0;
                 }
+
+                // Try again if the next new value causes a repetition
+                if (pairA == set[k]) break;
 
                 // Insert the next original value unless it's being
                 // replaced

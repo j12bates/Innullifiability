@@ -9,13 +9,26 @@ void printSet(const unsigned long *, size_t);
 int main(int argc, char *argv[])
 {
     eqSetsInit(6, 3);
-    printf("hallo\n");
+    printf("Initializing with M = 6, N = 3\n\n");
 
-    unsigned long set[2] = {3, 3};
-    eqSets(set, 2, &printSet);
-    printf("\n");
+    unsigned long nullThree[2] = {3, 3};
+    eqSets(nullThree, 2, &printSet);
+    printf("\nSets equivalent to (3,3)\n\n");
+
+    unsigned long nullTwo[2] = {2, 2};
+    eqSets(nullTwo, 2, &printSet);
+    printf("\nSets equivalent to (2,2)\n\n");
+
+    unsigned long oneFour[2] = {1, 4};
+    eqSets(oneFour, 2, &printSet);
+    printf("\nSets equivalent to (1,4)\n\n");
+
+    unsigned long justTwo[1] = {2};
+    eqSets(justTwo, 1, &printSet);
+    printf("\nSets equivalent to (2)\n\n");
 
     eqSetsInit(0, 0);
+    printf("Freeing Memory\n");
 
     return 0;
 }
