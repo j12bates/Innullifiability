@@ -224,7 +224,11 @@ int eqSets(const unsigned long *set, size_t setc,
             fn(newSet, setc + 1);
 
             // Recurse on this new set
-            if (eqSets(newSet, setc + 1, fn) == -1) return -1;
+            if (eqSets(newSet, setc + 1, fn) == -1)
+            {
+                free(newSet);
+                return -1;
+            }
         }
     }
 

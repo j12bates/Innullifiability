@@ -156,11 +156,14 @@ int treeMark(const Base *base,
     // Translate Values into Relative Values, or Child Indices
     for (size_t i = 1; i < valuec; i++)
     {
-        // Values must be below the maximum of the lowest level
-        if (values[i] >= base->superc + base->levels) return -2;
-
-        // Values must be in ascending order
-        if (values[i] <= values[i - 1]) return -2;
+        // Values must be below the maximum of the lowest level, and
+        // must be in ascending order without repetition
+        if (values[i] >= base->superc + base->levels
+                || values[i] <= values[i - 1])
+        {
+            free(rels);
+            return -2;
+        }
 
         // Difference of Values, Subtract One because No Repetition
         rels[i - 1] = values[i] - values[i - 1] - 1;
@@ -168,7 +171,11 @@ int treeMark(const Base *base,
 
     // Flag Nodes Appropriately
     if (nodeFlag(base->root, base->levels, base->superc,
-            rel, rels, valuec - 1) == -1) return -1;
+            rel, rels, valuec - 1) == -1)
+    {
+        free(rels);
+        return -1;
+    }
 
     // Deallocate Memory
     free(rels);
