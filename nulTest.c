@@ -51,7 +51,7 @@ int nulTest(const unsigned long *set, size_t setc)
             // Fill the new set with all the other values, leave the
             // first position for the operation result
             size_t index = 1;
-            for (size_t i = 0; i < setc - 1; i++)
+            for (size_t i = 0; i < setc; i++)
             {
                 if (i == pairA || i == pairB) continue;
                 else newSet[index++] = set[i];
@@ -63,20 +63,22 @@ int nulTest(const unsigned long *set, size_t setc)
 
             // List all the possible results obtained from performing
             // arithmetic operations on them, or replacement values
-            unsigned long replacements[5];
+            unsigned long replacements[4];
             replacements[0] = a + b;
-            replacements[1] = a - b;
-            replacements[2] = b - a;
-            replacements[3] = a * b;
+            replacements[1] = a * b;
+
+            // There is one difference
+            if (a > b) replacements[2] = a - b;
+            else replacements[2] = b - a;
 
             // Up to one quotient is possible
             bool quotient = true;
-            if (a % b == 0) replacements[4] = a / b;
-            else if (b % a == 0) replacements[4] = b / a;
+            if (a % b == 0) replacements[3] = a / b;
+            else if (b % a == 0) replacements[3] = b / a;
             else quotient = false;
 
             // Iterate through those replacement values
-            for (size_t i = 0; i < quotient ? 5 : 4; i++)
+            for (size_t i = 0; i < (quotient ? 4 : 3); i++)
             {
                 // Place into the new set
                 newSet[0] = replacements[i];
