@@ -11,8 +11,8 @@
 typedef struct Base Base;
 
 // Set Print Modes
-typedef enum PrintMode PrintMode;
-enum PrintMode {
+typedef enum QueryMode QueryMode;
+enum QueryMode {
     PRINT_SETS_UNMARKED,
     PRINT_SETS_MARKED,
     PRINT_SETS_ALL
@@ -28,6 +28,7 @@ void treeDestruct(Base *);
 int treeMark(const Base *, const unsigned long *, size_t);
 
 // Print (Un)Marked Sets
-long long treeQuery(const Base *, PrintMode, FILE *);
+long long treeQuery(const Base *, QueryMode,
+        void (*)(const unsigned long *, size_t));
 
 #endif

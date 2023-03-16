@@ -4,6 +4,8 @@
 
 #include "setTree.h"
 
+void printSet(const unsigned long *, size_t);
+
 int main(int argc, char *argv[])
 {
     Base *tree = treeConstruct(3, 6);
@@ -26,20 +28,30 @@ int main(int argc, char *argv[])
 
     long long queryReturnCode;
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_ALL, stdout);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_ALL, &printSet);
     printf("Should be all the sets, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_MARKED, stdout);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_MARKED, &printSet);
     printf("Should be all those we marked, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_UNMARKED, stdout);
+    queryReturnCode = treeQuery(tree, PRINT_SETS_UNMARKED, &printSet);
     printf("Should be all the others, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(NULL, PRINT_SETS_ALL, stdout);
+    queryReturnCode = treeQuery(NULL, PRINT_SETS_ALL, &printSet);
     printf("Should be an error, %d\n\n", queryReturnCode);
 
     treeDestruct(tree);
     printf("Tree freed\n");
 
     return 0;
+}
+
+void printSet(const unsigned long *set, size_t setc)
+{
+    for (size_t i = 0; i < setc; i++)
+        printf("%c%d", (i == 0 ? '(' : ','), set[i]);
+
+    printf("%c ", ')');
+
+    return;
 }

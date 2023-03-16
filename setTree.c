@@ -93,8 +93,10 @@ void nodeFree(Node *, size_t, unsigned long);
 int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
 long long nodeQuery(const Node *, size_t, unsigned long,
-        unsigned long *, size_t, PrintMode, FILE *);
-void setPrint(FILE *, const unsigned long *, size_t);
+        unsigned long *, size_t, QueryMode,
+        void (*)(const unsigned long *, size_t));
+void setPass(const unsigned long *, size_t,
+        void (*)(const unsigned long *, size_t));
 
 // ============ User-Level Functions
 
@@ -185,7 +187,8 @@ int treeMark(const Base *base,
 
 // Query (Un)Marked Sets
 // Returns number of sets on success, -1 on memory error
-long long treeQuery(const Base *base, PrintMode mode, FILE *out)
+long long treeQuery(const Base *base, QueryMode mode,
+        void (*out)(const unsigned long *, size_t))
 {
     // If tree doesn't exist, exit
     if (base == NULL) return -1;
@@ -342,7 +345,8 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 // path, which are used as relative values when printing out the final
 // set.
 long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
-        unsigned long *rels, size_t relc, PrintMode mode, FILE *out)
+        unsigned long *rels, size_t relc, QueryMode mode,
+        void (*out)(const unsigned long *, size_t))
 {
     // If this node doesn't exist, exit
     if (node == NULL) return -1;
@@ -366,7 +370,7 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     {
         if (mode != PRINT_SETS_MARKED)
         {
-            setPrint(out, rels, relc);
+            setPass(rels, relc, out);
             setc = 1;
         }
     }
@@ -391,22 +395,26 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     return setc;
 }
 
-// Print a Set from Relative Values
-void setPrint(FILE *out, const unsigned long *rels, size_t relc)
+// Pass On a Set from Relative Values
+void setPass(const unsigned long *rels, size_t relc,
+        void (*out)(const unsigned long *, size_t))
 {
-    // Proper value
+    // Proper values
     unsigned long value = 0;
+    unsigned long *set = calloc(relc, sizeof(unsigned long));
+    if (set == NULL) return;
 
     // Iterate over elements
     for (size_t i = 0; i < relc; i++)
     {
         // Proper value is incremented each level and offset by relative
-        // value
+        // value, stored in set
         value += rels[i] + 1;
-        fprintf(out, "%c%d", (i == 0 ? '(' : ','), value);
+        set[i] = value;
     }
 
-    printf("%c ", ')');
+    // Pass to function
+    out(set, relc);
 
     return;
 }
