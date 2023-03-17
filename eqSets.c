@@ -156,7 +156,7 @@ int eqSetsInit(size_t newSize, unsigned long newMax)
 // are passed into the function passed in here the moment they are
 // generated.
 int eqSets(const unsigned long *set, size_t setc,
-        void (*fn)(const unsigned long *, size_t))
+        void (*out)(const unsigned long *, size_t))
 {
     // If we've reached the maximum, exit successfully
     if (setc == size) return 0;
@@ -196,10 +196,10 @@ int eqSets(const unsigned long *set, size_t setc,
                 continue;
 
             // If it worked, call function
-            fn(newSet, setc + 1);
+            if (out != NULL) out(newSet, setc + 1);
 
             // Recurse on this new set
-            if (eqSets(newSet, setc + 1, fn) == -1)
+            if (eqSets(newSet, setc + 1, out) == -1)
             {
                 free(newSet);
                 return -1;

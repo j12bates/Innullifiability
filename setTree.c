@@ -201,9 +201,6 @@ long long treeQuery(const Base *base, QueryMode mode,
     long long n = nodeQuery(base->root, base->levels, base->superc,
             rels, base->levels, mode, out);
 
-    // Newlines
-    printf("\n");
-
     // Deallocate Memory
     free(rels);
 
@@ -414,7 +411,7 @@ void setPass(const unsigned long *rels, size_t relc,
     }
 
     // Pass to function
-    out(set, relc);
+    if (out != NULL) out(set, relc);
 
     return;
 }
