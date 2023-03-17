@@ -55,13 +55,16 @@ unsigned long max;
 // Base Pointer to Data Structure for Keeping Track of Sets
 Base *sets;
 
+// Supplementary Function Declarations
+void eliminate(const unsigned long *, size_t);
+void printSet(const unsigned long *, size_t);
+
 int main(int argc, char *argv[])
 {
     // ============ Command Line Arguments
     // Here, we're gonna get the command line arguments we need. We'll
     // first check if we have the right usage, then we'll convert them
     // to numeric types, checking for conversion errors.
-
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <N-val> <M-val>\n", argv[0]);
         return 2;
@@ -90,5 +93,52 @@ int main(int argc, char *argv[])
     }
     printf("Tree Constructed with N = %u and M = %u\n", size, max);
 
+    // ============ Enumerate Equivalent Sets
+    eqSetsInit(size, max);
+
+    unsigned long minNulSet[2];
+    for (unsigned long n = 1; n <= max; n++)
+    {
+        minNulSet[0] = n;
+        minNulSet[1] = n;
+        eqSets(minNulSet, 2, &eliminate);
+    }
+
+    // ============ What Sets are Left?
+    long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
+    printf("%lld sets remain\n", remaining);
+
     return 0;
+}
+
+// Function for Eliminating a Set/Subsets
+
+// When the equivalent sets program comes up with a nullifiable set, it
+// gets sent to this function, which uses a function from the set tree
+// library to mark it or its supersets (supersets of a nullifiable set
+// are nullifiable as well).
+void eliminate(const unsigned long *pSet, size_t pSetc)
+{
+    // Mark anything matching this pattern on the data structure
+    int ret = treeMark(sets, pSet, pSetc);
+
+    // Handle an error, just in case
+    if (ret == -1) {
+        fprintf(stderr, "Memory Error while Marking Sets\n");
+        exit(1);
+    }
+    else if (ret == -2) {
+        fprintf(stderr, "This really shouldn't be happening.\n");
+        exit(16);
+    }
+
+    return;
+}
+
+// Function for Printing a Set to the Standard Output
+void printSet(const unsigned long *set, size_t setc)
+{
+    for (size_t i = 0; i < setc; i++)
+        printf("%4d", set[i]);
+    printf("\n");
 }
