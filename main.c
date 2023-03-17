@@ -57,6 +57,7 @@ Base *sets;
 
 // Supplementary Function Declarations
 void eliminate(const unsigned long *, size_t);
+void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
@@ -66,24 +67,25 @@ int main(int argc, char *argv[])
     // first check if we have the right usage, then we'll convert them
     // to numeric types, checking for conversion errors.
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <N-val> <M-val>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <N (set length)> <M (max value)>\n",
+                argv[0]);
         return 2;
     }
 
     errno = 0;
     size = strtoull(argv[1], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "N-val argument: %s\n", strerror(errno));
+        fprintf(stderr, "N Argument [1]: %s\n", strerror(errno));
         return 2;
     }
 
     max = strtoul(argv[2], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "M-val argument: %s\n", strerror(errno));
+        fprintf(stderr, "M Argument [2]: %s\n", strerror(errno));
         return 2;
     }
 
-    // ============ Set Tree Construction
+    // ============ Construct Tree
     // Now we're going to construct the tree for keeping track of all
     // our sets.
     sets = treeConstruct(size, max);
@@ -91,27 +93,65 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Unable to Allocate Tree\n");
         return 1;
     }
-    printf("Tree Constructed with N = %u and M = %u\n", size, max);
+    printf("Tree Constructed with N = %llu and M = %lu\n", size, max);
 
-    // ============ Enumerate Equivalent Sets
+    // ============ Enumerate a Bunch of Nullifiable Sets
+    // We know already that in order to be nullifiable, a set must have
+    // two ways of getting to the same value. So here we'll use the
+    // equivalent pairs program to expand a set containing two of the
+    // same number, which we know is definitely nullifiable. This will
+    // give us a bunch more nullifiable sets, which we'll mark off in
+    // the tree.
+
+    // Initialize the program
     eqSetsInit(size, max);
 
-    unsigned long minNulSet[2];
+    printf("Enumerating Nullifiable Sets...\n");
+
+    // Trivial sets for each allowed value
     for (unsigned long n = 1; n <= max; n++)
     {
+        unsigned long minNulSet[2];
         minNulSet[0] = n;
         minNulSet[1] = n;
+
+        printf("%lu...", n);
+        fflush(stdout);
+
         eqSets(minNulSet, 2, &eliminate);
     }
 
-    // ============ What Sets are Left?
-    long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
-    printf("%lld sets remain\n", remaining);
+    printf("Done\n");
+
+    // Deallocate the dynamic memory
+    eqSetsInit(0, 0);
+
+    // ============ Verify Whatever Sets Remain
+    long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &verify);
+    if (remaining == -1) {
+        fprintf(stderr, "Memory Error on Querying Tree\n");
+        return 1;
+    }
+    printf("%lld Sets Remain after Equivalent Sets\n", remaining);
+
+    // ============ Anything Else is Innullifiable
+    long long finals = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
+    if (finals == -1) {
+        fprintf(stderr, "Memory Error on Querying Tree\n");
+        return 1;
+    }
+    printf("%lld Innullifiable Sets, %lld Caught by Exhaustive Test\n",
+            finals, remaining - finals);
+
+    // ============ Deallocate Tree
+    treeDestruct(sets);
 
     return 0;
 }
 
-// Function for Eliminating a Set/Subsets
+// ================ Supplemental Functions
+
+// Supplemental Function for Eliminating a Set/Subsets
 
 // When the equivalent sets program comes up with a nullifiable set, it
 // gets sent to this function, which uses a function from the set tree
@@ -120,14 +160,14 @@ int main(int argc, char *argv[])
 void eliminate(const unsigned long *pSet, size_t pSetc)
 {
     // Mark anything matching this pattern on the data structure
-    int ret = treeMark(sets, pSet, pSetc);
+    int res = treeMark(sets, pSet, pSetc);
 
     // Handle an error, just in case
-    if (ret == -1) {
+    if (res == -1) {
         fprintf(stderr, "Memory Error while Marking Sets\n");
         exit(1);
     }
-    else if (ret == -2) {
+    else if (res == -2) {
         fprintf(stderr, "This really shouldn't be happening.\n");
         exit(16);
     }
@@ -135,7 +175,29 @@ void eliminate(const unsigned long *pSet, size_t pSetc)
     return;
 }
 
-// Function for Printing a Set to the Standard Output
+// Supplemental Function for Verifying a Set
+
+// Since equivalent sets can't catch everything, we'll run everything
+// through this, which will run the exhaustive nullifiability test on
+// every set it receives and then eliminate it if it needs to be.
+void verify(const unsigned long *set, size_t setc)
+{
+    // Run the test
+    int res = nulTest(set, setc);
+
+    // Handle an error, just in case
+    if (res == -1) {
+        fprintf(stderr, "Memory Error while Verifying Sets\n");
+        exit(1);
+    }
+
+    // Eliminate if nullifiable
+    else if (res == 0) eliminate(set, setc);
+
+    return;
+}
+
+// Supplemental Function for Printing a Set to the Standard Output
 void printSet(const unsigned long *set, size_t setc)
 {
     for (size_t i = 0; i < setc; i++)
