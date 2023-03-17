@@ -109,7 +109,7 @@ static bool insertPair(const unsigned long *, size_t, size_t,
 //     M - 3 + M / 2 - 2
 // or:
 //     3M / 2 - 5
-int eqSetsInit(unsigned long newMax, size_t newSize)
+int eqSetsInit(size_t newSize, unsigned long newMax)
 {
     // Free everything in case there was something here before
     if (eqPairs != NULL)

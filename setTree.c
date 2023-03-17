@@ -356,8 +356,8 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     {
         // Descendant sets are considered marked regardless, so either
         // stop or make sure to print everything
-        if (mode == PRINT_SETS_UNMARKED) return 0;
-        else mode = PRINT_SETS_ALL;
+        if (mode == QUERY_SETS_UNMARKED) return 0;
+        else mode = QUERY_SETS_ALL;
     }
 
     // Counter for number of sets
@@ -368,7 +368,7 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     // isn't)
     if (levels == 0)
     {
-        if (mode != PRINT_SETS_MARKED)
+        if (mode != QUERY_SETS_MARKED)
         {
             setPass(rels, relc, out);
             setc = 1;

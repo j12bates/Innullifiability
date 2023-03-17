@@ -13,9 +13,9 @@ typedef struct Base Base;
 // Set Print Modes
 typedef enum QueryMode QueryMode;
 enum QueryMode {
-    PRINT_SETS_UNMARKED,
-    PRINT_SETS_MARKED,
-    PRINT_SETS_ALL
+    QUERY_SETS_UNMARKED,
+    QUERY_SETS_MARKED,
+    QUERY_SETS_ALL
 };
 
 // Construct a Tree

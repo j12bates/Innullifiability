@@ -8,8 +8,8 @@ void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    eqSetsInit(6, 3);
-    printf("Initializing with M = 6, N = 3\n\n");
+    eqSetsInit(3, 6);
+    printf("Initializing with N = 3, M = 6\n\n");
 
     unsigned long nullThree[2] = {3, 3};
     eqSets(nullThree, 2, &printSet);
