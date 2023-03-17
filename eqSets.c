@@ -51,16 +51,16 @@
 #include <stdbool.h>
 
 // Maximum Set Value (M)
-unsigned long max;
+static unsigned long max;
 
 // Final Set Size (N)
-size_t size;
+static size_t size;
 
 // 2-D Array of Equivalent Pairs by Value
 // It's worth noting that this is indexed from zero, but the first
 // element points to the equivalent pairs of the value one.
-long long **eqPairs = NULL;
-size_t maxPairs;
+static long long **eqPairs = NULL;
+static size_t maxPairs;
 
 // Function Declarations
 void enumerateEqPairs(unsigned long);
