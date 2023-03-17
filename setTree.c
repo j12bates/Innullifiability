@@ -88,14 +88,14 @@ struct Base {
 };
 
 // Helper Function Declarations
-Node *nodeAlloc(size_t, unsigned long);
-void nodeFree(Node *, size_t, unsigned long);
-int nodeFlag(Node *, size_t, unsigned long,
+static Node *nodeAlloc(size_t, unsigned long);
+static void nodeFree(Node *, size_t, unsigned long);
+static int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
-long long nodeQuery(const Node *, size_t, unsigned long,
+static long long nodeQuery(const Node *, size_t, unsigned long,
         unsigned long *, size_t, QueryMode,
         void (*)(const unsigned long *, size_t));
-void setPass(const unsigned long *, size_t,
+static void setPass(const unsigned long *, size_t,
         void (*)(const unsigned long *, size_t));
 
 // ============ User-Level Functions

@@ -62,10 +62,11 @@ static size_t size;
 static long long **eqPairs = NULL;
 static size_t maxPairs;
 
-// Function Declarations
-void enumerateEqPairs(unsigned long);
-bool storeEqPair(unsigned long, size_t, unsigned long, unsigned long);
-bool insertPair(const unsigned long *, size_t, size_t,
+// Helper Function Declarations
+static void enumerateEqPairs(unsigned long);
+static bool storeEqPair(unsigned long, size_t,
+        unsigned long, unsigned long);
+static bool insertPair(const unsigned long *, size_t, size_t,
         unsigned long *, long long);
 
 // Reconfigure Equivalent Set Generation
