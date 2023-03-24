@@ -1,7 +1,7 @@
 SRC 	:= main.c setTree.c eqSets.c nulTest.c
 
 CC		:= gcc
-CCFLAGS	:=
+CCFLAGS	:= -O3 -flto
 
 DBFLAGS := -g
 

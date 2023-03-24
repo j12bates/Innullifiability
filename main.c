@@ -28,8 +28,17 @@
 // having a pair or subset of numbers which, by application of the
 // arithmetic operations, gives another number in the set.
 
-// TODO explain the different libraries and the basic gist of how the
-// program works
+// Of course, one could simply create a recursive function to
+// exhaustively test every operation on a set to try and make two values
+// the same. However, doing this for every set could get quite costly.
+// So instead, this program works backwards, enumerating a bunch of
+// nullifiable sets by considering every single way that a particular
+// value might have been reached. Given that the set (1, 3, 4) is
+// nullifiable, we could then generate a bunch of other nullifiable sets
+// by expanding the 3 into 5 and 2 (5 - 2 = 3), and all the other
+// 'equivalent pairs' of 3. By generating sets instead of testing sets,
+// we can eliminate a whole lot more sets faster than running a test
+// over every set.
 
 // Yeah, I know, I could've done it in like eight lines of Haskell or
 // something. Fun fact, I actually tried it and it was super slow. So
