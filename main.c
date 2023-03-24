@@ -22,23 +22,33 @@
 //      1. Subtracting a number from itself
 //      2. Multiplying any number by zero
 
-// So clearly sets with 0 in them are out, as are sets with the same
-// number twice, so we only look at sets starting at 1 without
+// So clearly sets containing zero itself are out, as are sets with the
+// same number twice, so we only look at sets starting at 1 without
 // repetition. The only way one of these sets can be 'nullifiable' is by
 // having a pair or subset of numbers which, by application of the
 // arithmetic operations, gives another number in the set.
 
+// In the most general sense, the program works by finding all the
+// nullifiable sets and then returning whatever sets remain.
+
 // Of course, one could simply create a recursive function to
 // exhaustively test every operation on a set to try and make two values
-// the same. However, doing this for every set could get quite costly.
+// the same. However, doing this for every set would get quite costly.
 // So instead, this program works backwards, enumerating a bunch of
 // nullifiable sets by considering every single way that a particular
-// value might have been reached. Given that the set (1, 3, 4) is
-// nullifiable, we could then generate a bunch of other nullifiable sets
-// by expanding the 3 into 5 and 2 (5 - 2 = 3), and all the other
-// 'equivalent pairs' of 3. By generating sets instead of testing sets,
-// we can eliminate a whole lot more sets faster than running a test
-// over every set.
+// value might have been reached. For example, given that the set
+// (1, 3, 4) is nullifiable, we could then generate a bunch of other
+// nullifiable sets by expanding the 3 into 5 and 2 (5 - 2 = 3), and all
+// the other 'equivalent pairs' of 3. Also, all supersets of nullifiable
+// sets are also nullifiable, as zero times anything is zero still. This
+// method is described in a lot better detail in the Equivalent Sets
+// program. By generating sets instead of testing sets, we can eliminate
+// a whole lot more sets faster than running a test over every set.
+
+// We keep track of the sets by way of boolean values in a tree. This
+// tree has a node for each set, and the library function provides
+// functions for 'marking' sets and supersets to ignore them when
+// traversing for remaining innullifiable sets at the end.
 
 // Yeah, I know, I could've done it in like eight lines of Haskell or
 // something. Fun fact, I actually tried it and it was super slow. So
