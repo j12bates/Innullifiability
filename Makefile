@@ -9,7 +9,7 @@ DBFLAGS := -g
 
 all: innullifiables
 
-innullifiables:
+innullifiables: $(SRC)
 	$(CC) $(CCFLAGS) $(SRC) -o $@
 
 debug: CCFLAGS += $(DBFLAGS)

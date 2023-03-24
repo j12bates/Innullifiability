@@ -46,9 +46,9 @@
 // a whole lot more sets faster than running a test over every set.
 
 // We keep track of the sets by way of boolean values in a tree. This
-// tree has a node for each set, and the library function provides
-// functions for 'marking' sets and supersets to ignore them when
-// traversing for remaining innullifiable sets at the end.
+// tree has a node for each set, and the library provides functions for
+// 'marking' sets and supersets to ignore them when traversing for any
+// remaining innullifiable sets at the end.
 
 // Yeah, I know, I could've done it in like eight lines of Haskell or
 // something. Fun fact, I actually tried it and it was super slow. So
@@ -145,7 +145,13 @@ int main(int argc, char *argv[])
     // Deallocate the dynamic memory
     eqSetsInit(0, 0);
 
-    // ============ Verify Whatever Sets Remain
+    // ============ Verify and Print Sets
+    // The Equivalent Sets program is not completely perfect, and it
+    // cannot mark all nullifiable sets. So, we need to traverse the
+    // tree and just manually check each set before we can definitively
+    // say it's innullifiable.
+
+    // Check the sets that remain after Equivalent Sets
     long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &verify);
     if (remaining == -1) {
         fprintf(stderr, "Memory Error on Querying Tree\n");
@@ -153,7 +159,7 @@ int main(int argc, char *argv[])
     }
     printf("%lld Sets Remain after Equivalent Sets\n", remaining);
 
-    // ============ Anything Else is Innullifiable
+    // Now, everything unmarked is Innullifiable
     long long finals = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
     if (finals == -1) {
         fprintf(stderr, "Memory Error on Querying Tree\n");
