@@ -140,7 +140,8 @@ void treeDestruct(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-// Returns 0 on success, -1 on memory or error, -2 on input error
+// Returns 0 on success, or 1 if everything's already marked, -1 on
+// memory error, -2 on input error
 int treeMark(const Base *base,
         const unsigned long *values, size_t valuec)
 {
@@ -172,8 +173,11 @@ int treeMark(const Base *base,
     }
 
     // Flag Nodes Appropriately
-    if (nodeFlag(base->root, base->levels, base->superc,
-            rel, rels, valuec - 1) == -1)
+    int res = nodeFlag(base->root, base->levels, base->superc,
+            rel, rels, valuec - 1);
+
+    // Handle Error
+    if (res == -1)
     {
         free(rels);
         return -1;
@@ -182,7 +186,7 @@ int treeMark(const Base *base,
     // Deallocate Memory
     free(rels);
 
-    return 0;
+    return res;
 }
 
 // Query (Un)Marked Sets
@@ -267,7 +271,8 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 }
 
 // Recursively Flag Tree Nodes
-// Returns 0 on success, -1 on memory error
+// Returns 0 on success, or 1 if nodes already flagged, -1 on memory
+// error
 
 // This function is a recursive function for flagging nodes which have
 // particular ancestors. It uses the standard method for traversal. In
@@ -291,6 +296,12 @@ void nodeFree(Node *node, size_t levels, unsigned long superc)
 // intermediary values at all if there are more levels remaining in the
 // tree than constraining values (as otherwise we would never reach the
 // final one).
+
+// Due to the nature of the main program, it's useful to know whether
+// the nodes we try to flag were already flagged before we got here. So
+// we keep a boolean variable that's set to false upon coming across a
+// node that's already flagged, and return 1 if it's still true after
+// looking at everything.
 int nodeFlag(Node *node, size_t levels, unsigned long superc,
         unsigned long rel, const unsigned long *rels, size_t relc)
 {
@@ -298,10 +309,14 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     if (node == NULL) return -1;
 
     // If we got to the lowest level, there's nothing to do
-    if (levels == 0) return 0;
+    if (levels == 0) return 1;
 
     // If this node is already flagged, no need to go further
-    if (node->flag) return 0;
+    if (node->flag) return 1;
+
+    // Keep track of whether we come across any nodes that weren't
+    // flagged before
+    bool alreadyFlagged = true;
 
     // This node has a child that represents the value we want
     if (rel < superc)
@@ -311,7 +326,10 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 
         // If there are no further value constraints, this node is
         // satisfactory
-        if (relc == 0) super->flag = true;
+        if (relc == 0) {
+            alreadyFlagged = alreadyFlagged && super->flag;
+            super->flag = true;
+        }
 
         // Otherwise, recurse on that child node, shifting the set of
         // constraints up
@@ -326,11 +344,18 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
             // Recurse with the new node; adjust the relative value
             // similarly to child count, but decrement as we're passing
             // to a lower level
-            if (nodeFlag(node->supers[i], levels - 1, superc - i,
-                    rel - i - 1, rels, relc) == -1) return -1;
+            int res = nodeFlag(node->supers[i], levels - 1, superc - i,
+                    rel - i - 1, rels, relc);
+
+            // Pass along an error
+            if (res == -1) return -1;
+
+            // Continue to keep track of whether we've already flagged
+            // this
+            alreadyFlagged = alreadyFlagged && res == 1;
         }
 
-    return 0;
+    return alreadyFlagged ? 1 : 0;
 }
 
 // Recursively Query Nodes
