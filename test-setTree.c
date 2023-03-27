@@ -18,6 +18,9 @@ int main(int argc, char *argv[])
     markReturnCode = treeMark(tree, subset, 2);
     printf("Sets containing 2 and 4 marked, %d\n", markReturnCode);
 
+    markReturnCode = treeMark(tree, subset, 2);
+    printf("Marked again, %d\n", markReturnCode);
+
     unsigned long three[1] = {3};
     markReturnCode = treeMark(tree, three, 1);
     printf("Sets containing 3 marked, %d\n\n", markReturnCode);
@@ -28,16 +31,16 @@ int main(int argc, char *argv[])
 
     long long queryReturnCode;
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_ALL, &printSet);
+    queryReturnCode = treeQuery(tree, QUERY_SETS_ALL, &printSet);
     printf("Should be all the sets, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_MARKED, &printSet);
+    queryReturnCode = treeQuery(tree, QUERY_SETS_MARKED, &printSet);
     printf("Should be all those we marked, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(tree, PRINT_SETS_UNMARKED, &printSet);
+    queryReturnCode = treeQuery(tree, QUERY_SETS_UNMARKED, &printSet);
     printf("Should be all the others, %d\n\n", queryReturnCode);
 
-    queryReturnCode = treeQuery(NULL, PRINT_SETS_ALL, &printSet);
+    queryReturnCode = treeQuery(NULL, QUERY_SETS_ALL, &printSet);
     printf("Should be an error, %d\n\n", queryReturnCode);
 
     treeDestruct(tree);

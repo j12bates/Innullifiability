@@ -333,8 +333,15 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 
         // Otherwise, recurse on that child node, shifting the set of
         // constraints up
-        else nodeFlag(super, levels - 1, superc - rel,
+        else {
+            int res = nodeFlag(super, levels - 1, superc - rel,
                 rels[0], rels + 1, relc - 1);
+
+            // Pass along an error, continue to keep track of whether
+            // we've already flagged this
+            if (res == -1) return -1;
+            alreadyFlagged = alreadyFlagged && res == 1;
+        }
     }
 
     // We have spare levels, so enumerate intermediary values
@@ -347,11 +354,9 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
             int res = nodeFlag(node->supers[i], levels - 1, superc - i,
                     rel - i - 1, rels, relc);
 
-            // Pass along an error
+            // Pass along an error, continue to keep track of whether
+            // we've already flagged this
             if (res == -1) return -1;
-
-            // Continue to keep track of whether we've already flagged
-            // this
             alreadyFlagged = alreadyFlagged && res == 1;
         }
 
