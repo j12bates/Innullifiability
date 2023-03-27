@@ -23,7 +23,11 @@ int main(int argc, char *argv[])
 
     unsigned long three[1] = {3};
     markReturnCode = treeMark(tree, three, 1);
-    printf("Sets containing 3 marked, %d\n\n", markReturnCode);
+    printf("Sets containing 3 marked, %d\n", markReturnCode);
+
+    unsigned long anotherThree[2] = {3, 5};
+    markReturnCode = treeMark(tree, anotherThree, 2);
+    printf("Marked again with added condition 5, %d\n\n", markReturnCode);
 
     unsigned long invalid[2] = {7, 2};
     markReturnCode = treeMark(tree, invalid, 2);
@@ -32,16 +36,16 @@ int main(int argc, char *argv[])
     long long queryReturnCode;
 
     queryReturnCode = treeQuery(tree, QUERY_SETS_ALL, &printSet);
-    printf("Should be all the sets, %d\n\n", queryReturnCode);
+    printf("\nShould be all the sets, %d\n\n", queryReturnCode);
 
     queryReturnCode = treeQuery(tree, QUERY_SETS_MARKED, &printSet);
-    printf("Should be all those we marked, %d\n\n", queryReturnCode);
+    printf("\nShould be all those we marked, %d\n\n", queryReturnCode);
 
     queryReturnCode = treeQuery(tree, QUERY_SETS_UNMARKED, &printSet);
-    printf("Should be all the others, %d\n\n", queryReturnCode);
+    printf("\nShould be all the others, %d\n\n", queryReturnCode);
 
     queryReturnCode = treeQuery(NULL, QUERY_SETS_ALL, &printSet);
-    printf("Should be an error, %d\n\n", queryReturnCode);
+    printf("\nShould be an error, %d\n\n", queryReturnCode);
 
     treeDestruct(tree);
     printf("Tree freed\n");
