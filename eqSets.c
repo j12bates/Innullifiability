@@ -154,9 +154,11 @@ int eqSetsInit(size_t newSize, unsigned long newMax)
 // contain the same value anyways. The sets it generates are guaranteed
 // to have no repetitions and be in ascending order as well. These sets
 // are passed into the function passed in here the moment they are
-// generated.
+// generated. The function can also return true to indicate that the set
+// generated has already been dealt with and the function shouldn't
+// bother with generating its own equivalent sets.
 int eqSets(const unsigned long *set, size_t setc,
-        void (*out)(const unsigned long *, size_t))
+        bool (*out)(const unsigned long *, size_t))
 {
     // If we've reached the maximum, exit successfully
     if (setc == size) return 0;
@@ -196,7 +198,7 @@ int eqSets(const unsigned long *set, size_t setc,
                 continue;
 
             // If it worked, call function
-            if (out != NULL) out(newSet, setc + 1);
+            if (out != NULL) if (out(newSet, setc + 1)) continue;
 
             // Recurse on this new set
             if (eqSets(newSet, setc + 1, out) == -1)

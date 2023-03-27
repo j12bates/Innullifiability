@@ -75,7 +75,7 @@ unsigned long max;
 Base *sets;
 
 // Supplementary Function Declarations
-void eliminate(const unsigned long *, size_t);
+bool eliminate(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 // gets sent to this function, which uses a function from the set tree
 // library to mark it or its supersets (supersets of a nullifiable set
 // are nullifiable as well).
-void eliminate(const unsigned long *pSet, size_t pSetc)
+bool eliminate(const unsigned long *pSet, size_t pSetc)
 {
     // Mark anything matching this pattern on the data structure
     int res = treeMark(sets, pSet, pSetc);
@@ -197,7 +197,7 @@ void eliminate(const unsigned long *pSet, size_t pSetc)
         exit(16);
     }
 
-    return;
+    return res == 1;
 }
 
 // Supplemental Function for Verifying a Set

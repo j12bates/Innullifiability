@@ -12,6 +12,6 @@ int eqSetsInit(size_t, unsigned long);
 
 // Enumerate Equivalent Sets
 int eqSets(const unsigned long *, size_t,
-        void (*)(const unsigned long *, size_t));
+        bool (*)(const unsigned long *, size_t));
 
 #endif
