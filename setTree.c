@@ -97,7 +97,7 @@ static void setPass(const unsigned long *, size_t,
         void (*)(const unsigned long *, size_t));
 
 static int nodeAllocChildren(Node *, size_t, unsigned long);
-static Node *nodeAllocDescs(size_t, unsigned long);
+static int nodeAllocDescs(Node *, size_t, unsigned long);
 static void nodeFreeDescs(Node *, size_t, unsigned long);
 
 // ============ User-Level Functions
@@ -122,9 +122,21 @@ Base *treeConstruct(size_t levels, unsigned long max)
     base->levels = levels;
     base->superc = max - levels + 1;
 
+    // Allocate Memory for Root Node
+    Node *root = malloc(sizeof(Node));
+    if (root == NULL) return NULL;
+    base->root = root;
+
+    // Initialize Root Node Values to Defaults
+    root->supers = NULL;
+    root->flag = false;
+
     // Allocate Entire Tree
-    base->root = nodeAllocDescs(levels, max - levels + 1);
-    if (base->root == NULL) return NULL;
+    int res = nodeAllocDescs(root, levels, max - levels + 1);
+    if (res == -1) {
+        treeDestruct(base);
+        return NULL;
+    }
 
     return base;
 }
@@ -134,6 +146,9 @@ void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
     nodeFreeDescs(base->root, base->levels, base->superc);
+
+    // Deallocate Root Node
+    free(base->root);
 
     // Deallocate Information Strucure
     free(base);
@@ -439,52 +454,66 @@ int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
 }
 
 // Recursively Allocate Descendant Nodes
-// Returns NULL on memory error
+// Returns 0 on success, -1 on memory error
 
-// This is a recursive function for allocating and constructing a tree.
-// It uses the standard method for traversal to allocate nodes and
-// arrays for children.
-Node *nodeAllocDescs(size_t levels, unsigned long superc)
+// This is a recursive function for allocating a node's descendant
+// nodes. It uses the standard method for traversal to allocate nodes
+// and arrays for children.
+int nodeAllocDescs(Node *node, size_t levels, unsigned long superc)
 {
-    // Allocate Memory for Node
-    Node *node = malloc(sizeof(Node));
-    if (node == NULL) return NULL;
-
-    // Initialize Values to Defaults
-    node->supers = NULL;
-    node->flag = false;
-
     // Base case: if there are no more levels, nothing to enumerate
-    if (levels == 0) return node;
+    if (levels == 0) return 0;
 
     // Allocate Array of Children
     node->supers = calloc(superc, sizeof(Node *));
-    if (node->supers == NULL) return NULL;
+    if (node->supers == NULL) -1;
 
-    // Recurse to Allocate all Descendants
+    // Iterate over Children
     for (unsigned long i = 0; i < superc; i++)
-        node->supers[i] = nodeAllocDescs(levels - 1, superc - i);
+    {
+        // Allocate Memory for Node
+        Node *child = malloc(sizeof(Node));
+        if (child == NULL) return -1;
+        node->supers[i] = child;
 
-    return node;
+        // Initialize Values to Defaults
+        child->supers = NULL;
+        child->flag = false;
+
+        // Recurse on Child Node
+        int res = nodeAllocDescs(child, levels - 1, superc - i);
+        if (res == -1) return -1;
+    }
+
+    return 0;
 }
 
 // Recursively Deallocate Descendant Nodes
 
 // This function works in a similar fashion to the allocation function,
-// except that it has to free memory AFTER iterating over children
-// rather than before. I think it's fairly obvious why this is.
+// except that it has to free memory AFTER recursing on children rather
+// than before. I think it's fairly obvious why this is.
 void nodeFreeDescs(Node *node, size_t levels, unsigned long superc)
 {
     // If this node doesn't exist, exit
     if (node == NULL) return;
 
-    // If there are Children, Deallocate them First
-    if (levels != 0)
+    // Check if there are children to deallocate in the first place
+    if (levels != 0 && node->supers != NULL)
+    {
+        // Iterate over Children
         for (unsigned long i = 0; i < superc; i++)
+        {
+            // First recursively deallocate further descendants
             nodeFreeDescs(node->supers[i], levels - 1, superc - i);
 
-    // Deallocate Node
-    free(node);
+            // Then deallocate the children themselves
+            free(node->supers[i]);
+        }
+
+        // Deallocate the array of Child Pointers
+        free(node->supers);
+    }
 
     return;
 }
