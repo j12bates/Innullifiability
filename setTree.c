@@ -341,20 +341,32 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 // traversal while keeping a record of the child indices of its current
 // path, which are used as relative values when printing out the final
 // set.
+
+// There are three modes of querying: UNMARKED, MARKED, and ALL. If the
+// node is flagged, it will either return immediately if it's in
+// UNMARKED mode or simply switch into ALL mode. When in ALL mode, the
+// flag status of a node doesn't matter, and in fact, nothing about the
+// node matters, as the descendant nodes and eventual sets can just be
+// algorithmically generated.
 long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
         unsigned long *rels, size_t relc, QueryMode mode,
         void (*out)(const unsigned long *, size_t))
 {
-    // If this node doesn't exist, exit
-    if (node == NULL) return -1;
-
-    // Set is flagged
-    if (node->flag)
+    // If we're not outputting every set, the state of the current node
+    // matters
+    if (mode != QUERY_SETS_ALL)
     {
-        // Descendant sets are considered marked regardless, so either
-        // stop or make sure to print everything
-        if (mode == QUERY_SETS_UNMARKED) return 0;
-        else mode = QUERY_SETS_ALL;
+        // If this node doesn't exist, exit
+        if (node == NULL) return -1;
+
+        // Node is flagged, there may not be allocated children
+        else if (node->flag)
+        {
+            // Descendant sets are considered marked regardless, so
+            // either stop or make sure to print everything
+            if (mode == QUERY_SETS_UNMARKED) return 0;
+            else mode = QUERY_SETS_ALL;
+        }
     }
 
     // Counter for number of sets
@@ -363,8 +375,7 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     // If we are at the bottom of the tree, print/count the set (unless
     // we're still in MARKED mode, in which case we already know it
     // isn't)
-    if (levels == 0)
-    {
+    if (levels == 0) {
         if (mode != QUERY_SETS_MARKED)
         {
             setPass(rels, relc, out);
@@ -378,8 +389,16 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
         // Keep track of relative value
         rels[relc - levels] = i;
 
+        // If we're in the ALL mode, we can't rely on there being a
+        // child node actually allocated, so pass in a null-pointer and
+        // just count
+        Node *next = NULL;
+
+        // Otherwise, pass in the actual child node
+        if (mode != QUERY_SETS_ALL) next = node->supers[i];
+
         // Simple traversal recurse
-        long long n = nodeQuery(node->supers[i], levels - 1, superc - i,
+        long long n = nodeQuery(next, levels - 1, superc - i,
                 rels, relc, mode, out);
 
         // Propogate any error
