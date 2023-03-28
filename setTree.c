@@ -265,6 +265,10 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     // If this node is already flagged, no need to go further
     if (node->flag) return 1;
 
+    // Make sure child nodes are allocated, as we're definitely going to
+    // be flagging a descendant
+    nodeAllocChildren(node, levels, superc);
+
     // Keep track of whether we come across any nodes that weren't
     // flagged before
     bool alreadyFlagged = true;
@@ -401,7 +405,7 @@ void setPass(const unsigned long *rels, size_t relc,
 
 // These functions are for allocating and deallocating tree nodes.
 
-// Allocate Child Nodes
+// Allocate Child Nodes if Unallocated
 // Returns 0 on success, -1 on memory error
 
 // This function allocates a node's children if they aren't already
@@ -414,6 +418,22 @@ int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
 
     // If we're at the bottom level, exit
     if (levels == 0) return 0;
+
+    // If this node already has children, exit
+    if (node->supers != NULL) return 0;
+
+    // Allocate Array of Child Pointers
+    node->supers = calloc(superc, sizeof(Node *));
+    if (node->supers == NULL) return -1;
+
+    // Iteratively Allocate and Initialize Child Nodes
+    for (unsigned long i = 0; i < superc; i++)
+    {
+        node->supers[i] = malloc(sizeof(Node));
+
+        node->supers[i]->supers = NULL;
+        node->supers[i]->flag = false;
+    }
 
     return 0;
 }
