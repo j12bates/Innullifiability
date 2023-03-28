@@ -88,8 +88,6 @@ struct Base {
 };
 
 // Helper Function Declarations
-static Node *nodeAlloc(size_t, unsigned long);
-static void nodeFree(Node *, size_t, unsigned long);
 static int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t);
 static long long nodeQuery(const Node *, size_t, unsigned long,
@@ -97,6 +95,10 @@ static long long nodeQuery(const Node *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 static void setPass(const unsigned long *, size_t,
         void (*)(const unsigned long *, size_t));
+
+static int nodeAllocChildren(Node *, size_t, unsigned long);
+static Node *nodeAllocDescs(size_t, unsigned long);
+static void nodeFreeDescs(Node *, size_t, unsigned long);
 
 // ============ User-Level Functions
 
@@ -121,7 +123,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
     base->superc = max - levels + 1;
 
     // Allocate Entire Tree
-    base->root = nodeAlloc(levels, max - levels + 1);
+    base->root = nodeAllocDescs(levels, max - levels + 1);
     if (base->root == NULL) return NULL;
 
     return base;
@@ -131,7 +133,7 @@ Base *treeConstruct(size_t levels, unsigned long max)
 void treeDestruct(Base *base)
 {
     // Deallocate Entire Tree
-    nodeFree(base->root, base->levels, base->superc);
+    nodeFreeDescs(base->root, base->levels, base->superc);
 
     // Deallocate Information Strucure
     free(base);
@@ -218,57 +220,6 @@ long long treeQuery(const Base *base, QueryMode mode,
 // recursive definition, independent of the nodes' proper corresponding
 // values, which can be viewed as a user-level abstraction. Due to the
 // consistent pattern, we can simply ignore them here.
-
-// Recursively Allocate Tree Nodes
-// Returns NULL on memory error
-
-// This is a recursive function for allocating and constructing a tree.
-// It uses the standard method for traversal to allocate nodes and
-// arrays for children.
-Node *nodeAlloc(size_t levels, unsigned long superc)
-{
-    // Allocate Memory for Node
-    Node *node = malloc(sizeof(Node));
-    if (node == NULL) return NULL;
-
-    // Initialize Values to Defaults
-    node->supers = NULL;
-    node->flag = false;
-
-    // Base case: if there are no more levels, nothing to enumerate
-    if (levels == 0) return node;
-
-    // Allocate Array of Children
-    node->supers = calloc(superc, sizeof(Node *));
-    if (node->supers == NULL) return NULL;
-
-    // Recurse to Allocate all Descendants
-    for (unsigned long i = 0; i < superc; i++)
-        node->supers[i] = nodeAlloc(levels - 1, superc - i);
-
-    return node;
-}
-
-// Recursively Deallocate Tree Nodes
-
-// This function works in a similar fashion to the allocation function,
-// except that it has to free memory AFTER iterating over children
-// rather than before. I think it's fairly obvious why this is.
-void nodeFree(Node *node, size_t levels, unsigned long superc)
-{
-    // If this node doesn't exist, exit
-    if (node == NULL) return;
-
-    // If there are Children, Deallocate them First
-    if (levels != 0)
-        for (unsigned long i = 0; i < superc; i++)
-            nodeFree(node->supers[i], levels - 1, superc - i);
-
-    // Deallocate Node
-    free(node);
-
-    return;
-}
 
 // Recursively Flag Tree Nodes
 // Returns 0 on success, or 1 if nodes already flagged, -1 on memory
@@ -442,6 +393,78 @@ void setPass(const unsigned long *rels, size_t relc,
 
     // Pass to function
     if (out != NULL) out(set, relc);
+
+    return;
+}
+
+// ============ Allocation Functions
+
+// These functions are for allocating and deallocating tree nodes.
+
+// Allocate Child Nodes
+// Returns 0 on success, -1 on memory error
+
+// This function allocates a node's children if they aren't already
+// allocated. It isn't recursive, meaning it will only allocate the
+// direct children of the node, and not their children.
+int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
+{
+    // If this node doesn't exist, exit
+    if (node == NULL) return -1;
+
+    // If we're at the bottom level, exit
+    if (levels == 0) return 0;
+
+    return 0;
+}
+
+// Recursively Allocate Descendant Nodes
+// Returns NULL on memory error
+
+// This is a recursive function for allocating and constructing a tree.
+// It uses the standard method for traversal to allocate nodes and
+// arrays for children.
+Node *nodeAllocDescs(size_t levels, unsigned long superc)
+{
+    // Allocate Memory for Node
+    Node *node = malloc(sizeof(Node));
+    if (node == NULL) return NULL;
+
+    // Initialize Values to Defaults
+    node->supers = NULL;
+    node->flag = false;
+
+    // Base case: if there are no more levels, nothing to enumerate
+    if (levels == 0) return node;
+
+    // Allocate Array of Children
+    node->supers = calloc(superc, sizeof(Node *));
+    if (node->supers == NULL) return NULL;
+
+    // Recurse to Allocate all Descendants
+    for (unsigned long i = 0; i < superc; i++)
+        node->supers[i] = nodeAllocDescs(levels - 1, superc - i);
+
+    return node;
+}
+
+// Recursively Deallocate Descendant Nodes
+
+// This function works in a similar fashion to the allocation function,
+// except that it has to free memory AFTER iterating over children
+// rather than before. I think it's fairly obvious why this is.
+void nodeFreeDescs(Node *node, size_t levels, unsigned long superc)
+{
+    // If this node doesn't exist, exit
+    if (node == NULL) return;
+
+    // If there are Children, Deallocate them First
+    if (levels != 0)
+        for (unsigned long i = 0; i < superc; i++)
+            nodeFreeDescs(node->supers[i], levels - 1, superc - i);
+
+    // Deallocate Node
+    free(node);
 
     return;
 }

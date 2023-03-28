@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    errno = 0;
     max = strtoul(argv[2], NULL, 10);
     if (errno != 0) {
         fprintf(stderr, "M Argument [2]: %s\n", strerror(errno));
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Unable to Allocate Tree\n");
         return 1;
     }
-    printf("Tree Constructed with N = %llu and M = %lu\n", size, max);
+    printf("Tree Constructed with N = %llu and M = %lu\n\n", size, max);
 
     // ============ Enumerate a Bunch of Nullifiable Sets
     // We know already that in order to be nullifiable, a set must have
@@ -125,7 +126,7 @@ int main(int argc, char *argv[])
     // Initialize the program
     eqSetsInit(size, max);
 
-    printf("Enumerating Nullifiable Sets...\n");
+    printf("Generating Nullifiable Sets...\n");
 
     // Trivial sets for each allowed value
     for (unsigned long n = 1; n <= max; n++)
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
         eqSets(minNulSet, 2, &eliminate);
     }
 
-    printf("Done\n");
+    printf("Done\n\n");
 
     // Deallocate the dynamic memory
     eqSetsInit(0, 0);
@@ -151,13 +152,16 @@ int main(int argc, char *argv[])
     // tree and just manually check each set before we can definitively
     // say it's innullifiable.
 
+    printf("Testing Remaining Sets...\n");
+
     // Check the sets that remain after Equivalent Sets
     long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &verify);
     if (remaining == -1) {
         fprintf(stderr, "Memory Error on Querying Tree\n");
         return 1;
     }
-    printf("%lld Sets Remain after Equivalent Sets\n", remaining);
+
+    printf("Done\n\n");
 
     // Now, everything unmarked is Innullifiable
     long long finals = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
@@ -165,8 +169,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Memory Error on Querying Tree\n");
         return 1;
     }
-    printf("%lld Innullifiable Sets, %lld Caught by Exhaustive Test\n",
-            finals, remaining - finals);
+
+    printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
+            finals, remaining);
 
     // ============ Deallocate Tree
     treeDestruct(sets);
