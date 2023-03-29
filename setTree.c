@@ -311,6 +311,8 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
         if (relc == 0) {
             alreadyFlagged = alreadyFlagged && super->flag;
             super->flag = true;
+
+            if (dynamic) nodeFreeDescs(super, levels - 1, superc - rel);
         }
 
         // Otherwise, recurse on that child node, shifting the set of
@@ -508,7 +510,7 @@ int nodeAllocDescs(Node *node, size_t levels, unsigned long superc)
 
     // Allocate Array of Children
     node->supers = calloc(superc, sizeof(Node *));
-    if (node->supers == NULL) -1;
+    if (node->supers == NULL) return -1;
 
     // Iterate over Children
     for (unsigned long i = 0; i < superc; i++)
