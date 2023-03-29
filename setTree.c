@@ -373,12 +373,21 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
         // If this node doesn't exist, exit
         if (node == NULL) return -1;
 
-        // Node is flagged, there may not be allocated children
+        // Node is flagged, assume no allocated children
         else if (node->flag)
         {
             // Descendant sets are considered marked regardless, so
-            // either stop or make sure to print everything
+            // either stop or make sure to output everything
             if (mode == QUERY_SETS_UNMARKED) return 0;
+            else mode = QUERY_SETS_ALL;
+        }
+
+        // Not flagged, but no allocated children
+        else if (node->supers == NULL)
+        {
+            // Descendant sets are all considered unmarked, so either
+            // stop or make sure to output everything
+            if (mode == QUERY_SETS_MARKED) return 0;
             else mode = QUERY_SETS_ALL;
         }
     }
@@ -547,6 +556,9 @@ void nodeFreeDescs(Node *node, size_t levels, unsigned long superc)
         // Deallocate the array of Child Pointers
         free(node->supers);
     }
+
+    // Set to a null pointer to indicate there are no children
+    node->supers = NULL;
 
     return;
 }
