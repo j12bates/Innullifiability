@@ -8,7 +8,7 @@ void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    Base *tree = treeConstruct(3, 6);
+    Base *tree = treeConstruct(3, 6, ALLOC_DYNAMIC);
     if (tree == NULL) return 1;
     printf("Tree constructed\n\n");
 

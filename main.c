@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     // ============ Construct Tree
     // Now we're going to construct the tree for keeping track of all
     // our sets.
-    sets = treeConstruct(size, max);
+    sets = treeConstruct(size, max, ALLOC_STATIC);
     if (sets == NULL) {
         fprintf(stderr, "Unable to Allocate Tree\n");
         return 1;

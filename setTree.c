@@ -85,11 +85,13 @@ struct Base {
     Node *root;                 // Root node
     size_t levels;              // Number of levels of nodes
     unsigned long superc;       // Max number of possible child nodes
+    bool dynamic;               // Allocation mode
 };
 
 // Helper Function Declarations
 static int nodeFlag(Node *, size_t, unsigned long,
-        unsigned long, const unsigned long *, size_t);
+        unsigned long, const unsigned long *, size_t,
+        bool);
 static long long nodeQuery(const Node *, size_t, unsigned long,
         unsigned long *, size_t, QueryMode,
         void (*)(const unsigned long *, size_t));
@@ -109,7 +111,8 @@ static void nodeFreeDescs(Node *, size_t, unsigned long);
 
 // Construct A Tree
 // Returns NULL on input or memory error
-Base *treeConstruct(size_t levels, unsigned long max)
+Base *treeConstruct(size_t levels, unsigned long max,
+        AllocMode allocMode)
 {
     // We can't have more elements than possible values
     if (max < levels) return NULL;
@@ -118,9 +121,13 @@ Base *treeConstruct(size_t levels, unsigned long max)
     Base *base = malloc(sizeof(Base));
     if (base == NULL) return NULL;
 
+    // Allocation Mode
+    bool dynamic = allocMode == ALLOC_DYNAMIC;
+
     // Populate Information Structure
     base->levels = levels;
     base->superc = max - levels + 1;
+    base->dynamic = dynamic;
 
     // Allocate Memory for Root Node
     Node *root = malloc(sizeof(Node));
@@ -131,11 +138,14 @@ Base *treeConstruct(size_t levels, unsigned long max)
     root->supers = NULL;
     root->flag = false;
 
-    // Allocate Entire Tree
-    int res = nodeAllocDescs(root, levels, max - levels + 1);
-    if (res == -1) {
-        treeDestruct(base);
-        return NULL;
+    // If we're using static allocation, allocate the entire tree
+    if (!dynamic)
+    {
+        int res = nodeAllocDescs(root, levels, max - levels + 1);
+        if (res == -1) {
+            treeDestruct(base);
+            return NULL;
+        }
     }
 
     return base;
@@ -191,7 +201,8 @@ int treeMark(const Base *base,
 
     // Flag Nodes Appropriately
     int res = nodeFlag(base->root, base->levels, base->superc,
-            rel, rels, valuec - 1);
+            rel, rels, valuec - 1,
+            base->dynamic);
 
     // Handle Error
     if (res == -1)
@@ -269,7 +280,8 @@ long long treeQuery(const Base *base, QueryMode mode,
 // node that's already flagged, and return 1 if it's still true after
 // looking at everything.
 int nodeFlag(Node *node, size_t levels, unsigned long superc,
-        unsigned long rel, const unsigned long *rels, size_t relc)
+        unsigned long rel, const unsigned long *rels, size_t relc,
+        bool dynamic)
 {
     // If this node doesn't exist, exit
     if (node == NULL) return -1;
@@ -282,7 +294,7 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 
     // Make sure child nodes are allocated, as we're definitely going to
     // be flagging a descendant
-    nodeAllocChildren(node, levels, superc);
+    if (dynamic) nodeAllocChildren(node, levels, superc);
 
     // Keep track of whether we come across any nodes that weren't
     // flagged before
@@ -305,7 +317,8 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
         // constraints up
         else {
             int res = nodeFlag(super, levels - 1, superc - rel,
-                rels[0], rels + 1, relc - 1);
+                rels[0], rels + 1, relc - 1,
+                dynamic);
 
             // Pass along an error, continue to keep track of whether
             // we've already flagged this
@@ -322,7 +335,8 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
             // similarly to child count, but decrement as we're passing
             // to a lower level
             int res = nodeFlag(node->supers[i], levels - 1, superc - i,
-                    rel - i - 1, rels, relc);
+                    rel - i - 1, rels, relc,
+                    dynamic);
 
             // Pass along an error, continue to keep track of whether
             // we've already flagged this

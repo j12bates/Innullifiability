@@ -10,7 +10,14 @@
 // Set Tree Information Structure
 typedef struct Base Base;
 
-// Set Print Modes
+// Tree Allocation Modes
+typedef enum AllocMode AllocMode;
+enum AllocMode {
+    ALLOC_STATIC,
+    ALLOC_DYNAMIC
+};
+
+// Tree Query Modes
 typedef enum QueryMode QueryMode;
 enum QueryMode {
     QUERY_SETS_UNMARKED,
@@ -19,7 +26,7 @@ enum QueryMode {
 };
 
 // Construct a Tree
-Base *treeConstruct(size_t, unsigned long);
+Base *treeConstruct(size_t, unsigned long, AllocMode);
 
 // Destruct a Tree (Deallocate/Free)
 void treeDestruct(Base *);
