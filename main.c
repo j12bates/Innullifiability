@@ -72,7 +72,8 @@ size_t size;
 unsigned long max;
 
 // Base Pointer to Data Structure for Keeping Track of Sets
-Base *sets;
+TreeBase *sets;
+bool dynamic = true;
 
 // Supplementary Function Declarations
 bool eliminate(const unsigned long *, size_t);
@@ -85,35 +86,63 @@ int main(int argc, char *argv[])
     // Here, we're gonna get the command line arguments we need. We'll
     // first check if we have the right usage, then we'll convert them
     // to numeric types, checking for conversion errors.
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <N (set length)> <M (max value)>\n",
-                argv[0]);
+
+    // Arguments Check, Usage Message
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s [%s] %s %s\n",
+                argv[0], "-s", "N", "M");
+        fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
+        fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
+        fprintf(stderr, "  %s\t%s\n", "-s", "statically allocate tree");
+        return 2;
+    }
+
+    // Check for '-s' Option
+    int argoffs = 0;
+    if (strncmp(argv[1], "-s", 2) == 0) {
+        dynamic = false;
+        argoffs++;
+    }
+
+    // Get Numeric Arguments
+    errno = 0;
+    size = strtoull(argv[argoffs + 1], NULL, 10);
+    if (errno != 0) {
+        fprintf(stderr, "N Argument [%d]: %s\n",
+                argoffs + 1, strerror(errno));
         return 2;
     }
 
     errno = 0;
-    size = strtoull(argv[1], NULL, 10);
+    max = strtoul(argv[argoffs + 2], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "N Argument [1]: %s\n", strerror(errno));
+        fprintf(stderr, "M Argument [%d]: %s\n",
+                argoffs + 2, strerror(errno));
         return 2;
     }
 
-    errno = 0;
-    max = strtoul(argv[2], NULL, 10);
-    if (errno != 0) {
-        fprintf(stderr, "M Argument [2]: %s\n", strerror(errno));
+    // General Input Errors
+    if (max < size) {
+        fprintf(stderr, "M cannot be less than N\n");
         return 2;
     }
 
-    // ============ Construct Tree
-    // Now we're going to construct the tree for keeping track of all
+    if (size == 0) {
+        fprintf(stderr, "N = 0 makes no sense\n");
+        return 2;
+    }
+
+    // ============ Initialize Tree
+    // Now we're going to initialize the tree for keeping track of all
     // our sets.
-    sets = treeConstruct(size, max, ALLOC_DYNAMIC);
+    sets = treeInitialize(size, max,
+            dynamic ? ALLOC_DYNAMIC : ALLOC_STATIC);
     if (sets == NULL) {
         fprintf(stderr, "Unable to Allocate Tree\n");
         return 1;
     }
-    printf("Tree Constructed with N = %llu and M = %lu\n\n", size, max);
+    printf("Tree Instantiated with N = %llu and M = %lu\n\n",
+            size, max);
 
     // ============ Enumerate a Bunch of Nullifiable Sets
     // We know already that in order to be nullifiable, a set must have
@@ -173,8 +202,8 @@ int main(int argc, char *argv[])
     printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
             finals, remaining);
 
-    // ============ Deallocate Tree
-    treeDestruct(sets);
+    // ============ Release Tree
+    treeRelease(sets);
 
     return 0;
 }
@@ -187,10 +216,10 @@ int main(int argc, char *argv[])
 // gets sent to this function, which uses a function from the set tree
 // library to mark it or its supersets (supersets of a nullifiable set
 // are nullifiable as well).
-bool eliminate(const unsigned long *pSet, size_t pSetc)
+bool eliminate(const unsigned long *set, size_t setc)
 {
     // Mark anything matching this pattern on the data structure
-    int res = treeMark(sets, pSet, pSetc);
+    int res = treeMark(sets, set, setc);
 
     // Handle an error, just in case
     if (res == -1) {
@@ -231,6 +260,6 @@ void verify(const unsigned long *set, size_t setc)
 void printSet(const unsigned long *set, size_t setc)
 {
     for (size_t i = 0; i < setc; i++)
-        printf("%4d", set[i]);
+        printf("%4lu", set[i]);
     printf("\n");
 }

@@ -39,8 +39,11 @@
 // value (if the first value is 5, the second must be 6, so what can the
 // third be?).
 
-// The 'relative value' of a node is essentially its index as a child.
-// TODO talk about relative value a bit more?
+// The 'relative value' of a node is essentially its index as a child,
+// and is computed by decrementing the difference of the node's value
+// and its parent's value. Relative values are used for accessing a node
+// representing a particular set, as well as keeping track of what
+// numbers a node represents when doing a traversal.
 
 // The number of children a node has is simple to calculate. The root
 // has the maximum number of values, which is calculated by the
@@ -66,7 +69,6 @@
 // child there is one fewer value to represent). It is not important for
 // a traversal function to know its position within the tree.
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -88,6 +90,10 @@ struct Base {
     bool dynamic;               // Allocation mode
 };
 
+// Other Typedefs
+typedef enum TreeAllocMode AllocMode;
+typedef enum TreeQueryMode QueryMode;
+
 // Helper Function Declarations
 static int nodeFlag(Node *, size_t, unsigned long,
         unsigned long, const unsigned long *, size_t,
@@ -98,6 +104,7 @@ static long long nodeQuery(const Node *, size_t, unsigned long,
 static void setPass(const unsigned long *, size_t,
         void (*)(const unsigned long *, size_t));
 
+// Allocation Function Declarations
 static int nodeAllocChildren(Node *, size_t, unsigned long);
 static int nodeAllocDescs(Node *, size_t, unsigned long);
 static void nodeFreeDescs(Node *, size_t, unsigned long);
@@ -109,9 +116,9 @@ static void nodeFreeDescs(Node *, size_t, unsigned long);
 // abstracting nodes away from the user level. They make use of the
 // helper functions, which are defined later on.
 
-// Construct A Tree
+// Initialize a Tree
 // Returns NULL on input or memory error
-Base *treeConstruct(size_t levels, unsigned long max,
+Base *treeInitialize(size_t levels, unsigned long max,
         AllocMode allocMode)
 {
     // We can't have more elements than possible values
@@ -143,7 +150,7 @@ Base *treeConstruct(size_t levels, unsigned long max,
     {
         int res = nodeAllocDescs(root, levels, max - levels + 1);
         if (res == -1) {
-            treeDestruct(base);
+            treeRelease(base);
             return NULL;
         }
     }
@@ -151,8 +158,8 @@ Base *treeConstruct(size_t levels, unsigned long max,
     return base;
 }
 
-// Destruct A Tree (Deallocate/Free)
-void treeDestruct(Base *base)
+// Release a Tree (Deallocate/Free)
+void treeRelease(Base *base)
 {
     // Deallocate Entire Tree
     nodeFreeDescs(base->root, base->levels, base->superc);
@@ -308,10 +315,13 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 
         // If there are no further value constraints, this node is
         // satisfactory
-        if (relc == 0) {
+        if (relc == 0)
+        {
+            // Keep track of whether we've already flagged this
             alreadyFlagged = alreadyFlagged && super->flag;
             super->flag = true;
 
+            // The node's children don't matter anymore
             if (dynamic) nodeFreeDescs(super, levels - 1, superc - rel);
         }
 
@@ -355,7 +365,7 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
 // This is a recursive function for querying sets descending from a node
 // based on marked/unmarked status. It uses the standard method for
 // traversal while keeping a record of the child indices of its current
-// path, which are used as relative values when printing out the final
+// path, which are used as relative values when outputting the final
 // set.
 
 // There are three modes of querying: UNMARKED, MARKED, and ALL. If the
@@ -397,9 +407,9 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
     // Counter for number of sets
     long long setc = 0;
 
-    // If we are at the bottom of the tree, print/count the set (unless
-    // we're still in MARKED mode, in which case we already know it
-    // isn't)
+    // If we are at the bottom of the tree, output and count the set
+    // (unless we're still in MARKED mode, in which case we already know
+    // it isn't)
     if (levels == 0) {
         if (mode != QUERY_SETS_MARKED)
         {
