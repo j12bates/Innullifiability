@@ -25,6 +25,10 @@ struct Base {
 typedef enum SR_QueryMode QueryMode;
 
 // Helper Function Declarations
+static unsigned long long mcn(size_t, size_t);
+static long long query(const Rec *, unsigned long, size_t,
+        unsigned long *, size_t, QueryMode,
+        void (*)(const unsigned long *, size_t));
 
 // ============ User-Level Functions
 
@@ -38,7 +42,7 @@ typedef enum SR_QueryMode QueryMode;
 Base *sr_initialize(size_t size, unsigned long max)
 {
     // We can't have more elements than possible values
-    if (max < levels) return NULL;
+    if (max < size) return NULL;
 
     // Allocate Memory for Information Structure
     Base *base = malloc(sizeof(Base));
@@ -78,10 +82,24 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 
 // Output Sets with Particular Mark Status
 // Returns number of sets on success, -1 on memory error
-long long sr_query(const Base *base, QueryMode,
+long long sr_query(const Base *base, QueryMode mode,
         void (*out)(const unsigned long *, size_t))
 {
-    return 0;
+    // Exit if Null Pointer
+    if (base == NULL) return -1;
+
+    // Allocate Space for Values
+    unsigned long *values = calloc(base->size, sizeof(unsigned long));
+    if (values == NULL) return -1;
+
+    // Output Sets that Match Query
+    long long res = query(base->rec, base->max, base->size,
+            values, 0, mode, out);
+
+    // Deallocate Memory
+    free(values);
+
+    return res;
 }
 
 // ============ Helper Functions
@@ -89,7 +107,66 @@ long long sr_query(const Base *base, QueryMode,
 // These functions are helper functions for the main user-level
 // functions.
 
+// Recursively Check Records and Output Sets
+// Returns number of sets on success, -1 on memory error
+long long query(const Rec *rec, unsigned long max, size_t size,
+        unsigned long *values, size_t valuec, QueryMode mode,
+        void (*out)(const unsigned long *, size_t))
+{
+    // Exit if Null Pointer
+    if (rec == NULL) return -1;
+
+    // Number of Sets Output
+    long long setc = 0;
+
+    // If we're at the set level, deal with the set
+    if (valuec == size)
+    {
+        // If the mark status checks out, output
+        if (rec->marked == (mode == QUERY_SETS_MARKED)
+                || mode == QUERY_SETS_ALL)
+        {
+            out(values, valuec);
+            setc++;
+        }
+    }
+
+    // Otherwise, go through all the possible values for this position
+    else
+    {
+        // Minimum: 1 if we're just starting, and one above previous
+        // value otherwise
+        unsigned long lmin = 1;
+        if (valuec != 0) lmin = values[valuec - 1] + 1;
+
+        // Maximum: increments towards global max as we approach the
+        // final position
+        size_t remaining = size - valuec - 1;
+        unsigned long lmax = max - remaining;
+
+        // Iterate over all these values
+        for (unsigned long i = lmin; i <= lmax; i++)
+        {
+            // Append the next value to our set values
+            values[valuec] = i;
+
+            // Recurse, pass on any error, and add to our counter
+            long long res = query(rec, max, size,
+                    values, valuec + 1, mode, out);
+            if (res == -1) return -1;
+            setc += res;
+
+            // Advance beyond the sets that call covered, which can be
+            // expressed as a number of combinations
+            rec += mcn(max - i, remaining);
+        }
+    }
+
+    return setc;
+}
+
 // M Choose N
+// Returns 0 on error
 unsigned long long mcn(size_t m, size_t n)
 {
     // Invalid Case
