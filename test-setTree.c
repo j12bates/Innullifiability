@@ -8,7 +8,7 @@ void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    Base *tree = treeConstruct(3, 6, ALLOC_DYNAMIC);
+    TreeBase *tree = treeInitialize(3, 6, ALLOC_DYNAMIC);
     if (tree == NULL) return 1;
     printf("Tree constructed\n\n");
 
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     queryReturnCode = treeQuery(NULL, QUERY_SETS_ALL, &printSet);
     printf("\nShould be an error, %d\n\n", queryReturnCode);
 
-    treeDestruct(tree);
+    treeRelease(tree);
     printf("Tree freed\n");
 
     return 0;

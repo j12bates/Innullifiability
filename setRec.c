@@ -57,6 +57,10 @@ Base *sr_initialize(size_t size, unsigned long max)
     if (rec == NULL) return NULL;
     base->rec = rec;
 
+    // TODO REMOVE -- this is just a little test to see if indexing
+    // works properly
+    rec[6].marked = true;
+
     return base;
 }
 
