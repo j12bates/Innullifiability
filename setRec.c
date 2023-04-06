@@ -113,8 +113,17 @@ long long sr_query(const Base *base, QueryMode mode,
 
 // Recursively Check Records and Output Sets
 // Returns number of sets on success, -1 on memory error
+
+// This is a recursive function for going through every record. It uses
+// an array to keep track of the values it's working with, and a
+// position counter to keep track of position within the set. It goes
+// through all the possible values at that position, recursing as it
+// does so, being sure to advance the record pointer beyond all records
+// covered. If a call gives values for a complete set, it will check the
+// mark status, and pass the set to the output function depending on the
+// query mode.
 long long query(const Rec *rec, unsigned long max, size_t size,
-        unsigned long *values, size_t valuec, QueryMode mode,
+        unsigned long *values, size_t position, QueryMode mode,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
@@ -123,14 +132,14 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     // Number of Sets Output
     long long setc = 0;
 
-    // If we're at the set level, deal with the set
-    if (valuec == size)
+    // If we're at the level of a complete set, check the record
+    if (position == size)
     {
         // If the mark status checks out, output
         if (rec->marked == (mode == QUERY_SETS_MARKED)
                 || mode == QUERY_SETS_ALL)
         {
-            out(values, valuec);
+            out(values, size);
             setc++;
         }
     }
@@ -141,22 +150,22 @@ long long query(const Rec *rec, unsigned long max, size_t size,
         // Minimum: 1 if we're just starting, and one above previous
         // value otherwise
         unsigned long lmin = 1;
-        if (valuec != 0) lmin = values[valuec - 1] + 1;
+        if (position != 0) lmin = values[position - 1] + 1;
 
         // Maximum: increments towards global max as we approach the
         // final position
-        size_t remaining = size - valuec - 1;
+        size_t remaining = size - position - 1;
         unsigned long lmax = max - remaining;
 
         // Iterate over all these values
         for (unsigned long i = lmin; i <= lmax; i++)
         {
             // Append the next value to our set values
-            values[valuec] = i;
+            values[position] = i;
 
             // Recurse, pass on any error, and add to our counter
             long long res = query(rec, max, size,
-                    values, valuec + 1, mode, out);
+                    values, position + 1, mode, out);
             if (res == -1) return -1;
             setc += res;
 
