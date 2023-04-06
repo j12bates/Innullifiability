@@ -134,7 +134,13 @@ long long sr_query(const Base *base, QueryMode mode,
 // This is a recursive function for marking records that match a set of
 // constraining values. The function uses two counters, one for value
 // and one for position, to keep track of where it is within the whole
-// record. TODO more stuff
+// record. The function recurses on the record pointer when it wants to
+// use the value at the position, and otherwise moves the record pointer
+// beyond all those sets. The function must use the value if it's the
+// next constraint. But otherwise, it must be sure to account for
+// potential intermediary values between constraints, so it will also
+// split itself up when it's able to use the value as an intermediary,
+// and by default move on to the next value at the position.
 long long mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
         unsigned long value, size_t position)
@@ -160,7 +166,8 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         }
     }
 
-    // If we're at the next constraint, we must take this path
+    // If we're at the next constraint, we must mark these sets, as the
+    // constraint can't come up again
     else if (value == *constr)
     {
         // Recurse, advancing to the next position and the next
@@ -178,7 +185,8 @@ long long mark(Rec *rec, unsigned long max, size_t size,
     else
     {
         // If we have positions spare, we'll have sets that use this
-        // value anyways
+        // value here anyways, so split the call up and mark all those
+        // sets too
         if (position + constrc < size)
         {
             // Recurse, advancing to the next position
