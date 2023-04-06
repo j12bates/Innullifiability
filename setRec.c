@@ -80,7 +80,25 @@ void sr_release(Base *base)
 // memory error, -2 on input error
 int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 {
-    return 0;
+    // Exit if Null Pointer
+    if (base == NULL) return -1;
+
+    // Check if set is valid: values must be increasing, and between 1
+    // and M, and size must not be greater than N
+    if (setc > base->size) return -2;
+    if (set[0] < 1) return -2;
+    if (set[0] > base->max) return -2;
+    for (size_t i = 1; i < setc; i++)
+    {
+        if (set[i] <= set[i - 1]) return -2;
+        if (set[i] > base->max) return -2;
+    }
+
+    // Mark Records with Set as Constraining Values
+    long long res = mark(base->rec, base->max, base->size,
+            set, setc, 1, 0);
+
+    return res;
 }
 
 // Output Sets with Particular Mark Status
