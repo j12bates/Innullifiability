@@ -26,6 +26,9 @@ typedef enum SR_QueryMode QueryMode;
 
 // Helper Function Declarations
 static unsigned long long mcn(size_t, size_t);
+static long long mark(Rec *, unsigned long, size_t,
+        const unsigned long *, size_t,
+        unsigned long, size_t);
 static long long query(const Rec *, unsigned long, size_t,
         unsigned long *, size_t, QueryMode,
         void (*)(const unsigned long *, size_t));
@@ -56,10 +59,6 @@ Base *sr_initialize(size_t size, unsigned long max)
     Rec *rec = calloc(mcn(max, size), sizeof(Rec));
     if (rec == NULL) return NULL;
     base->rec = rec;
-
-    // TODO REMOVE -- this is just a little test to see if indexing
-    // works properly
-    rec[6].marked = true;
 
     return base;
 }
@@ -110,6 +109,86 @@ long long sr_query(const Base *base, QueryMode mode,
 
 // These functions are helper functions for the main user-level
 // functions.
+
+// Recursively Mark Sets with Constraining Values
+// Returns number of sets newly marked on success, -1 on memory error
+
+// This is a recursive function for marking records that match a set of
+// constraining values. The function uses two counters, one for value
+// and one for position, to keep track of where it is within the whole
+// record. TODO more stuff
+long long mark(Rec *rec, unsigned long max, size_t size,
+        const unsigned long *constr, size_t constrc,
+        unsigned long value, size_t position)
+{
+    // Exit if Null Pointer
+    if (rec == NULL) return -1;
+
+    // Counter for the Number of Newly Marked Sets
+    long long setc = 0;
+
+    // If we've met all the constraints, mark the records and exit
+    if (constrc == 0)
+    {
+        // Number of sets to mark expressed as combinations
+        size_t toMark = mcn(max - value + 1, size - position);
+
+        // Mark all these records, keeping count of those not already
+        // marked
+        for (size_t i = 0; i < toMark; i++)
+        {
+            if (!rec[i].marked) setc++;
+            rec[i].marked = true;
+        }
+    }
+
+    // If we're at the next constraint, we must take this path
+    else if (value == *constr)
+    {
+        // Recurse, advancing to the next position and the next
+        // constraint
+        long long res = mark(rec, max, size, constr + 1, constrc - 1,
+                value + 1, position + 1);
+
+        // Pass along an error and otherwise keep count
+        if (res == -1) return -1;
+        setc += res;
+    }
+
+    // Otherwise, we aren't going to advance to the next constraint this
+    // time
+    else
+    {
+        // If we have positions spare, we'll have sets that use this
+        // value anyways
+        if (position + constrc < size)
+        {
+            // Recurse, advancing to the next position
+            long long res = mark(rec, max, size, constr, constrc,
+                    value + 1, position + 1);
+
+            // Pass along an error and otherwise keep count
+            if (res == -1) return -1;
+            setc += res;
+        }
+
+        // Either way, we must advance to the next value
+
+        // Advance beyond the sets with this value at this position,
+        // which can be expressed as a number of combinations
+        rec += mcn(max - value, size - position - 1);
+
+        // Simple recurse without advancing position
+        long long res = mark(rec, max, size, constr, constrc,
+                value + 1, position);
+
+        // Pass along an error and otherwise keep count
+        if (res == -1) return -1;
+        setc += res;
+    }
+
+    return setc;
+}
 
 // Recursively Check Records and Output Sets
 // Returns number of sets on success, -1 on memory error
