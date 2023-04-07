@@ -231,7 +231,7 @@ bool eliminate(const unsigned long *set, size_t setc)
         exit(16);
     }
 
-    return res == 1;
+    return res == 0;
 }
 
 // Supplemental Function for Verifying a Set

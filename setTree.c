@@ -211,13 +211,6 @@ int treeMark(const Base *base,
             rel, rels, valuec - 1,
             base->dynamic);
 
-    // Handle Error
-    if (res == -1)
-    {
-        free(rels);
-        return -1;
-    }
-
     // Deallocate Memory
     free(rels);
 
@@ -255,8 +248,8 @@ long long treeQuery(const Base *base, QueryMode mode,
 // consistent pattern, we can simply ignore them here.
 
 // Recursively Flag Tree Nodes
-// Returns 0 on success, or 1 if nodes already flagged, -1 on memory
-// error
+// Returns 0 on success, or 1 if at least 1 newly flagged node, -1 on
+// memory error
 
 // This function is a recursive function for flagging nodes which have
 // particular ancestors. It uses the standard method for traversal. In
@@ -294,18 +287,17 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     if (node == NULL) return -1;
 
     // If we got to the lowest level, there's nothing to do
-    if (levels == 0) return 1;
+    if (levels == 0) return 0;
 
     // If this node is already flagged, no need to go further
-    if (node->flag) return 1;
+    if (node->flag) return 0;
 
     // Make sure child nodes are allocated, as we're definitely going to
     // be flagging a descendant
     if (dynamic) nodeAllocChildren(node, levels, superc);
 
-    // Keep track of whether we come across any nodes that weren't
-    // flagged before
-    bool alreadyFlagged = true;
+    // Keep track of any newly flagged nodes
+    bool newlyFlagged = false;
 
     // This node has a child that represents the value we want
     if (rel < superc)
@@ -317,8 +309,8 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
         // satisfactory
         if (relc == 0)
         {
-            // Keep track of whether we've already flagged this
-            alreadyFlagged = alreadyFlagged && super->flag;
+            // Keep track if this node is newly flagged
+            newlyFlagged = newlyFlagged || !super->flag;
             super->flag = true;
 
             // The node's children don't matter anymore
@@ -332,10 +324,9 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
                 rels[0], rels + 1, relc - 1,
                 dynamic);
 
-            // Pass along an error, continue to keep track of whether
-            // we've already flagged this
+            // Pass along an error and otherwise keep track
             if (res == -1) return -1;
-            alreadyFlagged = alreadyFlagged && res == 1;
+            newlyFlagged = newlyFlagged || res == 1;
         }
     }
 
@@ -350,13 +341,12 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
                     rel - i - 1, rels, relc,
                     dynamic);
 
-            // Pass along an error, continue to keep track of whether
-            // we've already flagged this
+            // Pass along an error and otherwise keep track
             if (res == -1) return -1;
-            alreadyFlagged = alreadyFlagged && res == 1;
+            newlyFlagged = newlyFlagged || res == 1;
         }
 
-    return alreadyFlagged ? 1 : 0;
+    return newlyFlagged ? 1 : 0;
 }
 
 // Recursively Query Nodes
