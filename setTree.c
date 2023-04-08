@@ -77,8 +77,8 @@
 // Tree Node Structure
 typedef struct Node Node;
 struct Node {
-    Node **supers;              // Pointers to child nodes
     bool flag;                  // Flag
+    Node *supers;               // Pointer to array of child nodes
 };
 
 // Set Tree Information Structure
@@ -303,7 +303,7 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     if (rel < superc)
     {
         // The Child Node of this Value
-        Node *super = node->supers[rel];
+        Node *super = node->supers + rel;
 
         // If there are no further value constraints, this node is
         // satisfactory
@@ -334,10 +334,13 @@ int nodeFlag(Node *node, size_t levels, unsigned long superc,
     if (relc + 1 < levels)
         for (unsigned long i = 0; i < rel && i < superc; i++)
         {
+            // Child Node
+            Node *super = node->supers + i;
+
             // Recurse with the new node; adjust the relative value
             // similarly to child count, but decrement as we're passing
             // to a lower level
-            int res = nodeFlag(node->supers[i], levels - 1, superc - i,
+            int res = nodeFlag(super, levels - 1, superc - i,
                     rel - i - 1, rels, relc,
                     dynamic);
 
@@ -420,7 +423,7 @@ long long nodeQuery(const Node *node, size_t levels, unsigned long superc,
         Node *next = NULL;
 
         // Otherwise, pass in the actual child node
-        if (mode != QUERY_SETS_ALL) next = node->supers[i];
+        if (mode != QUERY_SETS_ALL) next = node->supers + i;
 
         // Simple traversal recurse
         long long n = nodeQuery(next, levels - 1, superc - i,
@@ -482,16 +485,14 @@ int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
     if (node->supers != NULL) return 0;
 
     // Allocate Array of Child Pointers
-    node->supers = calloc(superc, sizeof(Node *));
+    node->supers = calloc(superc, sizeof(Node));
     if (node->supers == NULL) return -1;
 
     // Iteratively Allocate and Initialize Child Nodes
     for (unsigned long i = 0; i < superc; i++)
     {
-        node->supers[i] = malloc(sizeof(Node));
-
-        node->supers[i]->supers = NULL;
-        node->supers[i]->flag = false;
+        node->supers[i].supers = NULL;
+        node->supers[i].flag = false;
     }
 
     return 0;
@@ -505,27 +506,21 @@ int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
 // and arrays for children.
 int nodeAllocDescs(Node *node, size_t levels, unsigned long superc)
 {
-    // Base case: if there are no more levels, nothing to enumerate
-    if (levels == 0) return 0;
+    // Allocate children if necessary
+    int res = nodeAllocChildren(node, levels, superc);
+    if (res == -1) return -1;
 
-    // Allocate Array of Children
-    node->supers = calloc(superc, sizeof(Node *));
-    if (node->supers == NULL) return -1;
+    // We're going down one level
+    if (levels - 1 == 0) return 0;
 
     // Iterate over Children
     for (unsigned long i = 0; i < superc; i++)
     {
-        // Allocate Memory for Node
-        Node *child = malloc(sizeof(Node));
-        if (child == NULL) return -1;
-        node->supers[i] = child;
+        // Child Node
+        Node *child = node->supers + i;
 
-        // Initialize Values to Defaults
-        child->supers = NULL;
-        child->flag = false;
-
-        // Recurse on Child Node
-        int res = nodeAllocDescs(child, levels - 1, superc - i);
+        // Allocate the Child's Children
+        res = nodeAllocDescs(child, levels - 1, superc - i);
         if (res == -1) return -1;
     }
 
@@ -548,14 +543,14 @@ void nodeFreeDescs(Node *node, size_t levels, unsigned long superc)
         // Iterate over Children
         for (unsigned long i = 0; i < superc; i++)
         {
-            // First recursively deallocate further descendants
-            nodeFreeDescs(node->supers[i], levels - 1, superc - i);
+            // Child Node
+            Node *child = node->supers + i;
 
-            // Then deallocate the children themselves
-            free(node->supers[i]);
+            // Recursively deallocate further descendants
+            nodeFreeDescs(child, levels - 1, superc - i);
         }
 
-        // Deallocate the array of Child Pointers
+        // Deallocate the array of Children
         free(node->supers);
     }
 
