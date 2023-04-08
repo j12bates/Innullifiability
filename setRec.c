@@ -76,8 +76,8 @@ void sr_release(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-// Returns 0 on success, or 1 if everything's already marked, -1 on
-// memory error, -2 on input error
+// Returns number of sets newly marked on success, -1 on memory error,
+// -2 on input error
 int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 {
     // Exit if Null Pointer
@@ -148,7 +148,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
     // Exit if Null Pointer
     if (rec == NULL) return -1;
 
-    // Counter for the Number of Newly Marked Sets
+    // Counter for Newly Marked Sets
     long long setc = 0;
 
     // If we've met all the constraints, mark the records and exit
@@ -241,8 +241,8 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     if (position == size)
     {
         // If the mark status checks out, output
-        if (rec->marked == (mode == QUERY_SETS_MARKED)
-                || mode == QUERY_SETS_ALL)
+        if (rec->marked == (mode == SR_QUERY_SETS_MARKED)
+                || mode == SR_QUERY_SETS_ALL)
         {
             out(values, size);
             setc++;
@@ -292,7 +292,7 @@ unsigned long long mcn(size_t m, size_t n)
 
     // Total Ordered Combinations, Permutations
     unsigned long long total = 1, perms = 1;
-    for (size_t i = 0; i < m - n; i++)
+    for (size_t i = 0; i < n; i++)
     {
         total *= m - i;
         perms *= i + 1;

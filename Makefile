@@ -1,8 +1,9 @@
-SRC 	:= main.c setTree.c eqSets.c nulTest.c
+SRC 	:= main.c setRec.c setTree.c eqSets.c nulTest.c
 
 CC		:= gcc
-CCFLAGS	:= -O3 -flto
+CCFLAGS	:= -Wall
 
+OPFLAGS := -O3 -flto
 DBFLAGS := -g
 
 .PHONY: all debug clean
@@ -10,10 +11,10 @@ DBFLAGS := -g
 all: innullifiables
 
 innullifiables: $(SRC)
-	$(CC) $(CCFLAGS) $(SRC) -o $@
+	$(CC) $(CCFLAGS) $(OPFLAGS) $(SRC) -o $@
 
-debug: CCFLAGS += $(DBFLAGS)
-debug: innullifiables
+debug: $(SRC)
+	$(CC) $(CCFLAGS) $(DBFLAGS) $(SRC) -o innullifiables
 
 clean:
 	rm innullifiables

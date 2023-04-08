@@ -35,13 +35,13 @@ int main(int argc, char *argv[])
 
     long long queryReturnCode;
 
-    queryReturnCode = sr_query(rec, QUERY_SETS_ALL, &printSet);
+    queryReturnCode = sr_query(rec, SR_QUERY_SETS_ALL, &printSet);
     printf("\nShould be all the sets, %d\n\n", queryReturnCode);
 
-    queryReturnCode = sr_query(rec, QUERY_SETS_MARKED, &printSet);
+    queryReturnCode = sr_query(rec, SR_QUERY_SETS_MARKED, &printSet);
     printf("\nShould be all those we marked, %d\n\n", queryReturnCode);
 
-    queryReturnCode = sr_query(rec, QUERY_SETS_UNMARKED, &printSet);
+    queryReturnCode = sr_query(rec, SR_QUERY_SETS_UNMARKED, &printSet);
     printf("\nShould be all the others, %d\n\n", queryReturnCode);
 
     sr_release(rec);

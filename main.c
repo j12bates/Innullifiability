@@ -61,6 +61,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "setRec.h"
 #include "setTree.h"
 #include "eqSets.h"
 #include "nulTest.h"
@@ -72,11 +73,15 @@ size_t size;
 unsigned long max;
 
 // Base Pointer to Data Structure for Keeping Track of Sets
-TreeBase *sets;
+union {
+    TreeBase *tree;
+    SR_Base *record;
+} sets;
 bool dynamic = true;
 
 // Supplementary Function Declarations
 bool eliminate(const unsigned long *, size_t);
+long long retrieve(void (*)(const unsigned long *, size_t));
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
@@ -93,7 +98,8 @@ int main(int argc, char *argv[])
                 argv[0], "-s", "N", "M");
         fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
         fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
-        fprintf(stderr, "  %s\t%s\n", "-s", "statically allocate tree");
+        fprintf(stderr, "  %s\t%s\n", "-s",
+                "statically allocate data structure");
         return 2;
     }
 
@@ -132,16 +138,23 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // ============ Initialize Tree
-    // Now we're going to initialize the tree for keeping track of all
-    // our sets.
-    sets = treeInitialize(size, max,
-            dynamic ? ALLOC_DYNAMIC : ALLOC_STATIC);
-    if (sets == NULL) {
-        fprintf(stderr, "Unable to Allocate Tree\n");
+    // ============ Initialize Data Structure
+    // Now we're going to initialize the data structure for keeping
+    // track of all our sets. This could either be a tree or a record
+    // array.
+
+    // If we want dynamic memory usage, use a tree
+    if (dynamic) sets.tree = treeInitialize(size, max, ALLOC_DYNAMIC);
+
+    // If we want static memory usage, use a record array
+    else sets.record = sr_initialize(size, max);
+
+    if (sets.tree == NULL) {
+        fprintf(stderr, "Unable to Allocate Data Structure\n");
         return 1;
     }
-    printf("Tree Instantiated with N = %llu and M = %lu\n\n",
+
+    printf("Instantiated with N = %lu and M = %lu\n\n",
             size, max);
 
     // ============ Enumerate a Bunch of Nullifiable Sets
@@ -183,27 +196,19 @@ int main(int argc, char *argv[])
 
     printf("Testing Remaining Sets...\n");
 
-    // Check the sets that remain after Equivalent Sets
-    long long remaining = treeQuery(sets, QUERY_SETS_UNMARKED, &verify);
-    if (remaining == -1) {
-        fprintf(stderr, "Memory Error on Querying Tree\n");
-        return 1;
-    }
-
+    // Test the sets that remain after Equivalent Sets
+    long long remaining = retrieve(&verify);
     printf("Done\n\n");
 
     // Now, everything unmarked is Innullifiable
-    long long finals = treeQuery(sets, QUERY_SETS_UNMARKED, &printSet);
-    if (finals == -1) {
-        fprintf(stderr, "Memory Error on Querying Tree\n");
-        return 1;
-    }
+    long long finals = retrieve(&printSet);
 
     printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
             finals, remaining);
 
-    // ============ Release Tree
-    treeRelease(sets);
+    // ============ Release Data Structure
+    if (dynamic) treeRelease(sets.tree);
+    else sr_release(sets.record);
 
     return 0;
 }
@@ -213,13 +218,15 @@ int main(int argc, char *argv[])
 // Supplemental Function for Eliminating a Set/Subsets
 
 // When the equivalent sets program comes up with a nullifiable set, it
-// gets sent to this function, which uses a function from the set tree
-// library to mark it or its supersets (supersets of a nullifiable set
-// are nullifiable as well).
+// gets sent to this function, which marks it and its supersets in the
+// data structure (supersets of a nullifiable set are nullifiable as
+// well).
 bool eliminate(const unsigned long *set, size_t setc)
 {
-    // Mark anything matching this pattern on the data structure
-    int res = treeMark(sets, set, setc);
+    // Use the mark function specific to the data structure being used
+    int res;
+    if (dynamic) res = treeMark(sets.tree, set, setc);
+    else res = sr_mark(sets.record, set, setc);
 
     // Handle an error, just in case
     if (res == -1) {
@@ -232,6 +239,23 @@ bool eliminate(const unsigned long *set, size_t setc)
     }
 
     return res == 0;
+}
+
+// Supplemental Function for Retrieving Remaining Sets
+long long retrieve(void (*out)(const unsigned long *, size_t))
+{
+    // Use the query function specific to the data structure being used
+    long long res;
+    if (dynamic) res = treeQuery(sets.tree, QUERY_SETS_UNMARKED, out);
+    else res = sr_query(sets.record, SR_QUERY_SETS_UNMARKED, out);
+
+    // Handle an error, just in case
+    if (res == -1) {
+        fprintf(stderr, "Memory Error on Querying Data Structure\n");
+        exit(1);
+    }
+
+    return res;
 }
 
 // Supplemental Function for Verifying a Set

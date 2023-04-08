@@ -13,9 +13,9 @@ typedef struct Base SR_Base;
 // Set Record Query Modes
 typedef enum SR_QueryMode SR_QueryMode;
 enum SR_QueryMode {
-    QUERY_SETS_UNMARKED,
-    QUERY_SETS_MARKED,
-    QUERY_SETS_ALL
+    SR_QUERY_SETS_UNMARKED,
+    SR_QUERY_SETS_MARKED,
+    SR_QUERY_SETS_ALL
 };
 
 // Initialize a Set Record
