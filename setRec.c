@@ -198,19 +198,21 @@ long long mark(Rec *rec, unsigned long max, size_t size,
             setc += res;
         }
 
-        // Either way, we must advance to the next value
+        // Either way, advance to the next value, unless we can't
+        if (value < max)
+        {
+            // Advance beyond the sets with this value at this position,
+            // which can be expressed as a number of combinations
+            rec += mcn(max - value, size - position - 1);
 
-        // Advance beyond the sets with this value at this position,
-        // which can be expressed as a number of combinations
-        rec += mcn(max - value, size - position - 1);
+            // Simple recurse without advancing position
+            long long res = mark(rec, max, size, constr, constrc,
+                    value + 1, position);
 
-        // Simple recurse without advancing position
-        long long res = mark(rec, max, size, constr, constrc,
-                value + 1, position);
-
-        // Pass along an error and otherwise keep count
-        if (res == -1) return -1;
-        setc += res;
+            // Pass along an error and otherwise keep count
+            if (res == -1) return -1;
+            setc += res;
+        }
     }
 
     return setc;

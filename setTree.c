@@ -460,6 +460,9 @@ void setPass(const unsigned long *rels, size_t relc,
     // Pass to function
     if (out != NULL) out(set, relc);
 
+    // Deallocate Memory
+    free(set);
+
     return;
 }
 
@@ -506,6 +509,12 @@ int nodeAllocChildren(Node *node, size_t levels, unsigned long superc)
 // and arrays for children.
 int nodeAllocDescs(Node *node, size_t levels, unsigned long superc)
 {
+    // If this node doesn't exist, exit
+    if (node == NULL) return -1;
+
+    // If we're at the bottom level, exit
+    if (levels == 0) return 0;
+
     // Allocate children if necessary
     int res = nodeAllocChildren(node, levels, superc);
     if (res == -1) return -1;

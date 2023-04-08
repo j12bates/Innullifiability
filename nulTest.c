@@ -42,7 +42,7 @@ int nulTest(const unsigned long *set, size_t setc)
 
     // Allocate Space for New Set
     unsigned long *newSet = calloc(setc - 1, sizeof(unsigned long));
-    if (set == NULL) return -1;
+    if (newSet == NULL) return -1;
 
     // Iterate through all the possible pairs of values
     for (size_t pairA = 0; pairA < setc; pairA++)
