@@ -174,7 +174,7 @@ void treeRelease(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-// Returns 0 on success, or 1 if everything's already marked, -1 on
+// Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
 // memory error, -2 on input error
 int treeMark(const Base *base,
         const unsigned long *values, size_t valuec)

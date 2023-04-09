@@ -76,8 +76,8 @@ void sr_release(Base *base)
 }
 
 // Mark a Certain Set and Supersets
-// Returns number of sets newly marked on success, -1 on memory error,
-// -2 on input error
+// Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
+// memory error, -2 on input error
 int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 {
     // Exit if Null Pointer
@@ -98,7 +98,8 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc)
     long long res = mark(base->rec, base->max, base->size,
             set, setc, 1, 0);
 
-    return res;
+    if (res == -1) return -1;
+    return res > 0 ? 1 : 0;
 }
 
 // Output Sets with Particular Mark Status
