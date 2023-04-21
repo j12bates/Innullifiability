@@ -10,7 +10,7 @@
 // Individual Set Record Structure
 typedef struct Rec Rec;
 struct Rec {
-    bool marked;
+    char bits;
 } __attribute__((__packed__));
 
 // Set Record Information Structure
@@ -28,9 +28,9 @@ typedef enum SR_QueryMode QueryMode;
 static unsigned long long mcn(size_t, size_t);
 static long long mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
-        unsigned long, size_t);
+        char, char, unsigned long, size_t);
 static long long query(const Rec *, unsigned long, size_t,
-        unsigned long *, size_t, QueryMode,
+        unsigned long *, size_t, char, char,
         void (*)(const unsigned long *, size_t));
 
 // ============ User-Level Functions
@@ -78,7 +78,8 @@ void sr_release(Base *base)
 // Mark a Certain Set and Supersets
 // Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
 // memory error, -2 on input error
-int sr_mark(const Base *base, const unsigned long *set, size_t setc)
+int sr_mark(const Base *base, const unsigned long *set, size_t setc,
+        char mask, char bits)
 {
     // Exit if Null Pointer
     if (base == NULL) return -1;
@@ -96,7 +97,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 
     // Mark Records with Set as Constraining Values
     long long res = mark(base->rec, base->max, base->size,
-            set, setc, 1, 0);
+            set, setc, mask, bits, 1, 0);
 
     if (res == -1) return -1;
     return res > 0 ? 1 : 0;
@@ -104,7 +105,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc)
 
 // Output Sets with Particular Mark Status
 // Returns number of sets on success, -1 on memory error
-long long sr_query(const Base *base, QueryMode mode,
+long long sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
@@ -116,7 +117,7 @@ long long sr_query(const Base *base, QueryMode mode,
 
     // Output Sets that Match Query
     long long res = query(base->rec, base->max, base->size,
-            values, 0, mode, out);
+            values, 0, mask, bits, out);
 
     // Deallocate Memory
     free(values);
@@ -144,7 +145,7 @@ long long sr_query(const Base *base, QueryMode mode,
 // and by default move on to the next value at the position.
 long long mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
-        unsigned long value, size_t position)
+        char mask, char bits, unsigned long value, size_t position)
 {
     // Exit if Null Pointer
     if (rec == NULL) return -1;
@@ -158,12 +159,16 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Number of sets to mark expressed as combinations
         size_t toMark = mcn(max - value + 1, size - position);
 
-        // Mark all these records, keeping count of those not already
-        // marked
+        // Mark all these sets
         for (size_t i = 0; i < toMark; i++)
         {
-            if (!rec[i].marked) setc++;
-            rec[i].marked = true;
+            // If the bits we care about aren't already set correctly,
+            // count this
+            if ((rec[i].bits & mask) != (bits & mask)) setc++;
+
+            // Set the bits we care about to the desired state
+            rec[i].bits &= ~mask;
+            rec[i].bits |= (bits & mask);
         }
     }
 
@@ -174,7 +179,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Recurse, advancing to the next position and the next
         // constraint
         long long res = mark(rec, max, size, constr + 1, constrc - 1,
-                value + 1, position + 1);
+                mask, bits, value + 1, position + 1);
 
         // Pass along an error and otherwise keep count
         if (res == -1) return -1;
@@ -192,7 +197,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         {
             // Recurse, advancing to the next position
             long long res = mark(rec, max, size, constr, constrc,
-                    value + 1, position + 1);
+                    mask, bits, value + 1, position + 1);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
@@ -208,7 +213,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 
             // Simple recurse without advancing position
             long long res = mark(rec, max, size, constr, constrc,
-                    value + 1, position);
+                    mask, bits, value + 1, position);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
@@ -231,7 +236,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 // mark status, and pass the set to the output function depending on the
 // query mode.
 long long query(const Rec *rec, unsigned long max, size_t size,
-        unsigned long *values, size_t position, QueryMode mode,
+        unsigned long *values, size_t position, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
@@ -243,9 +248,8 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     // If we're at the level of a complete set, check the record
     if (position == size)
     {
-        // If the mark status checks out, output
-        if (rec->marked == (mode == SR_QUERY_SETS_MARKED)
-                || mode == SR_QUERY_SETS_ALL)
+        // If the bits we care about are all set correctly, output
+        if ((rec->bits & mask) == (bits & mask))
         {
             out(values, size);
             setc++;
@@ -273,7 +277,7 @@ long long query(const Rec *rec, unsigned long max, size_t size,
 
             // Recurse, pass on any error, and add to our counter
             long long res = query(rec, max, size,
-                    values, position + 1, mode, out);
+                    values, position + 1, mask, bits, out);
             if (res == -1) return -1;
             setc += res;
 
