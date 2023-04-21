@@ -226,7 +226,7 @@ bool eliminate(const unsigned long *set, size_t setc)
     // Use the mark function specific to the data structure being used
     int res;
     if (dynamic) res = treeMark(sets.tree, set, setc);
-    else res = sr_mark(sets.record, set, setc);
+    else res = sr_mark(sets.record, set, setc, 1, 1);
 
     // Handle an error, just in case
     if (res == -1) {
@@ -247,7 +247,7 @@ long long retrieve(void (*out)(const unsigned long *, size_t))
     // Use the query function specific to the data structure being used
     long long res;
     if (dynamic) res = treeQuery(sets.tree, QUERY_SETS_UNMARKED, out);
-    else res = sr_query(sets.record, SR_QUERY_SETS_UNMARKED, out);
+    else res = sr_query(sets.record, 1, 0, out);
 
     // Handle an error, just in case
     if (res == -1) {
