@@ -232,9 +232,17 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 // position counter to keep track of position within the set. It goes
 // through all the possible values at that position, recursing as it
 // does so, being sure to advance the record pointer beyond all records
-// covered. If a call gives values for a complete set, it will check the
-// mark status, and pass the set to the output function depending on the
-// query mode.
+// covered. If a call gives values for a complete set, it will compare
+// the record against the settings provided, and output the set if there
+// is a match.
+
+// Normally, a set will be deemed a match if, in the record, ALL the
+// bits specified by the bitmask match those bits in the provided
+// settings. However, if the bitmask is set to all zeros, then the
+// settings will be interpreted as a bitmask, and a set will be deemed a
+// match if ANY of the bits specified by it are set in the record.
+// Except, if that new bitmask is also all zeros, all sets will be
+// deemed a match.
 long long query(const Rec *rec, unsigned long max, size_t size,
         unsigned long *values, size_t position, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
@@ -248,8 +256,20 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     // If we're at the level of a complete set, check the record
     if (position == size)
     {
-        // If the bits we care about are all set correctly, output
-        if ((rec->bits & mask) == (bits & mask))
+        // Whether this set is a match
+        bool match = false;
+
+        // Specific Bitmask Case: if the bits in the bitmask are all set
+        // according to the settings
+        if (mask != 0) match = (rec->bits & mask) == (bits & mask);
+
+        // Zero Bitmask Case: treat the settings as the bitmask; match
+        // if any of the bits in the bitmask are set, or if we have the
+        // wildcard bitmask of all zeros
+        else match = (rec->bits & bits) != 0 || bits == 0;
+
+        // If we have a match, output and keep count
+        if (match)
         {
             out(values, size);
             setc++;

@@ -58,6 +58,10 @@ int main(int argc, char *argv[])
     printf("\nShould be those with bit 0 marked and bit 1 unmarked, "
             "%d\n\n", queryReturnCode);
 
+    queryReturnCode = sr_query(rec, 0, PATTERN | THREE, &printSet);
+    printf("\nShould be those with either bit marked, %d\n\n",
+            queryReturnCode);
+
     queryReturnCode = sr_query(rec, PATTERN | THREE, 0, &printSet);
     printf("\nShould be all the completely unmarked sets, %d\n\n",
             queryReturnCode);
