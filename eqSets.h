@@ -8,10 +8,10 @@
 #include <stdlib.h>
 
 // Reconfigure Equivalent Set Generation
-int eqSetsInit(size_t, unsigned long);
+int eqSetsInit(unsigned long);
 
 // Enumerate Equivalent Sets
 int eqSets(const unsigned long *, size_t,
-        bool (*)(const unsigned long *, size_t));
+        void (*)(const unsigned long *, size_t));
 
 #endif

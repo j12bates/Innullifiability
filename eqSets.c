@@ -50,35 +50,28 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-// Maximum Set Value (M)
-static unsigned long max;
-
-// Final Set Size (N)
-static size_t size;
-
 // 2-D Array of Equivalent Pairs by Value
 // It's worth noting that this is indexed from zero, but the first
 // element points to the equivalent pairs of the value one.
 static long long **eqPairs = NULL;
-static size_t maxPairs;
+static size_t maxPairs = 0;
+static unsigned long maxValue = 0;
 
 // Helper Function Declarations
-static void enumerateEqPairs(unsigned long);
+static void genEqPairsValue(unsigned long);
+
 static bool storeEqPair(unsigned long, size_t,
         unsigned long, unsigned long);
 static bool insertPair(const unsigned long *, size_t, size_t,
         unsigned long *, long long);
 
-// Reconfigure Equivalent Set Generation
+// Configure Equivalent Set Maximum Value
 // Returns 0 on success, -1 on memory error, -2 on input error
 
-// This function will reset the equivalent set generation program, which
-// just involves making space for all the equivalent pairs we need and
-// generating them. It takes in the maximum set value (M) and the number
-// of set elements (N). To avoid repetition, N cannot be less than M,
-// and also it doesn't make any sense for N to be less than 2. But you
-// could just call this function with invalid values to deallocate the
-// dynamic memory. That'd be much appreciated.
+// This function will configure the equivalent sets program, generating
+// the needed equivalent pairs up to the max value specified. It can be
+// also used to deallocate the dynamic memory by calling it with an
+// input value of 1 or 0.
 
 // In order to calculate how much space we need to allocate, we'd like
 // to know the maximum number of equivalent pairs a value could have.
@@ -109,26 +102,23 @@ static bool insertPair(const unsigned long *, size_t, size_t,
 //     M - 3 + M / 2 - 2
 // or:
 //     3M / 2 - 5
-int eqSetsInit(size_t newSize, unsigned long newMax)
+int eqSetsInit(unsigned long max)
 {
     // Free everything in case there was something here before
     if (eqPairs != NULL)
-        for (unsigned long i = 0; i < max; i++)
+        for (unsigned long i = 0; i < maxValue; i++)
             free(eqPairs[i]);
 
-    // Exit if these values don't make sense
+    // Exit if max value doesn't make sense
     eqPairs = NULL;
-    if (newSize > newMax || newMax < 2) return -2;
-
-    // Set Variables
-    max = newMax;
-    size = newSize;
+    if (max < 2) return -2;
 
     // Each value gets an array
     eqPairs = calloc(max, sizeof(long long *));
     if (eqPairs == NULL) return -1;
 
     // Max equivalent pairs calculation from earlier
+    maxValue = max;
     maxPairs = max - 2;
     if (max > 5) maxPairs = 3 * max / 2 - 5;
 
@@ -137,38 +127,40 @@ int eqSetsInit(size_t newSize, unsigned long newMax)
         eqPairs[i - 1] = calloc(maxPairs, sizeof(long long));
         if (eqPairs[i - 1] == NULL) return -1;
 
-        enumerateEqPairs(i);
+        genEqPairsValue(i);
     }
 
     return 0;
 }
 
-// Enumerate Equivalent Sets
+// Expand Set into Equivalents with One Added Element
 // Returns 0 on success, -1 on memory error, -2 on input error
 
-// This function iteratively and recursively expands a set using
+// This function iteratively expands a set by one element using
 // equivalent pairs. It takes in a set, which must be an array of
 // numbers in ascending order and with no repetitions, except for the
 // important case in which the set is of length two, as either way one
 // of the values will be replaced with an equivalent pair which cannot
 // contain the same value anyways. The sets it generates are guaranteed
 // to have no repetitions and be in ascending order as well. These sets
-// are passed into the function passed in here the moment they are
-// generated. The function can also return true to indicate that the set
-// generated has already been dealt with and the function shouldn't
-// bother with generating its own equivalent sets.
+// are passed into the output function as they are generated.
 int eqSets(const unsigned long *set, size_t setc,
-        bool (*out)(const unsigned long *, size_t))
+        void (*out)(const unsigned long *, size_t))
 {
-    // If we've reached the maximum, exit successfully
-    if (setc == size) return 0;
-
-    // Exit with input error if we're not in ascending order, or if
-    // there are no repetitions, except for the length-two case
-    for (size_t i = 1; i < setc; i++)
+    // Validate Input Set Values
+    for (size_t i = 0; i < setc; i++)
     {
-        if (set[i - 1] > set[i]) return -2;
-        if (set[i - 1] == set[i] && setc != 2) return -2;
+        // Exit if value out of range
+        if (set[i] > maxValue) return -2;
+
+        if (i > 0)
+        {
+            // Exit if not in ascending order
+            if (set[i - 1] > set[i]) return -2;
+
+            // Exit if there's a repetition and this isn't length-two
+            if (set[i - 1] == set[i] && setc != 2) return -2;
+        }
     }
 
     // Allocate space for expanded set
@@ -198,14 +190,7 @@ int eqSets(const unsigned long *set, size_t setc,
                 continue;
 
             // If it worked, call function
-            if (out != NULL) if (out(newSet, setc + 1)) continue;
-
-            // Recurse on this new set
-            if (eqSets(newSet, setc + 1, out) == -1)
-            {
-                free(newSet);
-                return -1;
-            }
+            if (out != NULL) out(newSet, setc + 1);
         }
     }
 
@@ -217,8 +202,8 @@ int eqSets(const unsigned long *set, size_t setc,
 
 // ============ Helper Functions
 
-// Enumerate Equivalent Pairs for a Given Value
-void enumerateEqPairs(unsigned long value)
+// Generate Equivalent Pairs for a Given Value
+void genEqPairsValue(unsigned long value)
 {
     size_t index = 0;
 
@@ -227,7 +212,7 @@ void enumerateEqPairs(unsigned long value)
         if (storeEqPair(value, index, i, value - i)) index++;
 
     // Diffs: iterate over subtrahends
-    for (unsigned long i = 1; i <= max - value; i++)
+    for (unsigned long i = 1; i <= maxValue - value; i++)
         if (storeEqPair(value, index, i, value + i)) index++;
 
     // Prods: iterate over smaller factors
@@ -237,7 +222,7 @@ void enumerateEqPairs(unsigned long value)
     }
 
     // Quots: iterate over divisors
-    for (unsigned long i = 2; i <= max / value; i++)
+    for (unsigned long i = 2; i <= maxValue / value; i++)
         if (storeEqPair(value, index, i, value * i)) index++;
 
     return;
