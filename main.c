@@ -62,9 +62,13 @@
 #include <errno.h>
 
 #include "setRec.h"
-#include "setTree.h"
 #include "eqSets.h"
 #include "nulTest.h"
+
+// Bitmasks for Set Records
+#define NULLIF      1 << 1
+#define SUPERSET    1 << 2
+#define MARKED      NULLIF | SUPERSET
 
 // Size of Sets (N)
 size_t size;
@@ -72,18 +76,17 @@ size_t size;
 // Maximum Element Value (M)
 unsigned long max;
 
-// Base Pointer to Data Structure for Keeping Track of Sets
-union {
-    TreeBase *tree;
-    SR_Base *record;
-} sets;
-bool dynamic = true;
+// Set Records for Each Length 1-N
+SR_Base **rec;
 
 // Supplementary Function Declarations
-bool eliminate(const unsigned long *, size_t);
-long long retrieve(void (*)(const unsigned long *, size_t));
+void eliminate(const unsigned long *, size_t);
+void expandNul(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
+
+long long retrieve(void (*)(const unsigned long *, size_t));
+void resCheck(int);
 
 int main(int argc, char *argv[])
 {
@@ -93,37 +96,26 @@ int main(int argc, char *argv[])
     // to numeric types, checking for conversion errors.
 
     // Arguments Check, Usage Message
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s [%s] %s %s\n",
-                argv[0], "-s", "N", "M");
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s %s %s\n",
+                argv[0], "N", "M");
         fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
         fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
-        fprintf(stderr, "  %s\t%s\n", "-s",
-                "statically allocate data structure");
         return 2;
-    }
-
-    // Check for '-s' Option
-    int argoffs = 0;
-    if (strncmp(argv[1], "-s", 2) == 0) {
-        dynamic = false;
-        argoffs++;
     }
 
     // Get Numeric Arguments
     errno = 0;
-    size = strtoull(argv[argoffs + 1], NULL, 10);
+    size = strtoull(argv[1], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "N Argument [%d]: %s\n",
-                argoffs + 1, strerror(errno));
+        fprintf(stderr, "N Argument [1]: %s\n", strerror(errno));
         return 2;
     }
 
     errno = 0;
-    max = strtoul(argv[argoffs + 2], NULL, 10);
+    max = strtoul(argv[2], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "M Argument [%d]: %s\n",
-                argoffs + 2, strerror(errno));
+        fprintf(stderr, "M Argument [2]: %s\n", strerror(errno));
         return 2;
     }
 
@@ -138,20 +130,23 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // ============ Initialize Data Structure
+    // ============ Initialize Set Records
     // Now we're going to initialize the data structure for keeping
-    // track of all our sets. This could either be a tree or a record
-    // array.
+    // track of sets. We're going to create a set record for each length
+    // of set from 1 to N.
 
-    // If we want dynamic memory usage, use a tree
-    if (dynamic) sets.tree = treeInitialize(size, max, ALLOC_DYNAMIC);
+    // Allocate Array Space
+    rec = calloc(size, sizeof(SR_Base *));
 
-    // If we want static memory usage, use a record array
-    else sets.record = sr_initialize(size, max);
+    // Create all Set Records
+    for (size_t i = 0; i < size; i++)
+    {
+        rec[i] = sr_initialize(i + 1, max);
 
-    if (sets.tree == NULL) {
-        fprintf(stderr, "Unable to Allocate Data Structure\n");
-        return 1;
+        if (rec[i] == NULL) {
+            fprintf(stderr, "Unable to Allocate Data Structure\n");
+            return 1;
+        }
     }
 
     printf("Instantiated with N = %lu and M = %lu\n\n",
@@ -163,36 +158,50 @@ int main(int argc, char *argv[])
     // equivalent pairs program to expand a set containing two of the
     // same number, which we know is definitely nullifiable. This will
     // give us a bunch more nullifiable sets, which we'll mark off in
-    // the tree.
+    // the data structure. From there, we'll expand those expansions,
+    // until we've expanded all the way up to the final set length.
 
-    // Initialize the program
-    eqSetsInit(size, max);
+    // Since supersets of nullifiable sets are also nullifiable, we can
+    // also mark supersets in the data structure. We also can ignore
+    // those supersets later on when we expand all the sets of that
+    // size, as we know that the expansion of those will have already
+    // been covered earlier.
+
+    // Configure the program
+    eqSetsInit(max);
 
     printf("Generating Nullifiable Sets...\n");
 
     // Trivial sets for each allowed value
-    for (unsigned long n = 1; n <= max; n++)
+    if (size > 2) for (unsigned long n = 1; n <= max; n++)
     {
         unsigned long minNulSet[2];
         minNulSet[0] = n;
         minNulSet[1] = n;
 
-        printf("%lu...", n);
-        fflush(stdout);
+        expandNul(minNulSet, 2);
+    }
 
-        eqSets(minNulSet, 2, &eliminate);
+    // Iteratively Expand Nullifiable Sets by One Element
+    for (size_t setSize = 3; setSize < size; setSize++)
+    {
+        printf("Expanding Size %lu\n", setSize);
+
+        // Make sure we only get the sets that are marked nullifiable
+        // and also not a superset of a smaller nullifiable set
+        sr_query(rec[setSize - 1], MARKED, NULLIF, &expandNul);
     }
 
     printf("Done\n\n");
 
     // Deallocate the dynamic memory
-    eqSetsInit(0, 0);
+    eqSetsInit(0);
 
     // ============ Verify and Print Sets
     // The Equivalent Sets program is not completely perfect, and it
-    // cannot mark all nullifiable sets. So, we need to traverse the
-    // tree and just manually check each set before we can definitively
-    // say it's innullifiable.
+    // cannot mark all nullifiable sets. So, we need to manually and
+    // exhaustively check each set before we can definitively say it's
+    // innullifiable.
 
     printf("Testing Remaining Sets...\n");
 
@@ -206,63 +215,49 @@ int main(int argc, char *argv[])
     printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
             finals, remaining);
 
-    // ============ Release Data Structure
-    if (dynamic) treeRelease(sets.tree);
-    else sr_release(sets.record);
+    // ============ Release Set Records
+    for (size_t i = 0; i < size; i++) sr_release(rec[i]);
+    free(rec);
 
     return 0;
 }
 
 // ================ Supplemental Functions
 
-// Supplemental Function for Eliminating a Set/Subsets
-
-// When the equivalent sets program comes up with a nullifiable set, it
-// gets sent to this function, which marks it and its supersets in the
-// data structure (supersets of a nullifiable set are nullifiable as
-// well).
-bool eliminate(const unsigned long *set, size_t setc)
+// Supplemental Function for Expanding a Nullifiable Set
+void expandNul(const unsigned long *set, size_t setc)
 {
-    // Use the mark function specific to the data structure being used
-    int res;
-    if (dynamic) res = treeMark(sets.tree, set, setc);
-    else res = sr_mark(sets.record, set, setc, 1, 1);
+    // Expand Set and Eliminate it
+    eqSets(set, setc, &eliminate);
 
-    // Handle an error, just in case
-    if (res == -1) {
-        fprintf(stderr, "Memory Error while Marking Sets\n");
-        exit(1);
-    }
-    else if (res == -2) {
+    return;
+}
+
+// Supplemental Function for Eliminating a Set/Subsets
+void eliminate(const unsigned long *set, size_t setc)
+{
+    // Check Set Size
+    if (setc > size)
+    {
         fprintf(stderr, "This really shouldn't be happening.\n");
         exit(16);
     }
 
-    return res == 0;
-}
+    // Mark this Particular Set as Nullifiable
+    int res = sr_mark(rec[setc - 1], set, setc, NULLIF, NULLIF);
+    resCheck(res);
 
-// Supplemental Function for Retrieving Remaining Sets
-long long retrieve(void (*out)(const unsigned long *, size_t))
-{
-    // Use the query function specific to the data structure being used
-    long long res;
-    if (dynamic) res = treeQuery(sets.tree, QUERY_SETS_UNMARKED, out);
-    else res = sr_query(sets.record, 1, 0, out);
-
-    // Handle an error, just in case
-    if (res == -1) {
-        fprintf(stderr, "Memory Error on Querying Data Structure\n");
-        exit(1);
+    // If we haven't seen this already, mark all its supersets
+    if (res == 1) for (size_t i = setc; i < size; i++)
+    {
+        res = sr_mark(rec[i], set, setc, SUPERSET, SUPERSET);
+        resCheck(res);
     }
 
-    return res;
+    return;
 }
 
 // Supplemental Function for Verifying a Set
-
-// Since equivalent sets can't catch everything, we'll run everything
-// through this, which will run the exhaustive nullifiability test on
-// every set it receives and then eliminate it if it needs to be.
 void verify(const unsigned long *set, size_t setc)
 {
     // Run the test
@@ -286,4 +281,31 @@ void printSet(const unsigned long *set, size_t setc)
     for (size_t i = 0; i < setc; i++)
         printf("%4lu", set[i]);
     printf("\n");
+}
+
+// ================ Helper Functions
+
+// Retrieve all Completely Unmarked Sets
+long long retrieve(void (*out)(const unsigned long *, size_t))
+{
+    // Query for Sets with Neither Mark, Output
+    long long res = sr_query(rec[size - 1], MARKED, 0, out);
+
+    return res;
+}
+
+// Check Result of Mark Function
+void resCheck(int res)
+{
+    // Handle an error, just in case
+    if (res == -1) {
+        fprintf(stderr, "Memory Error while Marking Sets\n");
+        exit(1);
+    }
+    else if (res == -2) {
+        fprintf(stderr, "This really shouldn't be happening.\n");
+        exit(16);
+    }
+
+    return;
 }
