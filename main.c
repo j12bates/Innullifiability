@@ -67,7 +67,7 @@
 
 // Bitmasks for Set Records
 #define NULLIF      1 << 1
-#define SUPERSET    1 << 2
+#define SUPERSET    NULLIF | 1 << 2
 #define MARKED      NULLIF | SUPERSET
 
 // Size of Sets (N)
