@@ -34,26 +34,42 @@
 // Of course, one could simply create a recursive function to
 // exhaustively test every operation on a set to try and make two values
 // the same. However, doing this for every set would get quite costly.
-// So instead, this program works backwards, enumerating a bunch of
+// So instead, this program works backwards, generating a bunch of
 // nullifiable sets by considering every single way that a particular
 // value might have been reached. For example, given that the set
 // (1, 3, 4) is nullifiable, we could then generate a bunch of other
 // nullifiable sets by expanding the 3 into 5 and 2 (5 - 2 = 3), and all
-// the other 'equivalent pairs' of 3. Also, all supersets of nullifiable
-// sets are also nullifiable, as zero times anything is zero still. This
-// method is described in a lot better detail in the Equivalent Sets
-// program. By generating sets instead of testing sets, we can eliminate
-// a whole lot more sets faster than running a test over every set.
+// the other 'equivalent pairs' of 3. By generating sets instead of
+// testing sets, we can eliminate a whole lot more sets faster than
+// running a test over every set.
 
-// We keep track of the sets by way of boolean values in a tree. This
-// tree has a node for each set, and the library provides functions for
-// 'marking' sets and supersets to ignore them when traversing for any
-// remaining innullifiable sets at the end.
+// The program starts with pairs of the same number, which are known to
+// be nullifiable. Then it expands those into nullifiable sets of length
+// three, and marks off those sets. It can also mark off sets which are
+// supersets of those sets. After the generation is done, the program
+// then expands those length-three sets into length-four nullifiable
+// sets. After that, if a set is already marked as being a superset of a
+// smaller nullifiable set, it knows it doesn't need to bother expanding
+// it as well, as the parent set has already been expanded as much as it
+// can. This process continues until the final generation of N-length
+// nullifiable sets.
 
-// Yeah, I know, I could've done it in like eight lines of Haskell or
-// something. Fun fact, I actually tried it and it was super slow. So
-// I'm doing it the only other way I know how. And I think it'll work.
-// It might be big, but it'll be fast. I think.
+// The program keeps track of the sets by way of a series of Set
+// Records, which are just arrays that store some data for every
+// possible set. It creates a record for each set length, and uses it to
+// store sets from each generation. It can store whether a set has been
+// marked nullifiable, as well as whether that was due to being a
+// superset, so that the program can detect and avoid redundantly
+// expanding it.
+
+// This method of expanding sets doesn't cover everything, and it lets
+// some nullifiable sets through. So, after the final generation is
+// made, the program runs the remaining sets through an exhaustive test,
+// to weed out sets which are nullifiable which couldn't be caught by
+// nullifiable set expansion. In particular, this arises because the
+// expansion method stays within the range of valid set values, and some
+// sets might be only nullifiable through a calculation that goes beyond
+// that range.
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -271,7 +271,7 @@ long long query(const Rec *rec, unsigned long max, size_t size,
         // If we have a match, output and keep count
         if (match)
         {
-            out(values, size);
+            if (out != NULL) out(values, size);
             setc++;
         }
     }
