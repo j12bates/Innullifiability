@@ -30,13 +30,10 @@ static long long mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
         char, char, unsigned long, size_t);
 static long long query(const Rec *, unsigned long, size_t,
-        unsigned long *, size_t, char, char,
-        void (*)(const unsigned long *, size_t));
-
-static long long queryIterative(const Rec *, unsigned long, size_t,
         size_t, size_t, char, char,
         void (*)(const unsigned long *, size_t));
-static int incSetValues(unsigned long *, size_t, unsigned long, size_t);
+static int incSetValues(unsigned long *, size_t, unsigned long,
+        size_t);
 
 // ============ User-Level Functions
 
@@ -121,7 +118,7 @@ long long sr_query(const Base *base, char mask, char bits,
     if (values == NULL) return -1;
 
     // Output Sets that Match Query
-    long long res = queryIterative(base->rec, base->max, base->size,
+    long long res = query(base->rec, base->max, base->size,
             0, 1, mask, bits, out);
 
     // Deallocate Memory
@@ -239,7 +236,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 // some particular offset, so that it may be run in N parallel
 // instances. If a set matches the bit-field criteria provided, the
 // function will output it.
-long long queryIterative(const Rec *rec, unsigned long max, size_t size,
+long long query(const Rec *rec, unsigned long max, size_t size,
         size_t mod, size_t parallels, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
@@ -268,7 +265,7 @@ long long queryIterative(const Rec *rec, unsigned long max, size_t size,
         if (mask != 0) match = (rec->bits & mask) == (bits & mask);
 
         // Zero Bitmask Case: treat the settings as the bitmask; match
-        // if any of the bits in the bitmask are set, or if we have the
+        // if any of the bits in that bitmask are set, or if we have the
         // wildcard bitmask of all zeros
         else match = (rec->bits & bits) != 0 || bits == 0;
 
@@ -328,92 +325,6 @@ int incSetValues(unsigned long *set, size_t setc, unsigned long max,
     }
 
     return 0;
-}
-
-// Recursively Check Records and Output Sets
-// Returns number of sets on success, -1 on memory error
-
-// This is a recursive function for going through every record. It uses
-// an array to keep track of the values it's working with, and a
-// position counter to keep track of position within the set. It goes
-// through all the possible values at that position, recursing as it
-// does so, being sure to advance the record pointer beyond all records
-// covered. If a call gives values for a complete set, it will compare
-// the record against the settings provided, and output the set if there
-// is a match.
-
-// Normally, a set will be deemed a match if, in the record, ALL the
-// bits specified by the bitmask match those bits in the provided
-// settings. However, if the bitmask is set to all zeros, then the
-// settings will be interpreted as a bitmask, and a set will be deemed a
-// match if ANY of the bits specified by it are set in the record.
-// Except, if that new bitmask is also all zeros, all sets will be
-// deemed a match.
-long long query(const Rec *rec, unsigned long max, size_t size,
-        unsigned long *values, size_t position, char mask, char bits,
-        void (*out)(const unsigned long *, size_t))
-{
-    // Exit if Null Pointer
-    if (rec == NULL) return -1;
-
-    // Number of Sets Output
-    long long setc = 0;
-
-    // If we're at the level of a complete set, check the record
-    if (position == size)
-    {
-        // Whether this set is a match
-        bool match = false;
-
-        // Specific Bitmask Case: if the bits in the bitmask are all set
-        // according to the settings
-        if (mask != 0) match = (rec->bits & mask) == (bits & mask);
-
-        // Zero Bitmask Case: treat the settings as the bitmask; match
-        // if any of the bits in the bitmask are set, or if we have the
-        // wildcard bitmask of all zeros
-        else match = (rec->bits & bits) != 0 || bits == 0;
-
-        // If we have a match, output and keep count
-        if (match)
-        {
-            if (out != NULL) out(values, size);
-            setc++;
-        }
-    }
-
-    // Otherwise, go through all the possible values for this position
-    else
-    {
-        // Minimum: 1 if we're just starting, and one above previous
-        // value otherwise
-        unsigned long lmin = 1;
-        if (position != 0) lmin = values[position - 1] + 1;
-
-        // Maximum: increments towards global max as we approach the
-        // final position
-        size_t remaining = size - position - 1;
-        unsigned long lmax = max - remaining;
-
-        // Iterate over all these values
-        for (unsigned long i = lmin; i <= lmax; i++)
-        {
-            // Append the next value to our set values
-            values[position] = i;
-
-            // Recurse, pass on any error, and add to our counter
-            long long res = query(rec, max, size,
-                    values, position + 1, mask, bits, out);
-            if (res == -1) return -1;
-            setc += res;
-
-            // Advance beyond the sets that call covered, which can be
-            // expressed as a number of combinations
-            rec += mcn(max - i, remaining);
-        }
-    }
-
-    return setc;
 }
 
 // M Choose N
