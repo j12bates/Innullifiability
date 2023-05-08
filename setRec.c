@@ -33,6 +33,11 @@ static long long query(const Rec *, unsigned long, size_t,
         unsigned long *, size_t, char, char,
         void (*)(const unsigned long *, size_t));
 
+static long long queryIterative(const Rec *, unsigned long, size_t,
+        size_t, size_t, char, char,
+        void (*)(const unsigned long *, size_t));
+static int incSetValues(unsigned long *, size_t, unsigned long, size_t);
+
 // ============ User-Level Functions
 
 // These functions are for the main program to interact with, and they
@@ -222,6 +227,68 @@ long long mark(Rec *rec, unsigned long max, size_t size,
     }
 
     return setc;
+}
+
+// Iteratively Check Records and Output Sets
+// Returns number of sets on success, -1 on memory error
+long long queryIterative(const Rec *rec, unsigned long max, size_t size,
+        size_t mod, size_t parallels, char mask, char bits,
+        void (*out)(const unsigned long *, size_t))
+{
+    // Exit if Null Pointer
+    if (rec == NULL) return -1;
+
+    // Counter for Number of Sets
+    long long setc = 0;
+
+    // Initialize a Set with Lowest Values
+    unsigned long *values = calloc(size, sizeof(unsigned long));
+    for (size_t i = 0; i < size; i++) values[i] = i + 1;
+
+    // Starting Point
+    rec += mod;
+    int res = incSetValues(values, size, max, mod);
+    if (res == 1) return setc;
+
+    // Loop over All Sets
+
+    return setc;
+}
+
+// Increment Set Value Array
+// Returns 0 on success, 1 on overflow
+int incSetValues(unsigned long *set, size_t setc, unsigned long max,
+        size_t add)
+{
+    // Handle Complete Overflow
+    if (setc > max) return 1;
+    if (setc == 0) return 1;
+
+    // Final Value in the Set, Available Increase
+    unsigned long final = set[setc - 1];
+    if (final > max) return 1;
+    unsigned long avail = max - final;
+
+    // Base Case: Simply Increase Final Value if Possible
+    if (add <= avail)
+        set[setc - 1] = final + add;
+
+    // Otherwise, increase as far as possible plus one, replacing the
+    // previous digit
+    else
+    {
+        // Increment Previous Value
+        int res = incSetValues(set, setc - 1, max - 1, 1);
+        if (res != 0) return res;
+
+        // Set Final Appropriately
+        set[setc - 1] = set[setc - 2] + 1;
+
+        // Increase by whatever remains
+        return incSetValues(set, setc, max, add - avail - 1);
+    }
+
+    return 0;
 }
 
 // Recursively Check Records and Output Sets
