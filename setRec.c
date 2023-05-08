@@ -231,6 +231,14 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 
 // Iteratively Check Records and Output Sets
 // Returns number of sets on success, -1 on memory error
+
+// This is a function which looks across an entire record. It iterates
+// across all the sets, keeping a pointer to the current entry in the
+// record as well as an array of values that corresponds to that set.
+// The function may also be configured to only query the Nth set after
+// some particular offset, so that it may be run in N parallel
+// instances. If a set matches the bit-field criteria provided, the
+// function will output it.
 long long queryIterative(const Rec *rec, unsigned long max, size_t size,
         size_t mod, size_t parallels, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
@@ -249,7 +257,7 @@ long long queryIterative(const Rec *rec, unsigned long max, size_t size,
     rec += mod;
     int res = incSetValues(values, size, max, mod);
 
-    // Loop over all sets, checking and outputting
+    // Loop over every Nth set, checking and outputting
     while (res == 0)
     {
         // Whether this set is a match
@@ -271,7 +279,7 @@ long long queryIterative(const Rec *rec, unsigned long max, size_t size,
             setc++;
         }
 
-        // Go to Next Set
+        // Advance to Next Nth Set
         rec += parallels;
         res = incSetValues(values, size, max, parallels);
     }
@@ -281,6 +289,13 @@ long long queryIterative(const Rec *rec, unsigned long max, size_t size,
 
 // Increment Set Value Array
 // Returns 0 on success, 1 on overflow
+
+// This is a helper function for the query function, and it takes an
+// array of set values and advances it N sets lexicographically. It
+// works by increasing the final value by N if permitted by M, and
+// otherwise it'll increase up to an overflow into the previous value
+// before recursing to increase by the remainder. It's used to keep
+// track of the current set values as the query function advances.
 int incSetValues(unsigned long *set, size_t setc, unsigned long max,
         size_t add)
 {
