@@ -121,8 +121,8 @@ long long sr_query(const Base *base, char mask, char bits,
     if (values == NULL) return -1;
 
     // Output Sets that Match Query
-    long long res = query(base->rec, base->max, base->size,
-            values, 0, mask, bits, out);
+    long long res = queryIterative(base->rec, base->max, base->size,
+            0, 1, mask, bits, out);
 
     // Deallocate Memory
     free(values);
@@ -248,9 +248,33 @@ long long queryIterative(const Rec *rec, unsigned long max, size_t size,
     // Starting Point
     rec += mod;
     int res = incSetValues(values, size, max, mod);
-    if (res == 1) return setc;
 
-    // Loop over All Sets
+    // Loop over all sets, checking and outputting
+    while (res == 0)
+    {
+        // Whether this set is a match
+        bool match = false;
+
+        // Specific Bitmask Case: if the bits in the bitmask are all set
+        // according to the settings
+        if (mask != 0) match = (rec->bits & mask) == (bits & mask);
+
+        // Zero Bitmask Case: treat the settings as the bitmask; match
+        // if any of the bits in the bitmask are set, or if we have the
+        // wildcard bitmask of all zeros
+        else match = (rec->bits & bits) != 0 || bits == 0;
+
+        // If we have a match, output and keep count
+        if (match)
+        {
+            if (out != NULL) out(values, size);
+            setc++;
+        }
+
+        // Go to Next Set
+        rec += parallels;
+        res = incSetValues(values, size, max, parallels);
+    }
 
     return setc;
 }
