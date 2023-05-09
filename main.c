@@ -77,6 +77,9 @@
 #include <string.h>
 #include <errno.h>
 
+#include <unistd.h>
+#include <pthread.h>
+
 #include "setRec.h"
 #include "eqSets.h"
 #include "nulTest.h"
@@ -92,8 +95,22 @@ size_t size;
 // Maximum Element Value (M)
 unsigned long max;
 
+// Number of Threads
+unsigned long threads = 1;
+
+// Thread Initializer Argument Structure
+typedef struct ThreadArg ThreadArg;
+struct ThreadArg {
+    SR_Base *rec;
+    size_t mod;
+};
+
 // Set Records for Each Length 1-N
 SR_Base **rec;
+
+// Thread Function Declarations
+void threadedGen(SR_Base *);
+void *initThreadGen(void *);
 
 // Supplementary Function Declarations
 void eliminate(const unsigned long *, size_t);
@@ -112,17 +129,18 @@ int main(int argc, char *argv[])
     // to numeric types, checking for conversion errors.
 
     // Arguments Check, Usage Message
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s %s %s\n",
-                argv[0], "N", "M");
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s %s %s %s\n",
+                argv[0], "N", "M", "[T]");
         fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
         fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
+        fprintf(stderr, "  %s\t%s\n", "T ", "number of threads");
         return 2;
     }
 
     // Get Numeric Arguments
     errno = 0;
-    size = strtoull(argv[1], NULL, 10);
+    size = strtoul(argv[1], NULL, 10);
     if (errno != 0) {
         fprintf(stderr, "N Argument [1]: %s\n", strerror(errno));
         return 2;
@@ -135,6 +153,13 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    errno = 0;
+    if (argc > 3) threads = strtoul(argv[3], NULL, 10);
+    if (errno != 0) {
+        fprintf(stderr, "T Argument [3]: %s\n", strerror(errno));
+        return 2;
+    }
+
     // General Input Errors
     if (max < size) {
         fprintf(stderr, "M cannot be less than N\n");
@@ -143,6 +168,11 @@ int main(int argc, char *argv[])
 
     if (size == 0) {
         fprintf(stderr, "N = 0 makes no sense\n");
+        return 2;
+    }
+
+    if (threads == 0) {
+        fprintf(stderr, "Must have at least 1 Thread\n");
         return 2;
     }
 
@@ -203,9 +233,8 @@ int main(int argc, char *argv[])
     {
         printf("Expanding Size %lu\n", setSize);
 
-        // Make sure we only get the sets that are marked nullifiable
-        // and also not a superset of a smaller nullifiable set
-        sr_query(rec[setSize - 1], MARKED, NULLIF, &expandNul);
+        // Perform a Threaded Generation
+        threadedGen(rec[setSize - 1]);
     }
 
     printf("Done\n\n");
@@ -236,6 +265,70 @@ int main(int argc, char *argv[])
     free(rec);
 
     return 0;
+}
+
+// Perform a Threaded Set Generation
+void threadedGen(SR_Base *rec)
+{
+    // Arrays for Threads and Thread Initializer Arguments
+    pthread_t *th = calloc(threads - 1, sizeof(pthread_t));
+    ThreadArg *args = calloc(threads - 1, sizeof(ThreadArg));
+
+    // Iteratively Create Threads
+    for (unsigned long i = 0; i < threads - 1; i++)
+    {
+        // Provide Arguments
+        args[i].rec = rec;
+        args[i].mod = i + 1;
+
+        // Create a Thread
+        int res = pthread_create(th + i, NULL, &initThreadGen,
+                (void *) args + i);
+
+        // Catch any Error
+        if (res)
+        {
+            perror("Failed to Create Thread");
+            exit(1);
+        }
+    }
+
+    // Use our Current Thread
+    ThreadArg arg = {rec, 0};
+    initThreadGen((void *) &arg);
+
+    // Iteratively Join Threads
+    for (unsigned long i = 0; i < threads - 1; i++)
+    {
+        // Join a Thread
+        int res = pthread_join(th[i], NULL);
+
+        // Catch any Error
+        if (res)
+        {
+            perror("Failed to Join Thread");
+            exit(1);
+        }
+    }
+
+    // Free Memory
+    free(th);
+    free(args);
+
+    return;
+}
+
+// Initialize a Thread for Set Generation
+void *initThreadGen(void *argument)
+{
+    // Get Mod Value from Argument
+    ThreadArg *arg = (ThreadArg *) argument;
+
+    // Query our own sets, expand them, and eliminate them
+    sr_query_parallel(arg->rec, MARKED, NULLIF,
+            threads, arg->mod, &expandNul);
+
+    return NULL;
 }
 
 // ================ Supplemental Functions
