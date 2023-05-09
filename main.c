@@ -102,15 +102,19 @@ unsigned long threads = 1;
 typedef struct ThreadArg ThreadArg;
 struct ThreadArg {
     SR_Base *rec;
+    char mask;
+    char bits;
     size_t mod;
+    void (*out)(const unsigned long *, size_t);
 };
 
 // Set Records for Each Length 1-N
 SR_Base **rec;
 
 // Thread Function Declarations
-void threadedGen(SR_Base *);
-void *initThreadGen(void *);
+void threadedQuery(SR_Base *, char, char,
+        void (*)(const unsigned long *, size_t));
+void *initThread(void *);
 
 // Supplementary Function Declarations
 void eliminate(const unsigned long *, size_t);
@@ -233,8 +237,9 @@ int main(int argc, char *argv[])
     {
         printf("Expanding Size %lu\n", setSize);
 
-        // Perform a Threaded Generation
-        threadedGen(rec[setSize - 1]);
+        // Make sure we only get the sets that are marked nullifiable
+        // and also not a superset, start the chain of functions
+        threadedQuery(rec[setSize - 1], MARKED, NULLIF, &expandNul);
     }
 
     printf("Done\n\n");
@@ -267,8 +272,9 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-// Perform a Threaded Set Generation
-void threadedGen(SR_Base *rec)
+// Perform a Threaded Query to a Set Record
+void threadedQuery(SR_Base *rec, char mask, char bits,
+        void (*out)(const unsigned long *, size_t))
 {
     // Arrays for Threads and Thread Initializer Arguments
     pthread_t *th = calloc(threads - 1, sizeof(pthread_t));
@@ -279,10 +285,13 @@ void threadedGen(SR_Base *rec)
     {
         // Provide Arguments
         args[i].rec = rec;
+        args[i].mask = mask;
+        args[i].bits = bits;
         args[i].mod = i + 1;
+        args[i].out = out;
 
         // Create a Thread
-        int res = pthread_create(th + i, NULL, &initThreadGen,
+        int res = pthread_create(th + i, NULL, &initThread,
                 (void *) args + i);
 
         // Catch any Error
@@ -294,8 +303,8 @@ void threadedGen(SR_Base *rec)
     }
 
     // Use our Current Thread
-    ThreadArg arg = {rec, 0};
-    initThreadGen((void *) &arg);
+    ThreadArg arg = {rec, mask, bits, 0, out};
+    initThread((void *) &arg);
 
     // Iteratively Join Threads
     for (unsigned long i = 0; i < threads - 1; i++)
@@ -318,15 +327,15 @@ void threadedGen(SR_Base *rec)
     return;
 }
 
-// Initialize a Thread for Set Generation
-void *initThreadGen(void *argument)
+// Initialize a Thread for a Query
+void *initThread(void *argument)
 {
     // Get Mod Value from Argument
     ThreadArg *arg = (ThreadArg *) argument;
 
     // Query our own sets, expand them, and eliminate them
-    sr_query_parallel(arg->rec, MARKED, NULLIF,
-            threads, arg->mod, &expandNul);
+    sr_query_parallel(arg->rec, arg->mask, arg->bits,
+            threads, arg->mod, arg->out);
 
     return NULL;
 }
