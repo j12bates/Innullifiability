@@ -222,24 +222,40 @@ int main(int argc, char *argv[])
 
     printf("Generating Nullifiable Sets...\n");
 
+    long long remaining;
+    remaining = retrieve(NULL, false);
+    printf("At starting...     ");
+    printf("%16lld Sets Remain\n", remaining);
+
     // Trivial sets for each allowed value
+    printf("Expanding Size %lu...", 2ul);
+    fflush(stdout);
     if (size > 2) for (unsigned long n = 1; n <= max; n++)
     {
+        // A Pair is Nullifiable
         unsigned long minNulSet[2];
         minNulSet[0] = n;
         minNulSet[1] = n;
 
+        // Expand
         expandNul(minNulSet, 2);
     }
+    remaining = retrieve(NULL, false);
+    printf("%16lld Sets Remain\n", remaining);
 
     // Iteratively Expand Nullifiable Sets by One Element
     for (size_t setSize = 3; setSize < size; setSize++)
     {
-        printf("Expanding Size %lu\n", setSize);
+        printf("Expanding Size %lu...", setSize);
+        fflush(stdout);
 
         // Make sure we only get the sets that are marked nullifiable
         // and also not a superset, start the chain of functions
         threadedQuery(rec[setSize - 1], MARKED, NULLIF, &expandNul);
+
+        // Get Number of Sets Remaining
+        remaining = retrieve(NULL, false);
+        printf("%16lld Sets Remain\n", remaining);
     }
 
     printf("Done\n\n");
@@ -255,7 +271,7 @@ int main(int argc, char *argv[])
 
     printf("Testing Remaining Sets...\n");
 
-    long long remaining = retrieve(NULL, false);
+    remaining = retrieve(NULL, false);
 
     // Test the sets that remain after Equivalent Sets
     retrieve(&verify, true);
