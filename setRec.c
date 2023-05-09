@@ -126,16 +126,25 @@ long long sr_query(const Base *base, char mask, char bits,
     // Exit if Null Pointer
     if (base == NULL) return -1;
 
-    // Allocate Space for Values
-    unsigned long *values = calloc(base->size, sizeof(unsigned long));
-    if (values == NULL) return -1;
-
     // Output Sets that Match Query
     long long res = query(base->rec, base->max, base->size,
             0, 1, mask, bits, out);
 
-    // Deallocate Memory
-    free(values);
+    return res;
+}
+
+// Output Sets with Particular Mark Status, for Parallelism
+// Returns number of sets on success, -1 on memory error
+long long sr_query_parallel(const Base *base, char mask, char bits,
+        size_t parallels, size_t mod,
+        void (*out)(const unsigned long *, size_t))
+{
+    // Exit if Null Pointer
+    if (base == NULL) return -1;
+
+    // Output Sets that Match Query
+    long long res = query(base->rec, base->max, base->size,
+            mod, parallels, mask, bits, out);
 
     return res;
 }

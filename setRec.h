@@ -24,4 +24,9 @@ int sr_mark(const SR_Base *, const unsigned long *, size_t,
 long long sr_query(const SR_Base *, char, char,
         void (*)(const unsigned long *, size_t));
 
+// Output Sets with Particular Mark Status, for Parallelism
+long long sr_query_parallel(const SR_Base *, char, char,
+        size_t, size_t, void (*)(const unsigned long *, size_t));
+
+
 #endif
