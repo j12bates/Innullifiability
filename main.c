@@ -122,7 +122,7 @@ void expandNul(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
-long long retrieve(void (*)(const unsigned long *, size_t));
+long long retrieve(void (*)(const unsigned long *, size_t), bool);
 void resCheck(int);
 
 int main(int argc, char *argv[])
@@ -255,12 +255,14 @@ int main(int argc, char *argv[])
 
     printf("Testing Remaining Sets...\n");
 
+    long long remaining = retrieve(NULL, false);
+
     // Test the sets that remain after Equivalent Sets
-    long long remaining = retrieve(&verify);
+    retrieve(&verify, true);
     printf("Done\n\n");
 
     // Now, everything unmarked is Innullifiable
-    long long finals = retrieve(&printSet);
+    long long finals = retrieve(&printSet, false);
 
     printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
             finals, remaining);
@@ -404,10 +406,15 @@ void printSet(const unsigned long *set, size_t setc)
 // ================ Helper Functions
 
 // Retrieve all Completely Unmarked Sets
-long long retrieve(void (*out)(const unsigned long *, size_t))
+long long retrieve(void (*out)(const unsigned long *, size_t),
+        bool threaded)
 {
     // Query for Sets with Neither Mark, Output
-    long long res = sr_query(rec[size - 1], MARKED, 0, out);
+    long long res = 0;
+    if (threaded)
+        threadedQuery(rec[size - 1], MARKED, 0, out);
+    else
+        res = sr_query(rec[size - 1], MARKED, 0, out);
 
     return res;
 }
