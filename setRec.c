@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <unistd.h>
+#include <pthread.h>
+
 #include "setRec.h"
 
 // Individual Set Record Structure
@@ -19,6 +22,7 @@ struct Base {
     Rec *rec;
     size_t size;
     unsigned long max;
+    pthread_mutex_t *markLock;
 };
 
 // Other Typedefs
@@ -28,7 +32,8 @@ typedef enum SR_QueryMode QueryMode;
 static unsigned long long mcn(size_t, size_t);
 static long long mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
-        char, char, unsigned long, size_t);
+        char, char, unsigned long, size_t,
+        pthread_mutex_t *);
 static long long query(const Rec *, unsigned long, size_t,
         size_t, size_t, char, char,
         void (*)(const unsigned long *, size_t));
@@ -57,6 +62,10 @@ Base *sr_initialize(size_t size, unsigned long max)
     base->size = size;
     base->max = max;
 
+    // Initialize Mutex Lock
+    base->markLock = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(base->markLock, NULL);
+
     // Allocate Memory for Record Array
     Rec *rec = calloc(mcn(max, size), sizeof(Rec));
     if (rec == NULL) return NULL;
@@ -70,6 +79,10 @@ void sr_release(Base *base)
 {
     // Free the Record Array
     free(base->rec);
+
+    // Unlink Mutex Lock and Free
+    pthread_mutex_destroy(base->markLock);
+    free(base->markLock);
 
     // Free the Information Structure itself
     free(base);
@@ -99,7 +112,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 
     // Mark Records with Set as Constraining Values
     long long res = mark(base->rec, base->max, base->size,
-            set, setc, mask, bits, 1, 0);
+            set, setc, mask, bits, 1, 0, base->markLock);
 
     if (res == -1) return -1;
     return res > 0 ? 1 : 0;
@@ -147,7 +160,8 @@ long long sr_query(const Base *base, char mask, char bits,
 // and by default move on to the next value at the position.
 long long mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
-        char mask, char bits, unsigned long value, size_t position)
+        char mask, char bits, unsigned long value, size_t position,
+        pthread_mutex_t *lock)
 {
     // Exit if Null Pointer
     if (rec == NULL) return -1;
@@ -161,6 +175,9 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Number of sets to mark expressed as combinations
         size_t toMark = mcn(max - value + 1, size - position);
 
+        // Lock for Marking
+        pthread_mutex_lock(lock);
+
         // Mark all these sets
         for (size_t i = 0; i < toMark; i++)
         {
@@ -172,6 +189,9 @@ long long mark(Rec *rec, unsigned long max, size_t size,
             rec[i].bits &= ~mask;
             rec[i].bits |= (bits & mask);
         }
+
+        // Unlock from Marking
+        pthread_mutex_unlock(lock);
     }
 
     // If we're at the next constraint, we must mark these sets, as the
@@ -181,7 +201,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Recurse, advancing to the next position and the next
         // constraint
         long long res = mark(rec, max, size, constr + 1, constrc - 1,
-                mask, bits, value + 1, position + 1);
+                mask, bits, value + 1, position + 1, lock);
 
         // Pass along an error and otherwise keep count
         if (res == -1) return -1;
@@ -199,7 +219,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         {
             // Recurse, advancing to the next position
             long long res = mark(rec, max, size, constr, constrc,
-                    mask, bits, value + 1, position + 1);
+                    mask, bits, value + 1, position + 1, lock);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
@@ -215,7 +235,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 
             // Simple recurse without advancing position
             long long res = mark(rec, max, size, constr, constrc,
-                    mask, bits, value + 1, position);
+                    mask, bits, value + 1, position, lock);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
