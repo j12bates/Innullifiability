@@ -106,13 +106,14 @@ struct ThreadArg {
     char bits;
     size_t mod;
     void (*out)(const unsigned long *, size_t);
+    long long res;
 };
 
 // Set Records for Each Length 1-N
 SR_Base **rec;
 
 // Thread Function Declarations
-void threadedQuery(SR_Base *, char, char,
+long long threadedQuery(SR_Base *, char, char,
         void (*)(const unsigned long *, size_t));
 void *initThread(void *);
 
@@ -223,7 +224,7 @@ int main(int argc, char *argv[])
     printf("Generating Nullifiable Sets...\n");
 
     long long remaining;
-    remaining = retrieve(NULL, false);
+    remaining = retrieve(NULL, true);
     printf("At starting...     ");
     printf("%16lld Sets Remain\n", remaining);
 
@@ -240,7 +241,7 @@ int main(int argc, char *argv[])
         // Expand
         expandNul(minNulSet, 2);
     }
-    remaining = retrieve(NULL, false);
+    remaining = retrieve(NULL, true);
     printf("%16lld Sets Remain\n", remaining);
 
     // Iteratively Expand Nullifiable Sets by One Element
@@ -254,7 +255,7 @@ int main(int argc, char *argv[])
         threadedQuery(rec[setSize - 1], MARKED, NULLIF, &expandNul);
 
         // Get Number of Sets Remaining
-        remaining = retrieve(NULL, false);
+        remaining = retrieve(NULL, true);
         printf("%16lld Sets Remain\n", remaining);
     }
 
@@ -271,7 +272,7 @@ int main(int argc, char *argv[])
 
     printf("Testing Remaining Sets...\n");
 
-    remaining = retrieve(NULL, false);
+    remaining = retrieve(NULL, true);
 
     // Test the sets that remain after Equivalent Sets
     retrieve(&verify, true);
@@ -291,14 +292,14 @@ int main(int argc, char *argv[])
 }
 
 // Perform a Threaded Query to a Set Record
-void threadedQuery(SR_Base *rec, char mask, char bits,
+long long threadedQuery(SR_Base *rec, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Arrays for Threads and Thread Initializer Arguments
     pthread_t *th = calloc(threads - 1, sizeof(pthread_t));
     ThreadArg *args = calloc(threads - 1, sizeof(ThreadArg));
 
-    // Iteratively Create Threads
+    // Iteratively Create T - 1 Threads (don't count the current one)
     for (unsigned long i = 0; i < threads - 1; i++)
     {
         // Provide Arguments
@@ -308,41 +309,46 @@ void threadedQuery(SR_Base *rec, char mask, char bits,
         args[i].mod = i + 1;
         args[i].out = out;
 
-        // Create a Thread
+        // Create thread, enter from init function
         int res = pthread_create(th + i, NULL, &initThread,
                 (void *) args + i);
 
         // Catch any Error
-        if (res)
-        {
+        if (res) {
             perror("Failed to Create Thread");
             exit(1);
         }
     }
 
-    // Use our Current Thread
-    ThreadArg arg = {rec, mask, bits, 0, out};
+    // Use this current thread for the zero-offset
+    ThreadArg arg = {rec, mask, bits, 0, out, 0};
     initThread((void *) &arg);
 
-    // Iteratively Join Threads
+    // For storing the end result
+    long long reses = arg.res;
+
+    // Iteratively Join Threads, Keeping Results
     for (unsigned long i = 0; i < threads - 1; i++)
     {
         // Join a Thread
         int res = pthread_join(th[i], NULL);
 
         // Catch any Error
-        if (res)
-        {
+        if (res) {
             perror("Failed to Join Thread");
             exit(1);
         }
+
+        // Deal with Result: Propogate Error or Add Counters
+        if (args[i].res == -1 || reses == -1) reses = -1;
+        else reses += args[i].res;
     }
 
     // Free Memory
     free(th);
     free(args);
 
-    return;
+    return reses;
 }
 
 // Initialize a Thread for a Query
@@ -352,8 +358,11 @@ void *initThread(void *argument)
     ThreadArg *arg = (ThreadArg *) argument;
 
     // Query our own sets, expand them, and eliminate them
-    sr_query_parallel(arg->rec, arg->mask, arg->bits,
+    long long res = sr_query_parallel(arg->rec, arg->mask, arg->bits,
             threads, arg->mod, arg->out);
+
+    // Set Result
+    arg->res = res;
 
     return NULL;
 }
@@ -426,9 +435,9 @@ long long retrieve(void (*out)(const unsigned long *, size_t),
         bool threaded)
 {
     // Query for Sets with Neither Mark, Output
-    long long res = 0;
+    long long res;
     if (threaded)
-        threadedQuery(rec[size - 1], MARKED, 0, out);
+        res = threadedQuery(rec[size - 1], MARKED, 0, out);
     else
         res = sr_query(rec[size - 1], MARKED, 0, out);
 
