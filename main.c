@@ -311,7 +311,7 @@ long long threadedQuery(SR_Base *rec, char mask, char bits,
 
         // Create thread, enter from init function
         int res = pthread_create(th + i, NULL, &initThread,
-                (void *) args + i);
+                (void *) (args + i));
 
         // Catch any Error
         if (res) {
