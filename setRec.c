@@ -8,13 +8,12 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include <stdatomic.h>
+
 #include "setRec.h"
 
-// Individual Set Record Structure
-typedef struct Rec Rec;
-struct Rec {
-    char bits;
-} __attribute__((__packed__));
+// Individual Set Record Type
+typedef _Atomic char Rec;
 
 // Set Record Information Structure
 typedef struct Base Base;
@@ -184,23 +183,22 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Number of sets to mark expressed as combinations
         size_t toMark = mcn(max - value + 1, size - position);
 
-        // Lock for Marking
-        pthread_mutex_lock(lock);
-
         // Mark all these sets
         for (size_t i = 0; i < toMark; i++)
         {
-            // If the bits we care about aren't already set correctly,
-            // count this
-            if ((rec[i].bits & mask) != (bits & mask)) setc++;
+            // Get current bits
+            char cur = atomic_load(rec + i);
 
             // Set the bits we care about to the desired state
-            rec[i].bits &= ~mask;
-            rec[i].bits |= (bits & mask);
-        }
+            char new = (cur & ~mask) | (bits & mask);
 
-        // Unlock from Marking
-        pthread_mutex_unlock(lock);
+            // If the bits we care about aren't already set correctly,
+            // load this setting and count this
+            if (cur != new) {
+                atomic_store(rec + i, new);
+                setc++;
+            }
+        }
     }
 
     // If we're at the next constraint, we must mark these sets, as the
@@ -289,14 +287,17 @@ long long query(const Rec *rec, unsigned long max, size_t size,
         // Whether this set is a match
         bool match = false;
 
+        // Get current bits
+        char cur = atomic_load(rec);
+
         // Specific Bitmask Case: if the bits in the bitmask are all set
         // according to the settings
-        if (mask != 0) match = (rec->bits & mask) == (bits & mask);
+        if (mask != 0) match = (cur & mask) == (bits & mask);
 
         // Zero Bitmask Case: treat the settings as the bitmask; match
         // if any of the bits in that bitmask are set, or if we have the
         // wildcard bitmask of all zeros
-        else match = (rec->bits & bits) != 0 || bits == 0;
+        else match = (cur & bits) != 0 || bits == 0;
 
         // If we have a match, output and keep count
         if (match)
