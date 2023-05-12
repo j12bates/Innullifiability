@@ -261,6 +261,7 @@ long long query(const Rec *rec, unsigned long max, size_t size,
 
     // Initialize a Set with Lowest Values
     unsigned long *values = calloc(size, sizeof(unsigned long));
+    if (values == NULL) return -1;
     for (size_t i = 0; i < size; i++) values[i] = i + 1;
 
     // Starting Point

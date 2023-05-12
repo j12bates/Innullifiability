@@ -188,6 +188,10 @@ int main(int argc, char *argv[])
 
     // Allocate Array Space
     rec = calloc(size, sizeof(SR_Base *));
+    if (rec == NULL) {
+        fprintf(stderr, "Unable to Allocate Data Structure\n");
+        return 1;
+    }
 
     // Create all Set Records
     for (size_t i = 0; i < size; i++)
@@ -298,6 +302,10 @@ long long threadedQuery(SR_Base *rec, char mask, char bits,
     // Arrays for Threads and Thread Initializer Arguments
     pthread_t *th = calloc(threads - 1, sizeof(pthread_t));
     ThreadArg *args = calloc(threads - 1, sizeof(ThreadArg));
+    if (th == NULL || args == NULL) {
+        fprintf(stderr, "Memory Error while Expanding Sets");
+        exit(1);
+    }
 
     // Iteratively Create T - 1 Threads (don't count the current one)
     for (unsigned long i = 0; i < threads - 1; i++)
