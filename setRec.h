@@ -18,7 +18,7 @@ void sr_release(SR_Base *);
 
 // Mark a Certain Set and Supersets
 int sr_mark(const SR_Base *, const unsigned long *, size_t,
-        char, char);
+        char);
 
 // Output Sets with Particular Mark Status
 long long sr_query(const SR_Base *, char, char,

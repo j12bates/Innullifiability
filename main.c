@@ -397,13 +397,13 @@ void eliminate(const unsigned long *set, size_t setc)
     }
 
     // Mark this Particular Set as Nullifiable
-    int res = sr_mark(rec[setc - 1], set, setc, NULLIF, NULLIF);
+    int res = sr_mark(rec[setc - 1], set, setc, NULLIF);
     resCheck(res);
 
     // If we haven't seen this already, mark all its supersets
     if (res == 1) for (size_t i = setc; i < size; i++)
     {
-        res = sr_mark(rec[i], set, setc, SUPERSET, SUPERSET);
+        res = sr_mark(rec[i], set, setc, SUPERSET);
         resCheck(res);
     }
 

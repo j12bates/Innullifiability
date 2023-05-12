@@ -27,7 +27,7 @@ typedef enum SR_QueryMode QueryMode;
 static unsigned long long mcn(size_t, size_t);
 static long long mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
-        char, char, unsigned long, size_t);
+        char, unsigned long, size_t);
 static long long query(const Rec *, unsigned long, size_t,
         size_t, size_t, char, char,
         void (*)(const unsigned long *, size_t));
@@ -80,7 +80,7 @@ void sr_release(Base *base)
 // Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
 // memory error, -2 on input error
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
-        char mask, char bits)
+        char mask)
 {
     // Exit if Null Pointer
     if (base == NULL) return -1;
@@ -98,7 +98,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 
     // Mark Records with Set as Constraining Values
     long long res = mark(base->rec, base->max, base->size,
-            set, setc, mask, bits, 1, 0);
+            set, setc, mask, 1, 0);
 
     if (res == -1) return -1;
     return res > 0 ? 1 : 0;
@@ -155,7 +155,7 @@ long long sr_query_parallel(const Base *base, char mask, char bits,
 // and by default move on to the next value at the position.
 long long mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
-        char mask, char bits, unsigned long value, size_t position)
+        char mask, unsigned long value, size_t position)
 {
     // Exit if Null Pointer
     if (rec == NULL) return -1;
@@ -172,18 +172,11 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Mark all these sets
         for (size_t i = 0; i < toMark; i++)
         {
-            // Get current bits
-            char cur = atomic_load(rec + i);
+            // OR the bits we care about
+            char prev = atomic_fetch_or(rec + i, mask);
 
-            // Set the bits we care about to the desired state
-            char new = (cur & ~mask) | (bits & mask);
-
-            // If the bits we care about aren't already set correctly,
-            // load this setting and count this
-            if (cur != new) {
-                atomic_store(rec + i, new);
-                setc++;
-            }
+            // If they weren't already set, count this
+            if ((prev & mask) != mask) setc++;
         }
     }
 
@@ -194,7 +187,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         // Recurse, advancing to the next position and the next
         // constraint
         long long res = mark(rec, max, size, constr + 1, constrc - 1,
-                mask, bits, value + 1, position + 1);
+                mask, value + 1, position + 1);
 
         // Pass along an error and otherwise keep count
         if (res == -1) return -1;
@@ -212,7 +205,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         {
             // Recurse, advancing to the next position
             long long res = mark(rec, max, size, constr, constrc,
-                    mask, bits, value + 1, position + 1);
+                    mask, value + 1, position + 1);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
@@ -228,7 +221,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 
             // Simple recurse without advancing position
             long long res = mark(rec, max, size, constr, constrc,
-                    mask, bits, value + 1, position);
+                    mask, value + 1, position);
 
             // Pass along an error and otherwise keep count
             if (res == -1) return -1;
