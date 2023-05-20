@@ -1,6 +1,32 @@
 // ============================ SET RECORDS ============================
 
-// This library controls an array that can hold data pertaining to sets.
+// This library controls an array that can hold data pertaining to sets,
+// called a 'Set Record'. In essence, you initialize it with a set size
+// and max value, and it creates an array where each byte represents a
+// particular combination. The sets are in lexicographic order, with
+// lowest-numbered sets first (e.g. (1, 2, 3, 4)) and highest-numbered
+// sets last.
+
+// The bytes are like bit-fields for each set, and different bits can be
+// OR'd on by using the 'mark' function. The mark function takes in a
+// combination, which can be of any size smaller than or equal to the
+// record's set size, as the pattern of sets to mark. It will mark all
+// the supersets of the input pattern with the bits given.
+
+// Sets with their bit-fields set a certain way can be retrieved using
+// the 'query' function. It takes in two parameters for the bit-field
+// criteria: a bitmask and a bit-field. The function will scan the
+// record and output all sets for which the bits set in the bitmask are
+// set according to the bit-field. It outputs by way of a function
+// pointer.
+
+// The library is completely thread-safe (as far as I can tell), as it
+// uses atomic characters as bit-fields. It provides a variant of the
+// query function that allows for running it multiple times in parallel
+// whilst retaining full scan coverage for performing quick
+// multithreaded operations. It does this by skipping N sets (N being
+// the number of concurrent calls) each iteration, which I found to be
+// the fastest in terms of memory-access speed.
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -79,6 +105,12 @@ void sr_release(Base *base)
 // Mark a Certain Set and Supersets
 // Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
 // memory error, -2 on input error
+
+// The input combination must be in increasing order, and the size must
+// be less than or equal to that of the record's sets. One thing to
+// remember is that the return value may be inconsistent if it is run in
+// parallel with other calls that mark the same bits, as it all depends
+// on which call gets to a set first.
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
@@ -88,8 +120,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     // Check if set is valid: values must be increasing, and between 1
     // and M, and size must not be greater than N
     if (setc > base->size) return -2;
-    if (set[0] < 1) return -2;
-    if (set[0] > base->max) return -2;
+    if (set[0] < 1 || set[0] > base->max) return -2;
     for (size_t i = 1; i < setc; i++)
     {
         if (set[i] <= set[i - 1]) return -2;
@@ -120,17 +151,25 @@ long long sr_query(const Base *base, char mask, char bits,
 }
 
 // Output Sets with Particular Mark Status, for Parallelism
-// Returns number of sets on success, -1 on memory error
+// Returns number of sets on success, -1 on memory error, -2 on input
+// error
+
+// The mod is a number less than the number of concurrent calls. Each
+// call should give a different value for that parameter, to ensure full
+// coverage.
 long long sr_query_parallel(const Base *base, char mask, char bits,
-        size_t parallels, size_t mod,
+        size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
     if (base == NULL) return -1;
 
+    // Check if parallelism is valid
+    if (mod >= concurrents) return -2;
+
     // Output Sets that Match Query
     long long res = query(base->rec, base->max, base->size,
-            mod, parallels, mask, bits, out);
+            mod, concurrents, mask, bits, out);
 
     return res;
 }
@@ -143,16 +182,18 @@ long long sr_query_parallel(const Base *base, char mask, char bits,
 // Recursively Mark Sets with Constraining Values
 // Returns number of sets newly marked on success, -1 on memory error
 
-// This is a recursive function for marking records that match a set of
-// constraining values. The function uses two counters, one for value
-// and one for position, to keep track of where it is within the whole
-// record. The function recurses on the record pointer when it wants to
-// use the value at the position, and otherwise moves the record pointer
-// beyond all those sets. The function must use the value if it's the
-// next constraint. But otherwise, it must be sure to account for
-// potential intermediary values between constraints, so it will also
-// split itself up when it's able to use the value as an intermediary,
-// and by default move on to the next value at the position.
+// This is a recursive function for marking supersets of a set of
+// constraining values. These values are assumed to be in ascending
+// order, as this is how sets are ordered within the record. The
+// function uses two counters, one for value and one for position, to
+// keep track of where it is within the whole record. The function
+// recurses on the record pointer when it wants to use the value at the
+// position, and otherwise moves the record pointer beyond all those
+// sets. The function must use the value if it's the next constraint.
+// But otherwise, it must be sure to account for potential intermediary
+// values between constraints, so it will also split itself up when it's
+// able to use the value as an intermediary, and by default move on to
+// the next value at the position.
 long long mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
         char mask, unsigned long value, size_t position)
@@ -243,7 +284,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 // instances. If a set matches the bit-field criteria provided, the
 // function will output it.
 long long query(const Rec *rec, unsigned long max, size_t size,
-        size_t mod, size_t parallels, char mask, char bits,
+        size_t offset, size_t skip, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
@@ -258,8 +299,8 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     for (size_t i = 0; i < size; i++) values[i] = i + 1;
 
     // Starting Point
-    rec += mod;
-    int res = incSetValues(values, size, max, mod);
+    rec += offset;
+    int res = incSetValues(values, size, max, offset);
 
     // Loop over every Nth set, checking and outputting
     while (res == 0)
@@ -287,8 +328,8 @@ long long query(const Rec *rec, unsigned long max, size_t size,
         }
 
         // Advance to Next Nth Set
-        rec += parallels;
-        res = incSetValues(values, size, max, parallels);
+        rec += skip;
+        res = incSetValues(values, size, max, skip);
     }
 
     return setc;
