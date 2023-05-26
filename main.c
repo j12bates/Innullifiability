@@ -48,11 +48,11 @@
 // three, and marks off those sets. It can also mark off sets which are
 // supersets of those sets. After the generation is done, the program
 // then expands those length-three sets into length-four nullifiable
-// sets. After that, if a set is already marked as being a superset of a
+// sets. Then, if a set is already marked as being a superset of a
 // smaller nullifiable set, it knows it doesn't need to bother expanding
 // it as well, as the parent set has already been expanded as much as it
-// can. This process continues until the final generation of N-length
-// nullifiable sets.
+// can, and it would cover all the same sets anyways. This process
+// continues until the final generation of N-length nullifiable sets.
 
 // The program keeps track of the sets by way of a series of Set
 // Records, which are just arrays that store some data for every
@@ -71,13 +71,19 @@
 // sets might be only nullifiable through a calculation that goes beyond
 // that range.
 
+// The process of generation can be described more generally in two
+// steps. First, any sets that are marked at all on the source record
+// have their supersets marked on the destination record. Second, any
+// sets on the source record that are marked as new nullifiable sets
+// (not as a superset) are expanded using equivalent sets and marked in
+// the destination normally. Then, if desired, a final sweep may go
+// through the record to remove any remaining nullifiable sets.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
-#include <errno.h>
 
-#include <unistd.h>
+#include <errno.h>
 #include <pthread.h>
 
 #include "setRec.h"
@@ -147,37 +153,37 @@ int main(int argc, char *argv[])
     errno = 0;
     size = strtoul(argv[1], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "N Argument [1]: %s\n", strerror(errno));
+        perror("N Argument [1]");
         return 2;
     }
 
     errno = 0;
     max = strtoul(argv[2], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "M Argument [2]: %s\n", strerror(errno));
+        perror("M Argument [2]");
         return 2;
     }
 
     errno = 0;
     if (argc > 3) threads = strtoul(argv[3], NULL, 10);
     if (errno != 0) {
-        fprintf(stderr, "T Argument [3]: %s\n", strerror(errno));
+        perror("T Argument [3]");
         return 2;
     }
 
     // General Input Errors
     if (max < size) {
-        fprintf(stderr, "M cannot be less than N\n");
+        fprintf(stderr, "Input: M cannot be less than N\n");
         return 2;
     }
 
     if (size == 0) {
-        fprintf(stderr, "N = 0 makes no sense\n");
+        fprintf(stderr, "Input: N = 0 makes no sense\n");
         return 2;
     }
 
     if (threads == 0) {
-        fprintf(stderr, "Must have at least 1 Thread\n");
+        fprintf(stderr, "Input: Must have at least 1 Thread\n");
         return 2;
     }
 
@@ -189,7 +195,7 @@ int main(int argc, char *argv[])
     // Allocate Array Space
     rec = calloc(size, sizeof(SR_Base *));
     if (rec == NULL) {
-        fprintf(stderr, "Unable to Allocate Data Structure\n");
+        perror("Unable to Allocate Data Structure");
         return 1;
     }
 
@@ -199,7 +205,7 @@ int main(int argc, char *argv[])
         rec[i] = sr_initialize(i + 1, max);
 
         if (rec[i] == NULL) {
-            fprintf(stderr, "Unable to Allocate Data Structure\n");
+            perror("Unable to Allocate Data Structure");
             return 1;
         }
     }
@@ -303,7 +309,7 @@ long long threadedQuery(SR_Base *rec, char mask, char bits,
     pthread_t *th = calloc(threads - 1, sizeof(pthread_t));
     ThreadArg *args = calloc(threads - 1, sizeof(ThreadArg));
     if (th == NULL || args == NULL) {
-        fprintf(stderr, "Memory Error while Expanding Sets");
+        perror("Memory Error while Expanding Sets");
         exit(1);
     }
 
