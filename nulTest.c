@@ -29,7 +29,7 @@ int nulTest(const unsigned long *set, size_t setc)
         // If this element is a zero, easy
         if (set[pairA] == 0) return 0;
 
-        // If it's equal to any other element, easy
+        // If it's equal to any later element, easy
         for (size_t pairB = pairA + 1; pairB < setc; pairB++)
             if (set[pairA] == set[pairB]) return 0;
     }

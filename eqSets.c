@@ -7,24 +7,23 @@
 // nullifiability.
 
 // This all works based off the notion of 'equivalent pairs'--pairs of
-// values that, by some allowed arithmetic operation, equal a particular
-// value. For example, the value 2 could have the equivalent pair
+// values that, when an allowed arithmetic operation is applied, equal a
+// particular value. That is to say that the equivalent pair can compute
+// its value. For example, the value 2 could have the equivalent pair
 // (3, 5), since 5 - 3 = 2, and (4, 8), since 8 / 4 = 2. Since we are
-// only dealing with sets without repetition, things like (1, 1) or 
-// (2, 4) don't count. Given a set, any value can be substituted with
-// any of its equivalent pairs (assuming that wouldn't cause a
-// repetition with some other value), and that set can still equal at
-// least all the same values by performing arithmetic operations, since
-// we know the values of the equivalent pair can definitely be made
-// equal to the original value.
+// only dealing with sets without repetition, things like (1, 1) don't
+// count, and since a superset is of no use, things like (2, 4) don't
+// count either. Given a set, any value can be substituted with any of
+// its equivalent pairs (assuming that wouldn't cause a repetition with
+// some other value), and that set can still compute at least all the
+// same values.
 
 // This program computes all equivalent pairs of values that can occur
 // in a set, that is, pairs equivalent to values 1-M by means of only
 // values 1-M. Then, for any set given, it can find 'equivalent sets' by
 // iterating over every value in a set and replacing it with every
-// equivalent pair for that value, all the while calling some
-// function provided by a function pointer, passing in sets as they are
-// generated, and recursing on new sets as they are generated.
+// equivalent pair for that value, all the while calling some function
+// and passing in the new sets as a means of output.
 
 // So what does this have to do with nullifiability? Well, the only way
 // for a set to be nullifiable is by it having some means of getting a
@@ -38,14 +37,14 @@
 
 // It's important to realize though that this cannot cover all possible
 // equivalent sets. The equivalent pairs, being 1-M only, cannot cover
-// arithmetic results going outside the range of values used within the
-// sets, even though those may be necessary for a set being equivalent
-// to a particular value. I could fix this by implementing something
-// complex which keeps track of the number of arithmetic steps and all
-// the possible values at each step and blah blah blah complicated, but
-// for what it's worth, this will eliminate a whole lot of sets anyways,
-// and quickly. Nevertheless, there will have to be a sort of manual
-// check to essentially weed out any stragglers after this passes over.
+// arithmetic results going outside that range of values, even though
+// those may be necessary for a set to compute zero. I could fix this by
+// implementing something complex which keeps track of the number of
+// arithmetic steps and all the possible values at each step and blah
+// blah blah complicated, but for what it's worth, this will eliminate a
+// whole lot of sets anyways, and quickly. Nevertheless, there will have
+// to be a sort of manual check to essentially weed out any stragglers
+// after this passes over.
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -234,7 +233,7 @@ void genEqPairsValue(unsigned long value)
 bool storeEqPair(unsigned long value, size_t index,
         unsigned long a, unsigned long b)
 {
-    // No duplicates rule
+    // No duplicates/supersets rule
     if (a == value || b == value || a == b) return false;
 
     // Smaller value rule
@@ -256,13 +255,14 @@ bool insertPair(const unsigned long *set, size_t setc, size_t replace,
     unsigned long pairA = (unsigned long) pair & 0xFFFFFFFF;
     unsigned long pairB = (unsigned long) (pair >> 32) & 0xFFFFFFFF;
 
-    // Insert values one at a time: `pairA` will contain the
-    // next new (equivalent pair) value until both values have
-    // been inserted, at which point it will be 0
+    // Insert values one at a time: `pairA` will contain the next new
+    // (equivalent pair) value until both values have been inserted, at
+    // which point it will be 0
     size_t index = 0;
     for (size_t i = 0; i < setc; i++)
     {
-        // Insert the next new value if it would be in order
+        // Insert the next new value if it would be in order: this is a
+        // loop because we might do both at once
         while (pairA < set[i] && pairA != 0)
         {
             newSet[index++] = pairA;
@@ -273,8 +273,7 @@ bool insertPair(const unsigned long *set, size_t setc, size_t replace,
         // Exit if the next new value causes a repetition
         if (pairA == set[i]) return false;
 
-        // Insert the next original value unless it's being
-        // replaced
+        // Insert the next original value unless it's being replaced
         if (i != replace) newSet[index++] = set[i];
     }
 

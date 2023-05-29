@@ -91,8 +91,8 @@
 #include "nulTest.h"
 
 // Bitmasks for Set Records
-#define NULLIF      1 << 1
-#define SUPERSET    NULLIF | 1 << 2
+#define NULLIF      1 << 0
+#define SUPERSET    NULLIF | 1 << 1
 #define MARKED      NULLIF | SUPERSET
 
 // Size of Sets (N)
@@ -104,6 +104,9 @@ unsigned long max;
 // Number of Threads
 unsigned long threads = 1;
 
+// Set Records for Each Length 1-N
+SR_Base **rec;
+
 // Thread Initializer Argument Structure
 typedef struct ThreadArg ThreadArg;
 struct ThreadArg {
@@ -114,9 +117,6 @@ struct ThreadArg {
     void (*out)(const unsigned long *, size_t);
     long long res;
 };
-
-// Set Records for Each Length 1-N
-SR_Base **rec;
 
 // Thread Function Declarations
 long long threadedQuery(SR_Base *, char, char,
@@ -214,13 +214,13 @@ int main(int argc, char *argv[])
             size, max);
 
     // ============ Enumerate a Bunch of Nullifiable Sets
-    // We know already that in order to be nullifiable, a set must have
-    // two ways of getting to the same value. So here we'll use the
-    // equivalent pairs program to expand a set containing two of the
-    // same number, which we know is definitely nullifiable. This will
-    // give us a bunch more nullifiable sets, which we'll mark off in
-    // the data structure. From there, we'll expand those expansions,
-    // until we've expanded all the way up to the final set length.
+    // We know that a set is nullifiable if and only if it has two ways
+    // of getting to the same value. So here we'll use the equivalent
+    // pairs program to expand a set containing two of the same number,
+    // which we know is definitely nullifiable. This will give us a
+    // bunch more nullifiable sets, which we'll mark off in the data
+    // structure. From there, we'll expand those expansions, until we've
+    // expanded all the way up to the final set length.
 
     // Since supersets of nullifiable sets are also nullifiable, we can
     // also mark supersets in the data structure. We also can ignore
