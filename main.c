@@ -115,11 +115,11 @@ struct ThreadArg {
     char bits;
     size_t mod;
     void (*out)(const unsigned long *, size_t);
-    long long res;
+    ssize_t res;
 };
 
 // Thread Function Declarations
-long long threadedQuery(SR_Base *, char, char,
+ssize_t threadedQuery(SR_Base *, char, char,
         void (*)(const unsigned long *, size_t));
 void *initThread(void *);
 
@@ -129,7 +129,7 @@ void expandNul(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
-long long retrieve(void (*)(const unsigned long *, size_t), bool);
+ssize_t retrieve(void (*)(const unsigned long *, size_t), bool);
 void resCheck(int);
 
 int main(int argc, char *argv[])
@@ -233,10 +233,10 @@ int main(int argc, char *argv[])
 
     printf("Generating Nullifiable Sets...\n");
 
-    long long remaining;
+    ssize_t remaining;
     remaining = retrieve(NULL, true);
     printf("At starting...     ");
-    printf("%16lld Sets Remain\n", remaining);
+    printf("%16ld Sets Remain\n", remaining);
 
     // Trivial sets for each allowed value
     printf("Expanding Size %lu...", 2ul);
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
         expandNul(minNulSet, 2);
     }
     remaining = retrieve(NULL, true);
-    printf("%16lld Sets Remain\n", remaining);
+    printf("%16ld Sets Remain\n", remaining);
 
     // Iteratively Expand Nullifiable Sets by One Element
     for (size_t setSize = 3; setSize < size; setSize++)
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 
         // Get Number of Sets Remaining
         remaining = retrieve(NULL, true);
-        printf("%16lld Sets Remain\n", remaining);
+        printf("%16ld Sets Remain\n", remaining);
     }
 
     printf("Done\n\n");
@@ -289,9 +289,9 @@ int main(int argc, char *argv[])
     printf("Done\n\n");
 
     // Now, everything unmarked is Innullifiable
-    long long finals = retrieve(&printSet, false);
+    ssize_t finals = retrieve(&printSet, false);
 
-    printf("\n%lld Innullifiable Sets, %lld Passed Equivalent Sets\n",
+    printf("\n%ld Innullifiable Sets, %ld Passed Equivalent Sets\n",
             finals, remaining);
 
     // ============ Release Set Records
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
 }
 
 // Perform a Threaded Query to a Set Record
-long long threadedQuery(SR_Base *rec, char mask, char bits,
+ssize_t threadedQuery(SR_Base *rec, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Arrays for Threads and Thread Initializer Arguments
@@ -339,7 +339,7 @@ long long threadedQuery(SR_Base *rec, char mask, char bits,
     initThread((void *) &arg);
 
     // For storing the end result
-    long long reses = arg.res;
+    ssize_t reses = arg.res;
 
     // Iteratively Join Threads, Keeping Results
     for (unsigned long i = 0; i < threads - 1; i++)
@@ -372,7 +372,7 @@ void *initThread(void *argument)
     ThreadArg *arg = (ThreadArg *) argument;
 
     // Query our own sets, expand them, and eliminate them
-    long long res = sr_query_parallel(arg->rec, arg->mask, arg->bits,
+    ssize_t res = sr_query_parallel(arg->rec, arg->mask, arg->bits,
             threads, arg->mod, arg->out);
 
     // Set Result
@@ -445,11 +445,11 @@ void printSet(const unsigned long *set, size_t setc)
 // ================ Helper Functions
 
 // Retrieve all Completely Unmarked Sets
-long long retrieve(void (*out)(const unsigned long *, size_t),
+ssize_t retrieve(void (*out)(const unsigned long *, size_t),
         bool threaded)
 {
     // Query for Sets with Neither Mark, Output
-    long long res;
+    ssize_t res;
     if (threaded)
         res = threadedQuery(rec[size - 1], MARKED, 0, out);
     else

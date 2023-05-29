@@ -51,10 +51,11 @@ typedef enum SR_QueryMode QueryMode;
 
 // Helper Function Declarations
 static unsigned long long mcn(size_t, size_t);
-static long long mark(Rec *, unsigned long, size_t,
+
+static ssize_t mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
         char, unsigned long, size_t);
-static long long query(const Rec *, unsigned long, size_t,
+static ssize_t query(const Rec *, unsigned long, size_t,
         size_t, size_t, char, char,
         void (*)(const unsigned long *, size_t));
 static int incSetValues(unsigned long *, size_t, unsigned long,
@@ -137,14 +138,14 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 
 // Output Sets with Particular Mark Status
 // Returns number of sets on success, -1 on memory error
-long long sr_query(const Base *base, char mask, char bits,
+ssize_t sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
     if (base == NULL) return -1;
 
     // Output Sets that Match Query
-    long long res = query(base->rec, base->max, base->size,
+    ssize_t res = query(base->rec, base->max, base->size,
             0, 1, mask, bits, out);
 
     return res;
@@ -157,7 +158,7 @@ long long sr_query(const Base *base, char mask, char bits,
 // The mod is a number less than the number of concurrent calls. Each
 // call should give a different value for that parameter, to ensure full
 // coverage.
-long long sr_query_parallel(const Base *base, char mask, char bits,
+ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
@@ -168,7 +169,7 @@ long long sr_query_parallel(const Base *base, char mask, char bits,
     if (mod >= concurrents) return -2;
 
     // Output Sets that Match Query
-    long long res = query(base->rec, base->max, base->size,
+    ssize_t res = query(base->rec, base->max, base->size,
             mod, concurrents, mask, bits, out);
 
     return res;
@@ -194,7 +195,7 @@ long long sr_query_parallel(const Base *base, char mask, char bits,
 // values between constraints, so it will also split itself up when it's
 // able to use the value as an intermediary, and by default move on to
 // the next value at the position.
-long long mark(Rec *rec, unsigned long max, size_t size,
+ssize_t mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc,
         char mask, unsigned long value, size_t position)
 {
@@ -227,7 +228,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
     {
         // Recurse, advancing to the next position and the next
         // constraint
-        long long res = mark(rec, max, size, constr + 1, constrc - 1,
+        ssize_t res = mark(rec, max, size, constr + 1, constrc - 1,
                 mask, value + 1, position + 1);
 
         // Pass along an error and otherwise keep count
@@ -245,7 +246,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
         if (position + constrc < size)
         {
             // Recurse, advancing to the next position
-            long long res = mark(rec, max, size, constr, constrc,
+            ssize_t res = mark(rec, max, size, constr, constrc,
                     mask, value + 1, position + 1);
 
             // Pass along an error and otherwise keep count
@@ -261,7 +262,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
             rec += mcn(max - value, size - position - 1);
 
             // Simple recurse without advancing position
-            long long res = mark(rec, max, size, constr, constrc,
+            ssize_t res = mark(rec, max, size, constr, constrc,
                     mask, value + 1, position);
 
             // Pass along an error and otherwise keep count
@@ -283,7 +284,7 @@ long long mark(Rec *rec, unsigned long max, size_t size,
 // some particular offset, so that it may be run in N parallel
 // instances. If a set matches the bit-field criteria provided, the
 // function will output it.
-long long query(const Rec *rec, unsigned long max, size_t size,
+ssize_t query(const Rec *rec, unsigned long max, size_t size,
         size_t offset, size_t skip, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
@@ -291,7 +292,7 @@ long long query(const Rec *rec, unsigned long max, size_t size,
     if (rec == NULL) return -1;
 
     // Counter for Number of Sets
-    long long setc = 0;
+    ssize_t setc = 0;
 
     // Initialize a Set with Lowest Values
     unsigned long *values = calloc(size, sizeof(unsigned long));
