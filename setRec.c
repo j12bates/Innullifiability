@@ -56,7 +56,8 @@ static ssize_t mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
         char, unsigned long, size_t);
 static ssize_t query(const Rec *, unsigned long, size_t,
-        size_t, size_t, char, char,
+        size_t, size_t, size_t, size_t,
+        char, char,
         void (*)(const unsigned long *, size_t));
 static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
@@ -146,7 +147,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec, base->max, base->size,
-            0, 1, mask, bits, out);
+            0, 1, 0, 1, mask, bits, out);
 
     return res;
 }
@@ -170,7 +171,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec, base->max, base->size,
-            mod, concurrents, mask, bits, out);
+            mod, concurrents, 0, 1, mask, bits, out);
 
     return res;
 }
@@ -280,16 +281,22 @@ ssize_t mark(Rec *rec, unsigned long max, size_t size,
 // This is a function which looks across an entire record. It iterates
 // across all the sets, keeping a pointer to the current entry in the
 // record as well as an array of values that corresponds to that set.
-// The function may also be configured to only query the Nth set after
-// some particular offset, so that it may be run in N parallel
-// instances. If a set matches the bit-field criteria provided, the
-// function will output it.
+// If a set matches the bit-field criteria provided, it will be output
+// to the given function.
+
+// The function also can be configured for running in parallel. It gives
+// options for splitting the record into segments and/or querying every
+// Nth element.
 ssize_t query(const Rec *rec, unsigned long max, size_t size,
-        size_t offset, size_t skip, char mask, char bits,
+        size_t offset, size_t skip, size_t seg, size_t divs,
+        char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
     if (rec == NULL) return -1;
+
+    // Exit if parallel parameters don't make sense
+    if (seg >= divs || offset >= skip) return -1;
 
     // Counter for Number of Sets
     ssize_t setc = 0;
@@ -299,18 +306,23 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
     if (values == NULL) return -1;
     for (size_t i = 0; i < size; i++) values[i] = i + 1;
 
+    // Find the Segment Bounds
+    size_t total = mcn(max, size);
+    size_t segBegin = total * seg / divs;
+    size_t segEnd = total * (seg + 1) / divs;
+
     // Starting Point
-    rec += offset;
-    int res = incSetValues(values, size, max, offset);
+    size_t start = segBegin + offset;
+    int res = incSetValues(values, size, max, start);
 
     // Loop over every Nth set, checking and outputting
-    while (res == 0)
+    for (size_t i = start; i < segEnd && res == 0; i += skip)
     {
         // Whether this set is a match
         bool match = false;
 
         // Get current bits
-        char cur = atomic_load(rec);
+        char cur = atomic_load(rec + i);
 
         // Specific Bitmask Case: if the bits in the bitmask are all set
         // according to the settings
@@ -329,7 +341,6 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
         }
 
         // Advance to Next Nth Set
-        rec += skip;
         res = incSetValues(values, size, max, skip);
     }
 
