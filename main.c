@@ -86,9 +86,9 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "setRec.h"
-#include "eqSets.h"
-#include "nulTest.h"
+#include "setRec/setRec.h"
+#include "eqSets/eqSets.h"
+#include "nulTest/nulTest.h"
 
 // Bitmasks for Set Records
 #define NULLIF      1 << 0

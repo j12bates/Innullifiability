@@ -1,20 +1,26 @@
-SRC 	:= main.c setRec.c setTree.c eqSets.c nulTest.c
+OBJS 	:= setRec.o eqSets.o nulTest.o
 
 CC		:= gcc
 CCFLAGS	:= -Wall
 
-OPFLAGS := -O3 -flto
+OPFLAGS := -O2 -flto
 DBFLAGS := -g
 
-.PHONY: all debug clean
+.PHONY: all out debug clean
 
-all: innullifiables
+all: out
 
-innullifiables: $(SRC)
-	$(CC) $(CCFLAGS) $(OPFLAGS) $(SRC) -o $@
+%.o: %/*.c
+	$(CC) $(CCFLAGS) -c $^ -o $@
 
-debug: $(SRC)
-	$(CC) $(CCFLAGS) $(DBFLAGS) $(SRC) -o innullifiables
+innullifiables: main.c $(OBJS)
+	$(CC) $(CCFLAGS) $^ -o $@
+
+out: CCFLAGS += $(OPFLAGS)
+out: innullifiables
+
+debug: CCFLAGS += $(DBFLAGS)
+debug: innullifiables
 
 clean:
-	rm innullifiables
+	rm innullifiables $(OBJS)
