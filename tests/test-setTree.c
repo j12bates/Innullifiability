@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "setTree.h"
+#include "../setTree/setTree.h"
 
 void printSet(const unsigned long *, size_t);
 

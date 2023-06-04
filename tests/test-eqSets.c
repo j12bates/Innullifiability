@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "eqSets.h"
+#include "../eqSets/eqSets.h"
 
 void expandPrint(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);

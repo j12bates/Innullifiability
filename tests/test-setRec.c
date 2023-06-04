@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "setRec.h"
+#include "../setRec/setRec.h"
 
 #define PATTERN 1 << 1
 #define THREE   1 << 2
