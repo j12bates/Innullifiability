@@ -95,7 +95,7 @@
 #define SUPERSET    NULLIF | 1 << 1
 #define MARKED      NULLIF | SUPERSET
 
-// Size of Sets (N)
+// Target Size of Sets (N)
 size_t size;
 
 // Maximum Element Value (M)
@@ -104,8 +104,10 @@ unsigned long max;
 // Number of Threads
 unsigned long threads = 1;
 
-// Set Records for Each Length 1-N
-SR_Base **rec;
+// Set Records for Source and Destination of Generation
+SR_Base *recSrc = NULL;
+SR_Base *recDest = NULL;
+size_t sizeSrc = 0;
 
 // Thread Initializer Argument Structure
 typedef struct ThreadArg ThreadArg;
@@ -124,8 +126,9 @@ ssize_t threadedQuery(SR_Base *, char, char,
 void *initThread(void *);
 
 // Supplementary Function Declarations
+void expand(const unsigned long *, size_t);
 void eliminate(const unsigned long *, size_t);
-void expandNul(const unsigned long *, size_t);
+void super(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
@@ -187,31 +190,7 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // ============ Initialize Set Records
-    // Now we're going to initialize the data structure for keeping
-    // track of sets. We're going to create a set record for each length
-    // of set from 1 to N.
-
-    // Allocate Array Space
-    rec = calloc(size, sizeof(SR_Base *));
-    if (rec == NULL) {
-        perror("Unable to Allocate Data Structure");
-        return 1;
-    }
-
-    // Create all Set Records
-    for (size_t i = 0; i < size; i++)
-    {
-        rec[i] = sr_initialize(i + 1, max);
-
-        if (rec[i] == NULL) {
-            perror("Unable to Allocate Data Structure");
-            return 1;
-        }
-    }
-
-    printf("Instantiated with N = %lu and M = %lu\n\n",
-            size, max);
+    printf("N = %lu, M = %lu\n\n", size, max);
 
     // ============ Enumerate a Bunch of Nullifiable Sets
     // We know that a set is nullifiable if and only if it has two ways
@@ -234,35 +213,57 @@ int main(int argc, char *argv[])
     printf("Generating Nullifiable Sets...\n");
 
     ssize_t remaining;
-    remaining = retrieve(NULL, true);
-    printf("At starting...     ");
-    printf("%16ld Sets Remain\n", remaining);
 
-    // Trivial sets for each allowed value
-    printf("Expanding Size %lu...", 2ul);
-    fflush(stdout);
-    if (size > 2) for (unsigned long n = 1; n <= max; n++)
+    // Start from a base of size-2 sets
+    if (size > 2)
     {
-        // A Pair is Nullifiable
-        unsigned long minNulSet[2];
-        minNulSet[0] = n;
-        minNulSet[1] = n;
+        // Start from this size
+        sizeSrc = 2;
 
-        // Expand
-        expandNul(minNulSet, 2);
-    }
-    remaining = retrieve(NULL, true);
-    printf("%16ld Sets Remain\n", remaining);
-
-    // Iteratively Expand Nullifiable Sets by One Element
-    for (size_t setSize = 3; setSize < size; setSize++)
-    {
-        printf("Expanding Size %lu...", setSize);
+        printf("Expanding Size %lu...", sizeSrc);
         fflush(stdout);
 
-        // Make sure we only get the sets that are marked nullifiable
-        // and also not a superset, start the chain of functions
-        threadedQuery(rec[setSize - 1], MARKED, NULLIF, &expandNul);
+        // Allocate Destination
+        recDest = sr_initialize(sizeSrc + 1, max);
+
+        // Trivial nullifiable sets for each allowed value
+        for (unsigned long n = 1; n <= max; n++)
+        {
+            // A Pair is Nullifiable
+            unsigned long minNulSet[2];
+            minNulSet[0] = n;
+            minNulSet[1] = n;
+
+            // Expand this Set
+            expand(minNulSet, 2);
+        }
+
+        // Get Number of Sets Remaining
+        remaining = retrieve(NULL, true);
+        printf("%16ld Sets Remain\n", remaining);
+    }
+
+    // Produce Iterative Generations
+    for (sizeSrc = 3; sizeSrc < size; sizeSrc++)
+    {
+        printf("Expanding Size %lu...", sizeSrc);
+        fflush(stdout);
+
+        // Previous Destination is new Source
+        recSrc = recDest;
+
+        // Allocate new Destination
+        recDest = sr_initialize(sizeSrc + 1, max);
+
+        // Get all the sets that are marked nullifiable and mark their
+        // supersets
+        threadedQuery(recSrc, NULLIF, NULLIF, &super);
+
+        // Get all the new nullifiable sets and expand them
+        threadedQuery(recSrc, MARKED, NULLIF, &expand);
+
+        // Deallocate Source
+        sr_release(recSrc);
 
         // Get Number of Sets Remaining
         remaining = retrieve(NULL, true);
@@ -280,6 +281,8 @@ int main(int argc, char *argv[])
     // exhaustively check each set before we can definitively say it's
     // innullifiable.
 
+    sizeSrc = size - 1;
+
     printf("Testing Remaining Sets...\n");
 
     remaining = retrieve(NULL, true);
@@ -294,9 +297,8 @@ int main(int argc, char *argv[])
     printf("\n%ld Innullifiable Sets, %ld Passed Equivalent Sets\n",
             finals, remaining);
 
-    // ============ Release Set Records
-    for (size_t i = 0; i < size; i++) sr_release(rec[i]);
-    free(rec);
+    // Deallocate Final Set Record
+    sr_release(recDest);
 
     return 0;
 }
@@ -383,8 +385,8 @@ void *initThread(void *argument)
 
 // ================ Supplemental Functions
 
-// Supplemental Function for Expanding a Nullifiable Set
-void expandNul(const unsigned long *set, size_t setc)
+// Supplemental Function: Expand a New Nullifiable Set into More
+void expand(const unsigned long *set, size_t setc)
 {
     // Expand Set and Eliminate it
     eqSets(set, setc, &eliminate);
@@ -392,26 +394,36 @@ void expandNul(const unsigned long *set, size_t setc)
     return;
 }
 
-// Supplemental Function for Eliminating a Set/Subsets
+// Supplemental Function: Eliminate a New Nullifiable Set in the
+// Destination
 void eliminate(const unsigned long *set, size_t setc)
 {
     // Check Set Size
-    if (setc > size)
-    {
+    if (setc != sizeSrc + 1) {
         fprintf(stderr, "This really shouldn't be happening.\n");
         exit(16);
     }
 
     // Mark this Particular Set as Nullifiable
-    int res = sr_mark(rec[setc - 1], set, setc, NULLIF);
+    int res = sr_mark(recDest, set, setc, NULLIF);
     resCheck(res);
 
-    // If we haven't seen this already, mark all its supersets
-    if (res == 1) for (size_t i = setc; i < size; i++)
-    {
-        res = sr_mark(rec[i], set, setc, SUPERSET);
-        resCheck(res);
+    return;
+}
+
+// Supplemental Function: Mark an Old Nullifiable Set's Supersets in the
+// Destination
+void super(const unsigned long *set, size_t setc)
+{
+    // Check Set Size
+    if (setc != sizeSrc) {
+        fprintf(stderr, "This really shouldn't be happening.\n");
+        exit(16);
     }
+
+    // Mark Supersets
+    int res = sr_mark(recDest, set, setc, SUPERSET);
+    resCheck(res);
 
     return;
 }
@@ -451,9 +463,9 @@ ssize_t retrieve(void (*out)(const unsigned long *, size_t),
     // Query for Sets with Neither Mark, Output
     ssize_t res;
     if (threaded)
-        res = threadedQuery(rec[size - 1], MARKED, 0, out);
+        res = threadedQuery(recDest, MARKED, 0, out);
     else
-        res = sr_query(rec[size - 1], MARKED, 0, out);
+        res = sr_query(recDest, MARKED, 0, out);
 
     return res;
 }
