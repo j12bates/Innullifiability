@@ -41,26 +41,33 @@
 // nullifiable sets by expanding the 3 into 5 and 2 (5 - 2 = 3), and all
 // the other 'equivalent pairs' of 3. By generating sets instead of
 // testing sets, we can eliminate a whole lot more sets faster than
-// running a test over every set.
+// running a test over every set. This routine is referred to as
+// 'expansion' in the program.
+
+// The program keeps track of the sets by way of Set Records, which are
+// just arrays that store some data for every possible set of a certain
+// length. At any point, there are two records being used for generating
+// sets: one 'destination' where all the nullifiable sets of the current
+// length will be held, and one 'source' which was the result of the
+// previous generation. Nullifiable sets can be stored by 'marking' them
+// on a record.
 
 // The program starts with pairs of the same number, which are known to
-// be nullifiable. Then it expands those into nullifiable sets of length
-// three, and marks off those sets. It can also mark off sets which are
-// supersets of those sets. After the generation is done, the program
-// then expands those length-three sets into length-four nullifiable
-// sets. Then, if a set is already marked as being a superset of a
-// smaller nullifiable set, it knows it doesn't need to bother expanding
-// it as well, as the parent set has already been expanded as much as it
-// can, and it would cover all the same sets anyways. This process
-// continues until the final generation of N-length nullifiable sets.
+// be nullifiable. It can then expand those into nullifiable sets of
+// length three, which it will mark in a record. From then on, sets can
+// be further expanded, but in addition, supersets can be marked in as
+// well. Importantly, a superset of a nullifiable set does not need to
+// be expanded, as the parent set is already being expanded, and
+// expanding the superset won't give anything new. So, these supersets
+// are marked with an additional flag in the record, while 'new' sets
+// aren't. Only the new sets need to be expanded in the next generation.
 
-// The program keeps track of the sets by way of a series of Set
-// Records, which are just arrays that store some data for every
-// possible set. It creates a record for each set length, and uses it to
-// store sets from each generation. It can store whether a set has been
-// marked nullifiable, as well as whether that was due to being a
-// superset, so that the program can detect and avoid redundantly
-// expanding it.
+// The process of generation can be described more generally in two
+// steps. First, any sets that are marked at all on the source record
+// have their supersets marked on the destination record. Second, any
+// new nullifiable sets on the source record (not supersets) are
+// expanded using equivalent sets and marked in the destination
+// normally. The next generation uses this as the source record.
 
 // This method of expanding sets doesn't cover everything, and it lets
 // some nullifiable sets through. So, after the final generation is
@@ -71,19 +78,12 @@
 // sets might be only nullifiable through a calculation that goes beyond
 // that range.
 
-// The process of generation can be described more generally in two
-// steps. First, any sets that are marked at all on the source record
-// have their supersets marked on the destination record. Second, any
-// sets on the source record that are marked as new nullifiable sets
-// (not as a superset) are expanded using equivalent sets and marked in
-// the destination normally. Then, if desired, a final sweep may go
-// through the record to remove any remaining nullifiable sets.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
 #include <errno.h>
+#include <assert.h>
 #include <pthread.h>
 
 #include "setRec/setRec.h"
@@ -398,11 +398,8 @@ void expand(const unsigned long *set, size_t setc)
 // Destination
 void eliminate(const unsigned long *set, size_t setc)
 {
-    // Check Set Size
-    if (setc != sizeSrc + 1) {
-        fprintf(stderr, "This really shouldn't be happening.\n");
-        exit(16);
-    }
+    // Set must be size of destination
+    assert(setc == sizeSrc + 1);
 
     // Mark this Particular Set as Nullifiable
     int res = sr_mark(recDest, set, setc, NULLIF);
@@ -415,11 +412,8 @@ void eliminate(const unsigned long *set, size_t setc)
 // Destination
 void super(const unsigned long *set, size_t setc)
 {
-    // Check Set Size
-    if (setc != sizeSrc) {
-        fprintf(stderr, "This really shouldn't be happening.\n");
-        exit(16);
-    }
+    // Set must be shorter than size of destination
+    assert(setc <= sizeSrc);
 
     // Mark Supersets
     int res = sr_mark(recDest, set, setc, SUPERSET);
@@ -473,15 +467,14 @@ ssize_t retrieve(void (*out)(const unsigned long *, size_t),
 // Check Result of Mark Function
 void resCheck(int res)
 {
-    // Handle an error, just in case
+    // Handle a Memory Error
     if (res == -1) {
         fprintf(stderr, "Memory Error while Marking Sets\n");
         exit(1);
     }
-    else if (res == -2) {
-        fprintf(stderr, "This really shouldn't be happening.\n");
-        exit(16);
-    }
+
+    // Invalid input shouldn't be possible
+    assert(res != -2);
 
     return;
 }
