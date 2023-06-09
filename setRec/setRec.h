@@ -5,6 +5,7 @@
 #ifndef SETREC_H
 #define SETREC_H
 
+#include <stdio.h>
 #include <stdlib.h>
 
 // Set Record Information Structure
@@ -28,5 +29,10 @@ ssize_t sr_query(const SR_Base *, char, char,
 ssize_t sr_query_parallel(const SR_Base *, char, char,
         size_t, size_t, void (*)(const unsigned long *, size_t));
 
+// Import Record from Binary FIle
+int sr_import(const SR_Base *, FILE *restrict);
+
+// Export Record to Binary File
+int sr_export(const SR_Base *, FILE *restrict);
 
 #endif

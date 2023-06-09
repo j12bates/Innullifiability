@@ -30,7 +30,6 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
-
 #include <stdatomic.h>
 
 #include "setRec.h"
@@ -48,6 +47,10 @@ struct Base {
 
 // Other Typedefs
 typedef enum SR_QueryMode QueryMode;
+
+// Strings
+const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
+const char *headerMsg = "Data begins 4K (4096) into the file\n";
 
 // Helper Function Declarations
 static unsigned long long mcn(size_t, size_t);
@@ -174,6 +177,69 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
             mod, concurrents, 0, 1, mask, bits, out);
 
     return res;
+}
+
+// Import Record from Binary FIle
+// Returns 0 on success, -1 on error (read errno), -2 on invalid file/
+// wrong size
+int sr_import(const SR_Base *base, FILE *restrict f)
+{
+    int res;
+
+    // Read and interpret the header
+    res = fseek(f, 0, SEEK_SET);
+    if (res < 0) return -1;
+
+    size_t size;
+    unsigned long max;
+    res = fscanf(f, headerFormat, &size, &max);
+    if (res < 0) return -1;
+    if (res == EOF) return -2;
+    if (res != 2) return -2;
+
+    // Exit if record is wrong size
+    if (size != base->size || max != base->max) return -2;
+
+    // Number of Sets (elements in array)
+    size_t total = mcn(base->max, base->size);
+
+    // Read raw array one block into the file
+    res = fseek(f, 0x1000, SEEK_SET);
+    if (res < 0) return -1;
+
+    size_t written = fread(base->rec, sizeof(Rec), total, f);
+    if (written != total) return -1;
+
+    return 0;
+}
+
+// Export Record to Binary File
+// Returns 0 on success, -1 on error (read errno)
+int sr_export(const SR_Base *base, FILE *restrict f)
+{
+    int res;
+
+    // Write an info header at the start of the file
+    res = fseek(f, 0, SEEK_SET);
+    if (res < 0) return -1;
+
+    res = fprintf(f, headerFormat, base->size, base->max);
+    if (res < 0) return -1;
+
+    res = fprintf(f, headerMsg);
+    if (res < 0) return -1;
+
+    // Number of Sets (elements in array)
+    size_t total = mcn(base->max, base->size);
+
+    // Write raw array one block into the file
+    res = fseek(f, 0x1000, SEEK_SET);
+    if (res < 0) return -1;
+
+    size_t written = fwrite(base->rec, sizeof(Rec), total, f);
+    if (written != total) return -1;
+
+    return 0;
 }
 
 // ============ Helper Functions

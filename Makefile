@@ -4,14 +4,14 @@ CC		:= gcc
 CCFLAGS	:= -Wall
 
 OPFLAGS := -O2 -flto
-DBFLAGS := -g
+DBFLAGS := -g -DDEBUG
 
 .PHONY: all out debug clean
 
 all: out
 
 %.o: %/*.c
-	$(CC) $(CCFLAGS) -c $^ -o $@
+	$(CC) $(CCFLAGS) -c $< -o $@
 
 innullifiables: main.c $(OBJS)
 	$(CC) $(CCFLAGS) $^ -o $@
