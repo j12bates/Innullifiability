@@ -15,6 +15,17 @@ int main(int argc, char *argv[])
     if (rec == NULL) return 1;
     printf("Record Initialized\n\n");
 
+    FILE *f;
+
+    f = fopen("record.dat", "rb");
+    if (f == NULL) perror("Import Error");
+    else {
+        int res = sr_import(rec, f);
+        if (res == -1) perror("Import Error");
+        if (res == -2) fprintf(stderr, "Invalid/Incorrect File\n");
+        fclose(f);
+    }
+
     long long markReturnCode;
 
     unsigned long subset[2] = {2, 4};
@@ -64,6 +75,13 @@ int main(int argc, char *argv[])
     queryReturnCode = sr_query(rec, PATTERN | THREE, 0, &printSet);
     printf("\nShould be all the completely unmarked sets, %d\n\n",
             queryReturnCode);
+
+    f = fopen("record.dat", "wb");
+    if (f == NULL) perror("Export Error");
+    else {
+        if (sr_export(rec, f) == -1) perror("Export Error");
+        fclose(f);
+    }
 
     sr_release(rec);
     printf("Record Released\n");
