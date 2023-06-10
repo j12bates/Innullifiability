@@ -104,6 +104,9 @@ unsigned long max;
 // Number of Threads
 unsigned long threads = 1;
 
+// Input/Output Files
+const char *inFname, *outFname;
+
 // Set Records for Source and Destination of Generation
 SR_Base *recSrc = NULL;
 SR_Base *recDest = NULL;
@@ -124,6 +127,7 @@ struct ThreadArg {
 ssize_t threadedQuery(SR_Base *, char, char,
         void (*)(const unsigned long *, size_t));
 void *initThread(void *);
+void baseSets(void (*)(const unsigned long *, size_t));
 
 // Supplementary Function Declarations
 void expand(const unsigned long *, size_t);
@@ -143,9 +147,9 @@ int main(int argc, char *argv[])
     // to numeric types, checking for conversion errors.
 
     // Arguments Check, Usage Message
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s %s %s %s\n",
-                argv[0], "N", "M", "[T]");
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s %s %s %s %s\n",
+                argv[0], "N", "M", "T", "[outfile]");
         fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
         fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
         fprintf(stderr, "  %s\t%s\n", "T ", "number of threads");
@@ -168,11 +172,14 @@ int main(int argc, char *argv[])
     }
 
     errno = 0;
-    if (argc > 3) threads = strtoul(argv[3], NULL, 10);
+    threads = strtoul(argv[3], NULL, 10);
     if (errno != 0) {
         perror("T Argument [3]");
         return 2;
     }
+
+    errno = 0;
+    if (argc > 4) outFname = argv[4];
 
     // General Input Errors
     if (max < size) {
@@ -214,37 +221,8 @@ int main(int argc, char *argv[])
 
     ssize_t remaining;
 
-    // Start from a base of size-2 sets
-    if (size > 2)
-    {
-        // Start from this size
-        sizeSrc = 2;
-
-        printf("Expanding Size %lu...", sizeSrc);
-        fflush(stdout);
-
-        // Allocate Destination
-        recDest = sr_initialize(sizeSrc + 1, max);
-
-        // Trivial nullifiable sets for each allowed value
-        for (unsigned long n = 1; n <= max; n++)
-        {
-            // A Pair is Nullifiable
-            unsigned long minNulSet[2];
-            minNulSet[0] = n;
-            minNulSet[1] = n;
-
-            // Expand this Set
-            expand(minNulSet, 2);
-        }
-
-        // Get Number of Sets Remaining
-        remaining = retrieve(NULL, true);
-        printf("%16ld Sets Remain\n", remaining);
-    }
-
     // Produce Iterative Generations
-    for (sizeSrc = 3; sizeSrc < size; sizeSrc++)
+    for (sizeSrc = 2; sizeSrc < size; sizeSrc++)
     {
         printf("Expanding Size %lu...", sizeSrc);
         fflush(stdout);
@@ -255,15 +233,24 @@ int main(int argc, char *argv[])
         // Allocate new Destination
         recDest = sr_initialize(sizeSrc + 1, max);
 
-        // Get all the sets that are marked nullifiable and mark their
-        // supersets
-        threadedQuery(recSrc, NULLIF, NULLIF, &super);
+        // If we're just starting out, base from the trivial sets,
+        // expanding them
+        if (sizeSrc == 2) baseSets(&expand);
 
-        // Get all the new nullifiable sets and expand them
-        threadedQuery(recSrc, MARKED, NULLIF, &expand);
+        // Otherwise, perform a normal generation with source and
+        // destination
+        else
+        {
+            // Get all the sets that are marked nullifiable and mark their
+            // supersets
+            threadedQuery(recSrc, NULLIF, NULLIF, &super);
 
-        // Deallocate Source
-        sr_release(recSrc);
+            // Get all the new nullifiable sets and expand them
+            threadedQuery(recSrc, MARKED, NULLIF, &expand);
+
+            // Deallocate Source
+            sr_release(recSrc);
+        }
 
         // Get Number of Sets Remaining
         remaining = retrieve(NULL, true);
@@ -296,6 +283,21 @@ int main(int argc, char *argv[])
 
     printf("\n%ld Innullifiable Sets, %ld Passed Equivalent Sets\n",
             finals, remaining);
+
+    // Export Record to Binary File
+    if (outFname != NULL)
+    {
+        printf("\nExporting to file %s...\n", outFname);
+
+        FILE *f = fopen(outFname, "wb");
+        if (f == NULL) perror("Error while Exporting");
+        else {
+            if (sr_export(recDest, f) == -1)
+                perror("Error while Exporting");
+            else printf("Success\n");
+            fclose(f);
+        }
+    }
 
     // Deallocate Final Set Record
     sr_release(recDest);
@@ -381,6 +383,22 @@ void *initThread(void *argument)
     arg->res = res;
 
     return NULL;
+}
+
+// Produce Trivial Nullifiable Sets (Simulated Query)
+void baseSets(void (*out)(const unsigned long *, size_t))
+{
+    // Trivial nullifiable sets for each allowed value
+    for (unsigned long n = 1; n <= max; n++)
+    {
+        // A Pair is Nullifiable
+        unsigned long minNulSet[2];
+        minNulSet[0] = n;
+        minNulSet[1] = n;
+
+        // Expand this Set
+        out(minNulSet, 2);
+    }
 }
 
 // ================ Supplemental Functions
