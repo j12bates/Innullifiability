@@ -22,7 +22,8 @@ int main(int argc, char *argv[])
     else {
         int res = sr_import(rec, f);
         if (res == -1) perror("Import Error");
-        if (res == -2) fprintf(stderr, "Invalid/Incorrect File\n");
+        if (res == -2) fprintf(stderr, "Incorrect Record Size\n");
+        if (res == -3) fprintf(stderr, "Invalid File\n");
         fclose(f);
     }
 

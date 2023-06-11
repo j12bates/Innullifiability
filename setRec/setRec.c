@@ -180,8 +180,8 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 }
 
 // Import Record from Binary FIle
-// Returns 0 on success, -1 on error (read errno), -2 on invalid file/
-// wrong size
+// Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
+// on invalid file
 int sr_import(const SR_Base *base, FILE *restrict f)
 {
     int res;
@@ -193,9 +193,8 @@ int sr_import(const SR_Base *base, FILE *restrict f)
     size_t size;
     unsigned long max;
     res = fscanf(f, headerFormat, &size, &max);
-    if (res < 0) return -1;
-    if (res == EOF) return -2;
-    if (res != 2) return -2;
+    if (res == EOF && ferror(f)) return -1;
+    else if (res != 2) return -3;
 
     // Exit if record is wrong size
     if (size != base->size || max != base->max) return -2;
@@ -203,12 +202,17 @@ int sr_import(const SR_Base *base, FILE *restrict f)
     // Number of Sets (elements in array)
     size_t total = mcn(base->max, base->size);
 
-    // Read raw array one block into the file
+    // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
     if (res < 0) return -1;
 
+    // Attempt to read entire array
     size_t written = fread(base->rec, sizeof(Rec), total, f);
-    if (written != total) return -1;
+    if (written != total)
+    {
+        if (feof(f)) return -3;
+        else return -1;
+    }
 
     return 0;
 }
