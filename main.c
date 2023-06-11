@@ -105,7 +105,9 @@ unsigned long max;
 unsigned long threads = 1;
 
 // Input/Output Files
-const char *inFname, *outFname;
+const char *outFname = NULL;
+const char *inFname = NULL;
+size_t inSize;
 
 // Set Records for Source and Destination of Generation
 SR_Base *recSrc = NULL;
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
     // Arguments Check, Usage Message
     if (argc < 4) {
         fprintf(stderr, "Usage: %s %s %s %s %s\n",
-                argv[0], "N", "M", "T", "[outfile]");
+                argv[0], "N", "M", "T", "[outfile [infile inN]]");
         fprintf(stderr, "  %s\t%s\n", "N ", "integer length of sets");
         fprintf(stderr, "  %s\t%s\n", "M ", "integer maximum value");
         fprintf(stderr, "  %s\t%s\n", "T ", "number of threads");
@@ -178,12 +180,28 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    errno = 0;
+    // Get Output Filename
     if (argc > 4) outFname = argv[4];
+
+    // Get Input Filename and Size
+    errno = 0;
+    if (argc > 6) {
+        inFname = argv[5];
+        inSize = strtoul(argv[6], NULL, 10);
+        if (errno != 0) {
+            perror("inN Argument [6]");
+            return 2;
+        }
+    }
 
     // General Input Errors
     if (max < size) {
         fprintf(stderr, "Input: M cannot be less than N\n");
+        return 2;
+    }
+
+    if (inSize > size) {
+        fprintf(stderr, "Input: inN cannot be greater than N\n");
         return 2;
     }
 
@@ -221,8 +239,41 @@ int main(int argc, char *argv[])
 
     ssize_t remaining;
 
+    // Import Input if Supplied
+    if (inFname != NULL)
+    {
+        // Allocate Record as Destination (will be moved over to source)
+        sizeSrc = inSize;
+        recDest = sr_initialize(sizeSrc, max);
+
+        // Open Input File
+        FILE *f = fopen(inFname, "rb");
+        if (f == NULL) perror("Error while Importing");
+
+        // If successful, try importing
+        else {
+            int res = sr_import(recDest, f);
+
+            // Handle various errors
+            if (res == -1) perror("Error while Importing");
+            else if (res == -2) {
+                fprintf(stderr, "Input Record is Wrong Size\n");
+                exit(2);
+            }
+            else if (res == -3) {
+                fprintf(stderr, "Invalid Input Record File\n");
+                exit(2);
+            }
+
+            fclose(f);
+        }
+    }
+
+    // If no input, start from the base
+    else sizeSrc = 2;
+
     // Produce Iterative Generations
-    for (sizeSrc = 2; sizeSrc < size; sizeSrc++)
+    for (; sizeSrc < size; sizeSrc++)
     {
         printf("Expanding Size %lu...", sizeSrc);
         fflush(stdout);
@@ -239,7 +290,7 @@ int main(int argc, char *argv[])
 
         // Otherwise, perform a normal generation with source and
         // destination
-        else
+        else if (sizeSrc > 2)
         {
             // Get all the sets that are marked nullifiable and mark their
             // supersets
