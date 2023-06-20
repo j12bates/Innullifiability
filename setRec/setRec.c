@@ -58,12 +58,15 @@ static unsigned long long mcn(size_t, size_t);
 static ssize_t mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t,
         char, unsigned long, size_t);
+static ssize_t mark_it(Rec *, unsigned long, size_t,
+        const unsigned long *, size_t, char);
 static ssize_t query(const Rec *, unsigned long, size_t,
         size_t, size_t, size_t, size_t,
         char, char,
         void (*)(const unsigned long *, size_t));
 static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
+static size_t setIndex(const unsigned long *, size_t, unsigned long);
 
 // ============ User-Level Functions
 
@@ -133,7 +136,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     }
 
     // Mark Records with Set as Constraining Values
-    long long res = mark(base->rec, base->max, base->size,
+    ssize_t res = mark(base->rec, base->max, base->size,
             set, setc, mask, 1, 0);
 
     if (res == -1) return -1;
@@ -341,6 +344,78 @@ ssize_t mark(Rec *rec, unsigned long max, size_t size,
             setc += res;
         }
     }
+
+    return setc;
+}
+
+// Iteratively Mark Supersets
+// Returns number of sets newly marked on success, -1 on memory error
+
+// This function marks all the supersets of a set of constraining
+// values. It works iteratively, inserting all possible values into the
+// set, then recursing to either expand further or mark the individual
+// set by way of the set address function.
+ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
+        const unsigned long *constr, size_t constrc, char mask)
+{
+    // Counter for newly marked sets
+    ssize_t setc = 0;
+
+    // If too many constraints, break
+    if (constrc > size) return -1;
+
+    // If our constraints make up a complete set, mark record
+    if (constrc == size)
+    {
+        // Get the address
+        size_t index = setIndex(constr, constrc, max);
+
+        // OR the bits we care about
+        char prev = atomic_fetch_or(rec + index, mask);
+
+        // If they weren't already set, count this
+        if ((prev & mask) != mask) setc++;
+
+        return setc;
+    }
+
+    // Array for Supersets
+    unsigned long *super = calloc(constrc + 1, sizeof(unsigned long));
+    if (super == NULL) return -1;
+
+    // Copy Constraining Values Over
+    for (size_t i = 0; i < constrc; i++)
+        super[i + 1] = constr[i];
+
+    // Iterate over all Values to Insert
+    size_t pos = 0;
+    for (unsigned long i = 1; i <= max; i++)
+    {
+        // Insert Value
+        super[pos] = i;
+
+        // If we've reached the next value, move ahead of it so we stay
+        // in ascending order
+        if (pos < constrc) if (super[pos + 1] == i) {
+            pos++;
+            continue;
+        }
+
+        // Otherwise, we have a superset: recurse to mark or expand
+        // further
+        ssize_t res = mark_it(rec, max, size,
+                super, constrc + 1, mask);
+
+        // Pass along an error and otherwise keep count
+        if (res == -1) {
+            setc = -1;
+            break;
+        }
+        setc += res;
+    }
+
+    // Deallocate Memory
+    free(super);
 
     return setc;
 }
