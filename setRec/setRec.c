@@ -345,6 +345,30 @@ ssize_t mark(Rec *rec, unsigned long max, size_t size,
     return setc;
 }
 
+// Compute Index of Set
+// Returns the index, no error checking
+size_t setIndex(const unsigned long *set, size_t setc,
+        unsigned long max)
+{
+    size_t index = 0;
+    unsigned long value = 0;
+
+    // Consider each position in the set
+    for (size_t pos = 0; pos < setc; pos++)
+    {
+        // Iterate over all the values skipped from the previous
+        // position
+        for (value++; value < set[pos]; value++)
+        {
+            // All the values to the right of our position, add in all
+            // the possibilities as a number of combinations
+            index += mcn(max - value, setc - pos - 1);
+        }
+    }
+
+    return index;
+}
+
 // Iteratively Check Records and Output Sets
 // Returns number of sets on success, -1 on memory error
 

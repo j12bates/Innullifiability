@@ -321,11 +321,8 @@ int main(int argc, char *argv[])
 
     sizeSrc = size - 1;
 
-    printf("Testing Remaining Sets...\n");
-
-    remaining = retrieve(NULL, true);
-
     // Test the sets that remain after Equivalent Sets
+    printf("Testing Remaining Sets...\n");
     retrieve(&verify, true);
     printf("Done\n\n");
 
@@ -340,8 +337,11 @@ int main(int argc, char *argv[])
     {
         printf("\nExporting to file %s...\n", outFname);
 
+        // Open Output File
         FILE *f = fopen(outFname, "wb");
         if (f == NULL) perror("Error while Exporting");
+
+        // If successful, try exporting
         else {
             if (sr_export(recDest, f) == -1)
                 perror("Error while Exporting");
