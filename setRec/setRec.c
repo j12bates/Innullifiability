@@ -559,6 +559,53 @@ int incSetValues(unsigned long *set, size_t setc, unsigned long max,
     return 0;
 }
 
+// Increment Set Value Array -- Highest-Value Combinatics Ordering
+// Returns 0 on success, 1 on overflow
+
+// This is a helper function for the query function, and it takes an
+// array of set values and advances it N sets lexicographically. If the
+// operation can be done simply by increasing the first value, it'll do
+// so, and otherwise it'll increment the next value, using a loop to
+// deal with chains of overflowing place values. It'll repeat this
+// process until it's able to settle the first value.
+int incSetValues_b(unsigned long *set, size_t setc, unsigned long max,
+        size_t add)
+{
+    // Handle Complete Overflow
+    if (setc > max) return 1;
+    if (setc == 0) return 1;
+
+    // Repeat until we're done increasing
+    while (add > 0)
+    {
+        // The furthest we can increase the first value
+        unsigned long avail = set[1] - set[0] - 1;
+        if (add <= avail) {
+            set[0] += add;
+            break;
+        }
+
+        // If there's more, increment the next value, dealing with the
+        // further ones if necessary
+        size_t i;
+        for (i = 1; i < setc; i++)
+        {
+            // Reset previous value
+            set[i - 1] = i;
+
+            // If we can increment this value, do so
+            unsigned long next = i == setc - 1 ? max : set[i + 1];
+            if (++set[i] < next) break;
+        }
+
+        // Handle overflow, account for additional set from increment
+        if (i == setc) return 1;
+        add -= avail + 1;
+    }
+
+    return 0;
+}
+
 // M Choose N
 // Returns 0 on error
 unsigned long long mcn(size_t m, size_t n)
