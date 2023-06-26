@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 
     // Test the sets that remain after Equivalent Sets
     printf("Testing Remaining Sets...\n");
-    retrieve(&verify, true);
+    remaining = retrieve(&verify, true);
     printf("Done\n\n");
 
     // Now, everything unmarked is Innullifiable

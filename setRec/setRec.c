@@ -56,20 +56,16 @@ const char *headerMsg = "Data begins 4K (4096) into the file\n";
 static unsigned long long mcn(size_t, size_t);
 
 static ssize_t mark(Rec *, unsigned long, size_t,
-        const unsigned long *, size_t,
-        char, unsigned long, size_t);
-static ssize_t mark_it(Rec *, unsigned long, size_t,
         const unsigned long *, size_t, char);
 static ssize_t query(const Rec *, unsigned long, size_t,
         size_t, size_t, size_t, size_t,
         char, char,
         void (*)(const unsigned long *, size_t));
+
 static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
-static int incSetValues_b(unsigned long *, size_t, unsigned long,
-        size_t);
-static size_t setToIndex(const unsigned long *, size_t, unsigned long);
-static size_t setToIndex_b(const unsigned long *, size_t);
+static void indexToSet(unsigned long *, size_t, size_t);
+static size_t setToIndex(const unsigned long *, size_t);
 
 // ============ User-Level Functions
 
@@ -139,7 +135,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     }
 
     // Mark Records with Set as Constraining Values
-    ssize_t res = mark_it(base->rec, base->max, base->size,
+    ssize_t res = mark(base->rec, base->max, base->size,
             set, setc, mask);
 
     if (res == -1) return -1;
@@ -185,7 +181,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
     return res;
 }
 
-// Import Record from Binary FIle
+// Import Record from Binary File
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
 int sr_import(const SR_Base *base, FILE *restrict f)
@@ -257,100 +253,6 @@ int sr_export(const SR_Base *base, FILE *restrict f)
 // These functions are helper functions for the main user-level
 // functions.
 
-// Recursively Mark Sets with Constraining Values
-// Returns number of sets newly marked on success, -1 on memory error
-
-// This is a recursive function for marking supersets of a set of
-// constraining values. These values are assumed to be in ascending
-// order, as this is how sets are ordered within the record. The
-// function uses two counters, one for value and one for position, to
-// keep track of where it is within the whole record. The function
-// recurses on the record pointer when it wants to use the value at the
-// position, and otherwise moves the record pointer beyond all those
-// sets. The function must use the value if it's the next constraint.
-// But otherwise, it must be sure to account for potential intermediary
-// values between constraints, so it will also split itself up when it's
-// able to use the value as an intermediary, and by default move on to
-// the next value at the position.
-ssize_t mark(Rec *rec, unsigned long max, size_t size,
-        const unsigned long *constr, size_t constrc,
-        char mask, unsigned long value, size_t position)
-{
-    // Exit if Null Pointer
-    if (rec == NULL) return -1;
-
-    // Counter for Newly Marked Sets
-    long long setc = 0;
-
-    // If we've met all the constraints, mark the records and exit
-    if (constrc == 0)
-    {
-        // Number of sets to mark expressed as combinations
-        size_t toMark = mcn(max - value + 1, size - position);
-
-        // Mark all these sets
-        for (size_t i = 0; i < toMark; i++)
-        {
-            // OR the bits we care about
-            char prev = atomic_fetch_or(rec + i, mask);
-
-            // If they weren't already set, count this
-            if ((prev & mask) != mask) setc++;
-        }
-    }
-
-    // If we're at the next constraint, we must mark these sets, as the
-    // constraint can't come up again
-    else if (value == *constr)
-    {
-        // Recurse, advancing to the next position and the next
-        // constraint
-        ssize_t res = mark(rec, max, size, constr + 1, constrc - 1,
-                mask, value + 1, position + 1);
-
-        // Pass along an error and otherwise keep count
-        if (res == -1) return -1;
-        setc += res;
-    }
-
-    // Otherwise, we aren't going to advance to the next constraint this
-    // time
-    else
-    {
-        // If we have positions spare, we'll have sets that use this
-        // value here anyways, so split the call up and mark all those
-        // sets too
-        if (position + constrc < size)
-        {
-            // Recurse, advancing to the next position
-            ssize_t res = mark(rec, max, size, constr, constrc,
-                    mask, value + 1, position + 1);
-
-            // Pass along an error and otherwise keep count
-            if (res == -1) return -1;
-            setc += res;
-        }
-
-        // Either way, advance to the next value, unless we can't
-        if (value < max)
-        {
-            // Advance beyond the sets with this value at this position,
-            // which can be expressed as a number of combinations
-            rec += mcn(max - value, size - position - 1);
-
-            // Simple recurse without advancing position
-            ssize_t res = mark(rec, max, size, constr, constrc,
-                    mask, value + 1, position);
-
-            // Pass along an error and otherwise keep count
-            if (res == -1) return -1;
-            setc += res;
-        }
-    }
-
-    return setc;
-}
-
 // Iteratively Mark Supersets
 // Returns number of sets newly marked on success, -1 on memory error
 
@@ -358,7 +260,7 @@ ssize_t mark(Rec *rec, unsigned long max, size_t size,
 // values. It works iteratively, inserting all possible values into the
 // set, then recursing to either expand further or mark the individual
 // set by way of the set address function.
-ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
+ssize_t mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc, char mask)
 {
     // Counter for newly marked sets
@@ -371,7 +273,7 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
     if (constrc == size)
     {
         // Get the address
-        size_t index = setToIndex_b(constr, constrc);
+        size_t index = setToIndex(constr, constrc);
 
         // OR the bits we care about
         char prev = atomic_fetch_or(rec + index, mask);
@@ -406,7 +308,7 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
 
         // Otherwise, we have a superset: recurse to mark or expand
         // further
-        ssize_t res = mark_it(rec, max, size,
+        ssize_t res = mark(rec, max, size,
                 super, constrc + 1, mask);
 
         // Pass along an error and otherwise keep count
@@ -423,33 +325,9 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
     return setc;
 }
 
-// Compute Index of Set
+// Compute Index from Set
 // Returns the index, no error checking
-size_t setToIndex(const unsigned long *set, size_t setc,
-        unsigned long max)
-{
-    size_t index = 0;
-    unsigned long value = 0;
-
-    // Consider each position in the set
-    for (size_t pos = 0; pos < setc; pos++)
-    {
-        // Iterate over all the values skipped from the previous
-        // position
-        for (value++; value < set[pos]; value++)
-        {
-            // All the values to the right of our position, add in all
-            // the possibilities as a number of combinations
-            index += mcn(max - value, setc - pos - 1);
-        }
-    }
-
-    return index;
-}
-
-// Compute Index from Set -- Highest-Value Combinatorics Ordering
-// Returns the index, no error checking
-size_t setToIndex_b(const unsigned long *set, size_t setc)
+size_t setToIndex(const unsigned long *set, size_t setc)
 {
     size_t index = 0;
 
@@ -465,8 +343,8 @@ size_t setToIndex_b(const unsigned long *set, size_t setc)
     return index;
 }
 
-// Compute Set from Index -- Highest-Value Combinatorics Ordering
-void indexToSet_b(unsigned long *set, size_t setc, size_t index)
+// Compute Set from Index
+void indexToSet(unsigned long *set, size_t setc, size_t index)
 {
     // Go from most significant (highest) to least
     for (size_t vals = setc; vals > 0; vals--)
@@ -512,10 +390,9 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
     // Counter for Number of Sets
     ssize_t setc = 0;
 
-    // Initialize a Set with Lowest Values
+    // Initialize a Set
     unsigned long *values = calloc(size, sizeof(unsigned long));
     if (values == NULL) return -1;
-    for (size_t i = 0; i < size; i++) values[i] = i + 1;
 
     // Find the Segment Bounds
     size_t total = mcn(max, size);
@@ -524,7 +401,9 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
 
     // Starting Point
     size_t start = segBegin + offset;
-    int res = incSetValues_b(values, size, max, start);
+    indexToSet(values, size, start);
+
+    int res = 0;
 
     // Loop over every Nth set, checking and outputting
     for (size_t i = start; i < segEnd && res == 0; i += skip)
@@ -552,53 +431,10 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
         }
 
         // Advance to Next Nth Set
-        res = incSetValues_b(values, size, max, skip);
+        res = incSetValues(values, size, max, skip);
     }
 
     return setc;
-}
-
-// Increment Set Value Array
-// Returns 0 on success, 1 on overflow
-
-// This is a helper function for the query function, and it takes an
-// array of set values and advances it N sets lexicographically. It
-// works by increasing the final value by N if permitted by M, and
-// otherwise it'll increase up to an overflow into the previous value
-// before recursing to increase by the remainder. It's used to keep
-// track of the current set values as the query function advances.
-int incSetValues(unsigned long *set, size_t setc, unsigned long max,
-        size_t add)
-{
-    // Handle Complete Overflow
-    if (setc > max) return 1;
-    if (setc == 0) return 1;
-
-    // Final Value in the Set, Available Increase
-    unsigned long final = set[setc - 1];
-    if (final > max) return 1;
-    unsigned long avail = max - final;
-
-    // Base Case: Simply Increase Final Value if Possible
-    if (add <= avail)
-        set[setc - 1] = final + add;
-
-    // Otherwise, increase as far as possible plus one, replacing the
-    // previous digit
-    else
-    {
-        // Increment Previous Value
-        int res = incSetValues(set, setc - 1, max - 1, 1);
-        if (res != 0) return res;
-
-        // Set Final Appropriately
-        set[setc - 1] = set[setc - 2] + 1;
-
-        // Increase by whatever remains
-        return incSetValues(set, setc, max, add - avail - 1);
-    }
-
-    return 0;
 }
 
 // Increment Set Value Array -- Highest-Value Combinatics Ordering
@@ -610,7 +446,7 @@ int incSetValues(unsigned long *set, size_t setc, unsigned long max,
 // so, and otherwise it'll increment the next value, using a loop to
 // deal with chains of overflowing place values. It'll repeat this
 // process until it's able to settle the first value.
-int incSetValues_b(unsigned long *set, size_t setc, unsigned long max,
+int incSetValues(unsigned long *set, size_t setc, unsigned long max,
         size_t add)
 {
     // Handle Complete Overflow
