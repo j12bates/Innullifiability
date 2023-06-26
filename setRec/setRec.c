@@ -66,7 +66,10 @@ static ssize_t query(const Rec *, unsigned long, size_t,
         void (*)(const unsigned long *, size_t));
 static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
+static int incSetValues_b(unsigned long *, size_t, unsigned long,
+        size_t);
 static size_t setToIndex(const unsigned long *, size_t, unsigned long);
+static size_t setToIndex_b(const unsigned long *, size_t);
 
 // ============ User-Level Functions
 
@@ -136,8 +139,8 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     }
 
     // Mark Records with Set as Constraining Values
-    ssize_t res = mark(base->rec, base->max, base->size,
-            set, setc, mask, 1, 0);
+    ssize_t res = mark_it(base->rec, base->max, base->size,
+            set, setc, mask);
 
     if (res == -1) return -1;
     return res > 0 ? 1 : 0;
@@ -368,7 +371,7 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
     if (constrc == size)
     {
         // Get the address
-        size_t index = setToIndex(constr, constrc, max);
+        size_t index = setToIndex_b(constr, constrc);
 
         // OR the bits we care about
         char prev = atomic_fetch_or(rec + index, mask);
@@ -521,7 +524,7 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
 
     // Starting Point
     size_t start = segBegin + offset;
-    int res = incSetValues(values, size, max, start);
+    int res = incSetValues_b(values, size, max, start);
 
     // Loop over every Nth set, checking and outputting
     for (size_t i = start; i < segEnd && res == 0; i += skip)
@@ -549,7 +552,7 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
         }
 
         // Advance to Next Nth Set
-        res = incSetValues(values, size, max, skip);
+        res = incSetValues_b(values, size, max, skip);
     }
 
     return setc;
@@ -633,7 +636,7 @@ int incSetValues_b(unsigned long *set, size_t setc, unsigned long max,
             set[i - 1] = i;
 
             // If we can increment this value, do so
-            unsigned long next = i == setc - 1 ? max : set[i + 1];
+            unsigned long next = i == setc - 1 ? max + 1 : set[i + 1];
             if (++set[i] < next) break;
         }
 
