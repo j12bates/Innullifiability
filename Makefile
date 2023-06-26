@@ -1,7 +1,7 @@
 OBJS 	:= setRec.o eqSets.o nulTest.o
 
 CC		:= gcc
-CCFLAGS	:= -Wall
+CCFLAGS	:= -Wall -Wextra
 
 OPFLAGS := -O2 -flto
 DBFLAGS := -g -DDEBUG

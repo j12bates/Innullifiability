@@ -66,7 +66,7 @@ static ssize_t query(const Rec *, unsigned long, size_t,
         void (*)(const unsigned long *, size_t));
 static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
-static size_t setIndex(const unsigned long *, size_t, unsigned long);
+static size_t setToIndex(const unsigned long *, size_t, unsigned long);
 
 // ============ User-Level Functions
 
@@ -368,7 +368,7 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
     if (constrc == size)
     {
         // Get the address
-        size_t index = setIndex(constr, constrc, max);
+        size_t index = setToIndex(constr, constrc, max);
 
         // OR the bits we care about
         char prev = atomic_fetch_or(rec + index, mask);
@@ -422,7 +422,7 @@ ssize_t mark_it(Rec *rec, unsigned long max, size_t size,
 
 // Compute Index of Set
 // Returns the index, no error checking
-size_t setIndex(const unsigned long *set, size_t setc,
+size_t setToIndex(const unsigned long *set, size_t setc,
         unsigned long max)
 {
     size_t index = 0;
@@ -442,6 +442,45 @@ size_t setIndex(const unsigned long *set, size_t setc,
     }
 
     return index;
+}
+
+// Compute Index from Set -- Highest-Value Combinatorics Ordering
+// Returns the index, no error checking
+size_t setToIndex_b(const unsigned long *set, size_t setc)
+{
+    size_t index = 0;
+
+    // Go from most significant (highest) to least
+    for (size_t vals = setc; vals > 0; vals--)
+    {
+        // Get set value, decrement since we're not using zero, add
+        // combinations to index
+        size_t i = set[vals - 1] - 1;
+        index += mcn(i, vals);
+    }
+
+    return index;
+}
+
+// Compute Set from Index -- Highest-Value Combinatorics Ordering
+void indexToSet_b(unsigned long *set, size_t setc, size_t index)
+{
+    // Go from most significant (highest) to least
+    for (size_t vals = setc; vals > 0; vals--)
+    {
+        // Find the last value for which the number of combinations is
+        // within the remainder
+        size_t i;
+        for (i = vals - 1; mcn(i, vals) <= index; i++);
+        i--;
+
+        // Increment since we're not using zero, subtract combinations
+        // for new remainder
+        set[vals - 1] = i + 1;
+        index -= mcn(i, vals);
+    }
+
+    return;
 }
 
 // Iteratively Check Records and Output Sets
