@@ -3,18 +3,20 @@
 // This library controls an array that can hold data pertaining to sets,
 // called a 'Set Record'. In essence, you initialize it with a set size
 // and max value, and it creates an array where each byte represents a
-// particular combination. The sets are in lexicographic order, with
-// lowest-numbered sets first (e.g. (1, 2, 3, 4)) and highest-numbered
-// sets last.
+// particular combination. The sets are in a lexicographic order sorted
+// in ascending order by highest values. This is called 'Combinadics'
+// (see 'Combinatorial Number System' on the English Wikipedia). The
+// sets themselves are represented with values in ascending order. The
+// value zero is unused, so sets start from (1, 2, 3, 4).
 
 // The bytes are like bit-fields for each set, and different bits can be
-// OR'd on by using the 'mark' function. The mark function takes in a
+// OR'd on by using the 'Mark' function. The Mark function takes in a
 // combination, which can be of any size smaller than or equal to the
 // record's set size, as the pattern of sets to mark. It will mark all
 // the supersets of the input pattern with the bits given.
 
 // Sets with their bit-fields set a certain way can be retrieved using
-// the 'query' function. It takes in two parameters for the bit-field
+// the 'Query' function. It takes in two parameters for the bit-field
 // criteria: a bitmask and a bit-field. The function will scan the
 // record and output all sets for which the bits set in the bitmask are
 // set according to the bit-field. It outputs by way of a function
@@ -22,11 +24,11 @@
 
 // The library is completely thread-safe (as far as I can tell), as it
 // uses atomic characters as bit-fields. It provides a variant of the
-// query function that allows for running it multiple times in parallel
+// Query function that allows for running it multiple times in parallel
 // whilst retaining full scan coverage for performing quick
 // multithreaded operations. It does this by skipping N sets (N being
 // the number of concurrent calls) each iteration, which I found to be
-// the fastest in terms of memory-access speed.
+// faster than splitting the query space up into N segments.
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -45,16 +47,11 @@ struct Base {
     unsigned long max;
 };
 
-// Other Typedefs
-typedef enum SR_QueryMode QueryMode;
-
 // Strings
 const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
 const char *headerMsg = "Data begins 4K (4096) into the file\n";
 
 // Helper Function Declarations
-static unsigned long long mcn(size_t, size_t);
-
 static ssize_t mark(Rec *, unsigned long, size_t,
         const unsigned long *, size_t, char);
 static ssize_t query(const Rec *, unsigned long, size_t,
@@ -66,6 +63,7 @@ static int incSetValues(unsigned long *, size_t, unsigned long,
         size_t);
 static void indexToSet(unsigned long *, size_t, size_t);
 static size_t setToIndex(const unsigned long *, size_t);
+static unsigned long long mcn(size_t, size_t);
 
 // ============ User-Level Functions
 
@@ -210,8 +208,7 @@ int sr_import(const SR_Base *base, FILE *restrict f)
 
     // Attempt to read entire array
     size_t written = fread(base->rec, sizeof(Rec), total, f);
-    if (written != total)
-    {
+    if (written != total) {
         if (feof(f)) return -3;
         else return -1;
     }
@@ -259,7 +256,8 @@ int sr_export(const SR_Base *base, FILE *restrict f)
 // This function marks all the supersets of a set of constraining
 // values. It works iteratively, inserting all possible values into the
 // set, then recursing to either expand further or mark the individual
-// set by way of the set address function.
+// set by way of the set address function. Assumes constraining value
+// array is in ascending order.
 ssize_t mark(Rec *rec, unsigned long max, size_t size,
         const unsigned long *constr, size_t constrc, char mask)
 {
@@ -344,6 +342,7 @@ size_t setToIndex(const unsigned long *set, size_t setc)
 }
 
 // Compute Set from Index
+// Set is written into given array pointer
 void indexToSet(unsigned long *set, size_t setc, size_t index)
 {
     // Go from most significant (highest) to least
@@ -381,12 +380,6 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
         char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
-    // Exit if Null Pointer
-    if (rec == NULL) return -1;
-
-    // Exit if parallel parameters don't make sense
-    if (seg >= divs || offset >= skip) return -1;
-
     // Counter for Number of Sets
     ssize_t setc = 0;
 
@@ -437,7 +430,7 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
     return setc;
 }
 
-// Increment Set Value Array -- Highest-Value Combinatics Ordering
+// Increment Set Value Array
 // Returns 0 on success, 1 on overflow
 
 // This is a helper function for the query function, and it takes an
