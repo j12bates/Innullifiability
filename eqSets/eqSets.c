@@ -140,9 +140,11 @@ int eqSetsInit(unsigned long max)
 // numbers in ascending order and with no repetitions, except for the
 // important case in which the set is of length two, as either way one
 // of the values will be replaced with an equivalent pair which cannot
-// contain the same value anyways. The sets it generates are guaranteed
-// to have no repetitions and be in ascending order as well. These sets
-// are passed into the output function as they are generated.
+// contain the same value anyways. The function will, for every value,
+// substitute every equivalent pair, inserting the values into an array.
+// The sets it generates are guaranteed to have no repetitions and be in
+// ascending order as well. These sets are passed into the output
+// function as they are generated.
 int eqSets(const unsigned long *set, size_t setc,
         void (*out)(const unsigned long *, size_t))
 {
@@ -162,7 +164,7 @@ int eqSets(const unsigned long *set, size_t setc,
         }
     }
 
-    // Allocate space for expanded set
+    // Allocate space for expanded sets
     unsigned long *newSet = calloc(setc + 1, sizeof(unsigned long));
     if (newSet == NULL) return -1;
 
