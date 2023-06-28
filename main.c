@@ -88,6 +88,7 @@
 
 #include "setRec/setRec.h"
 #include "eqSets/eqSets.h"
+#include "supers/supers.h"
 #include "nulTest/nulTest.h"
 
 // Bitmasks for Set Records
@@ -132,9 +133,10 @@ void *initThread(void *);
 void baseSets(void (*)(const unsigned long *, size_t));
 
 // Supplementary Function Declarations
-void expand(const unsigned long *, size_t);
-void eliminate(const unsigned long *, size_t);
-void super(const unsigned long *, size_t);
+void expand_sup(const unsigned long *, size_t);
+void expand_mut(const unsigned long *, size_t);
+void elim_old(const unsigned long *, size_t);
+void elim_nul(const unsigned long *, size_t);
 void verify(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
@@ -217,27 +219,10 @@ int main(int argc, char *argv[])
 
     printf("N = %lu, M = %lu\n\n", size, max);
 
-    // ============ Enumerate a Bunch of Nullifiable Sets
-    // We know that a set is nullifiable if and only if it has two ways
-    // of getting to the same value. So here we'll use the equivalent
-    // pairs program to expand a set containing two of the same number,
-    // which we know is definitely nullifiable. This will give us a
-    // bunch more nullifiable sets, which we'll mark off in the data
-    // structure. From there, we'll expand those expansions, until we've
-    // expanded all the way up to the final set length.
 
-    // Since supersets of nullifiable sets are also nullifiable, we can
-    // also mark supersets in the data structure. We also can ignore
-    // those supersets later on when we expand all the sets of that
-    // size, as we know that the expansion of those will have already
-    // been covered earlier.
-
-    // Configure the program
-    eqSetsInit(max);
-
-    printf("Generating Nullifiable Sets...\n");
-
-    ssize_t remaining;
+    // ============ Import Input Set Record
+    // Here, we'll check if there was an input file, and if so, we'll
+    // try to load it to be the first source record.
 
     // Import Input if Supplied
     if (inFname != NULL)
@@ -272,6 +257,27 @@ int main(int argc, char *argv[])
     // If no input, start from the base
     else sizeSrc = 2;
 
+
+    // ============ Generate Iteratively Larger Sets
+    // Nullifiable sets are computed through a series of 'generations',
+    // as described earlier. We'll perform generations until the
+    // destination record is the final length.
+
+    // We'll use the Equivalent Sets program to mutate Nullifiable sets
+    // and mark those off as new ones. Then we'll use the Superset
+    // program to expand any Nullifiable sets and mark those supersets
+    // off. We can also ignore those supersets moving forward as we know
+    // the only useful mutations already took place with the original
+    // parent set.
+
+    // Configure the programs
+    eqSetsInit(max);
+    supersInit(max);
+
+    printf("Generating Nullifiable Sets...\n");
+
+    ssize_t remaining;
+
     // Produce Iterative Generations
     for (; sizeSrc < size; sizeSrc++)
     {
@@ -286,7 +292,7 @@ int main(int argc, char *argv[])
 
         // If we're just starting out, base from the trivial sets,
         // expanding them
-        if (sizeSrc == 2) baseSets(&expand);
+        if (sizeSrc == 2) baseSets(&expand_mut);
 
         // Otherwise, perform a normal generation with source and
         // destination
@@ -294,10 +300,11 @@ int main(int argc, char *argv[])
         {
             // Get all the sets that are marked nullifiable and mark their
             // supersets
-            threadedQuery(recSrc, NULLIF, NULLIF, &super);
+            threadedQuery(recSrc, NULLIF, NULLIF, &expand_sup);
 
-            // Get all the new nullifiable sets and expand them
-            threadedQuery(recSrc, MARKED, NULLIF, &expand);
+            // Get all the new nullifiable sets, mutate them, and mark
+            // those
+            threadedQuery(recSrc, MARKED, NULLIF, &expand_mut);
 
             // Deallocate Source
             sr_release(recSrc);
@@ -313,8 +320,9 @@ int main(int argc, char *argv[])
     // Deallocate the dynamic memory
     eqSetsInit(0);
 
+
     // ============ Verify and Print Sets
-    // The Equivalent Sets program is not completely perfect, and it
+    // The Equivalent Sets method is not completely perfect, and it
     // cannot mark all nullifiable sets. So, we need to manually and
     // exhaustively check each set before we can definitively say it's
     // innullifiable.
@@ -454,38 +462,54 @@ void baseSets(void (*out)(const unsigned long *, size_t))
 
 // ================ Supplemental Functions
 
-// Supplemental Function: Expand a New Nullifiable Set into More
-void expand(const unsigned long *set, size_t setc)
+// Expansion A: Mark a Nullifiable Set's Supersets
+void expand_sup(const unsigned long *set, size_t setc)
 {
-    // Expand Set and Eliminate it
-    eqSets(set, setc, &eliminate);
+    // Set must be size of source
+    assert(setc == sizeSrc);
+
+    // Expand set into supersets, pass it on to elimination; as these
+    // are supersets they needn't be mutated further
+    supers(set, setc, &elim_old);
 
     return;
 }
 
-// Supplemental Function: Eliminate a New Nullifiable Set in the
-// Destination
-void eliminate(const unsigned long *set, size_t setc)
+// Expansion A: Mark Mutations of a New Nullifiable Set
+void expand_mut(const unsigned long *set, size_t setc)
+{
+    // Set must be size of source
+    assert(setc == sizeSrc);
+
+    // Expand set and mutate it, pass it on to elimination; these sets
+    // might be new but maybe not
+    eqSets(set, setc, &elim_nul);
+
+    return;
+}
+
+// Expansion B: Mark a Nullifiable Set as Old (not requiring
+// further mutation)
+void elim_old(const unsigned long *set, size_t setc)
 {
     // Set must be size of destination
     assert(setc == sizeSrc + 1);
 
-    // Mark this Particular Set as Nullifiable
-    int res = sr_mark(recDest, set, setc, NULLIF);
+    // Mark this Set as Nullifiable/Superset
+    int res = sr_mark(recDest, set, setc, SUPERSET);
     resCheck(res);
 
     return;
 }
 
-// Supplemental Function: Mark an Old Nullifiable Set's Supersets in the
-// Destination
-void super(const unsigned long *set, size_t setc)
+// Expansion B: Mark a Nullifiable Set (no specified 'age')
+void elim_nul(const unsigned long *set, size_t setc)
 {
-    // Set must be shorter than size of destination
-    assert(setc <= sizeSrc);
+    // Set must be size of destination
+    assert(setc == sizeSrc + 1);
 
-    // Mark Supersets
-    int res = sr_mark(recDest, set, setc, SUPERSET);
+    // Mark this Set as Nullifiable
+    int res = sr_mark(recDest, set, setc, NULLIF);
     resCheck(res);
 
     return;
@@ -504,7 +528,7 @@ void verify(const unsigned long *set, size_t setc)
     }
 
     // Eliminate if nullifiable
-    else if (res == 0) eliminate(set, setc);
+    else if (res == 0) elim_nul(set, setc);
 
     return;
 }

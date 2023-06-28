@@ -1,4 +1,4 @@
-OBJS 	:= setRec.o eqSets.o nulTest.o
+OBJS 	:= setRec.o eqSets.o supers.o nulTest.o
 
 CC		:= gcc
 CCFLAGS	:= -Wall -Wextra
