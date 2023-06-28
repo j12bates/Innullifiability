@@ -52,8 +52,7 @@ const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
 const char *headerMsg = "Data begins 4K (4096) into the file\n";
 
 // Helper Function Declarations
-static ssize_t mark(Rec *, unsigned long, size_t,
-        const unsigned long *, size_t, char);
+static ssize_t mark(Rec *, const unsigned long *, size_t, char);
 static ssize_t query(const Rec *, unsigned long, size_t,
         size_t, size_t, size_t, size_t,
         char, char,
@@ -107,15 +106,12 @@ void sr_release(Base *base)
     return;
 }
 
-// Mark a Certain Set and Supersets
-// Returns 0 on success, or 1 if at least 1 newly marked set, -1 on
-// memory error, -2 on input error
+// Mark a Certain Set
+// Returns 1 if newly marked, 0 if already marked, -1 on memory error,
+// -2 on input error
 
-// The input combination must be in increasing order, and the size must
-// be less than or equal to that of the record's sets. One thing to
-// remember is that the return value may be inconsistent if it is run in
-// parallel with other calls that mark the same bits, as it all depends
-// on which call gets to a set first.
+// The input must be a valid set, in increasing order, with all values
+// less than the max.
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
@@ -123,8 +119,8 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     if (base == NULL) return -1;
 
     // Check if set is valid: values must be increasing, and between 1
-    // and M, and size must not be greater than N
-    if (setc > base->size) return -2;
+    // and M, and size must be N
+    if (setc != base->size) return -2;
     if (set[0] < 1 || set[0] > base->max) return -2;
     for (size_t i = 1; i < setc; i++)
     {
@@ -132,12 +128,10 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         if (set[i] > base->max) return -2;
     }
 
-    // Mark Records with Set as Constraining Values
-    ssize_t res = mark(base->rec, base->max, base->size,
-            set, setc, mask);
+    // Mark this set on the record
+    ssize_t res = mark(base->rec, set, setc, mask);
 
-    if (res == -1) return -1;
-    return res > 0 ? 1 : 0;
+    return res;
 }
 
 // Output Sets with Particular Mark Status
@@ -250,77 +244,22 @@ int sr_export(const SR_Base *base, FILE *restrict f)
 // These functions are helper functions for the main user-level
 // functions.
 
-// Iteratively Mark Supersets
-// Returns number of sets newly marked on success, -1 on memory error
+// Mark a Set
+// Returns 1 if newly marked (new bits set), 0 if already marked
 
-// This function marks all the supersets of a set of constraining
-// values. It works iteratively, inserting all possible values into the
-// set, then recursing to either expand further or mark the individual
-// set by way of the set address function. Assumes constraining value
-// array is in ascending order.
-ssize_t mark(Rec *rec, unsigned long max, size_t size,
-        const unsigned long *constr, size_t constrc, char mask)
+// This function marks a particular set in the record, OR'ing the given
+// bits. Assumes given set is in ascending order, the right size, and in
+// the right range of values.
+ssize_t mark(Rec *rec, const unsigned long *set, size_t setc, char mask)
 {
-    // Counter for newly marked sets
-    ssize_t setc = 0;
+    // Get the address
+    size_t index = setToIndex(set, setc);
 
-    // If too many constraints, break
-    if (constrc > size) return -1;
+    // OR the bits we care about
+    char prev = atomic_fetch_or(rec + index, mask);
 
-    // If our constraints make up a complete set, mark record
-    if (constrc == size)
-    {
-        // Get the address
-        size_t index = setToIndex(constr, constrc);
-
-        // OR the bits we care about
-        char prev = atomic_fetch_or(rec + index, mask);
-
-        // If they weren't already set, count this
-        if ((prev & mask) != mask) setc++;
-
-        return setc;
-    }
-
-    // Array for Supersets
-    unsigned long *super = calloc(constrc + 1, sizeof(unsigned long));
-    if (super == NULL) return -1;
-
-    // Copy Constraining Values Over
-    for (size_t i = 0; i < constrc; i++)
-        super[i + 1] = constr[i];
-
-    // Iterate over all Values to Insert
-    size_t pos = 0;
-    for (unsigned long i = 1; i <= max; i++)
-    {
-        // Insert Value
-        super[pos] = i;
-
-        // If we've reached the next value, move ahead of it so we stay
-        // in ascending order
-        if (pos < constrc) if (super[pos + 1] == i) {
-            pos++;
-            continue;
-        }
-
-        // Otherwise, we have a superset: recurse to mark or expand
-        // further
-        ssize_t res = mark(rec, max, size,
-                super, constrc + 1, mask);
-
-        // Pass along an error and otherwise keep count
-        if (res == -1) {
-            setc = -1;
-            break;
-        }
-        setc += res;
-    }
-
-    // Deallocate Memory
-    free(super);
-
-    return setc;
+    // If they weren't already set, return 1, else 0
+    return ((prev & mask) != mask) ? 1 : 0;
 }
 
 // Compute Index from Set
