@@ -10,10 +10,9 @@
 // value zero is unused, so sets start from (1, 2, 3, 4).
 
 // The bytes are like bit-fields for each set, and different bits can be
-// OR'd on by using the 'Mark' function. The Mark function takes in a
-// combination, which can be of any size smaller than or equal to the
-// record's set size, as the pattern of sets to mark. It will mark all
-// the supersets of the input pattern with the bits given.
+// OR'd on by using the 'Mark' function. The Mark function takes in the
+// set to mark, as well as a bitmask. It will mark the bits given on the
+// input set.
 
 // Sets with their bit-fields set a certain way can be retrieved using
 // the 'Query' function. It takes in two parameters for the bit-field

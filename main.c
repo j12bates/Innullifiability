@@ -42,7 +42,7 @@
 // the other 'equivalent pairs' of 3. By generating sets instead of
 // testing sets, we can eliminate a whole lot more sets faster than
 // running a test over every set. This routine is referred to as
-// 'expansion' in the program.
+// 'mutation' in the program.
 
 // The program keeps track of the sets by way of Set Records, which are
 // just arrays that store some data for every possible set of a certain
@@ -53,30 +53,29 @@
 // on a record.
 
 // The program starts with pairs of the same number, which are known to
-// be nullifiable. It can then expand those into nullifiable sets of
+// be nullifiable. It can then mutate those into nullifiable sets of
 // length three, which it will mark in a record. From then on, sets can
-// be further expanded, but in addition, supersets can be marked in as
+// be further mutated, but in addition, supersets can be marked in as
 // well. Importantly, a superset of a nullifiable set does not need to
-// be expanded, as the parent set is already being expanded, and
-// expanding the superset won't give anything new. So, these supersets
-// are marked with an additional flag in the record, while 'new' sets
-// aren't. Only the new sets need to be expanded in the next generation.
+// be mutated, as the parent set has already been mutated, and mutating
+// the superset won't give anything new. So, these supersets are marked
+// with an additional flag in the record, while 'new' sets aren't. Only
+// the new sets need to be expanded in the next generation.
 
 // The process of generation can be described more generally in two
 // steps. First, any sets that are marked at all on the source record
 // have their supersets marked on the destination record. Second, any
 // new nullifiable sets on the source record (not supersets) are
-// expanded using equivalent sets and marked in the destination
-// normally. The next generation uses this as the source record.
+// mutated and marked in the destination normally. The next generation
+// uses this as the source record.
 
-// This method of expanding sets doesn't cover everything, and it lets
-// some nullifiable sets through. So, after the final generation is
-// made, the program runs the remaining sets through an exhaustive test,
-// to weed out sets which are nullifiable which couldn't be caught by
-// nullifiable set expansion. In particular, this arises because the
-// expansion method stays within the range of valid set values, and some
-// sets might be only nullifiable through a calculation that goes beyond
-// that range.
+// This method of mutation doesn't cover everything, and it lets some
+// nullifiable sets through. So, after the final generation is made, the
+// program runs the remaining sets through an exhaustive test, to weed
+// out sets which are nullifiable which couldn't be caught by mutation.
+// In particular, this arises because this expansion method stays within
+// the range of valid set values, and some sets might be only
+// nullifiable through a calculation that goes beyond that range.
 
 #include <stdio.h>
 #include <stdlib.h>
