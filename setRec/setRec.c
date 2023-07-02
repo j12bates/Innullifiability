@@ -43,7 +43,8 @@ typedef struct Base Base;
 struct Base {
     Rec *rec;
     size_t size;
-    unsigned long max;
+    unsigned long mval_min;
+    unsigned long mval_max;
 };
 
 // Strings
@@ -51,14 +52,14 @@ const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
 const char *headerMsg = "Data begins 4K (4096) into the file\n";
 
 // Helper Function Declarations
-static ssize_t mark(Rec *, const unsigned long *, size_t, char);
-static ssize_t query(const Rec *, unsigned long, size_t,
-        size_t, size_t, size_t, size_t,
-        char, char,
+static int mark(Rec *, unsigned long,
+        const unsigned long *, size_t, char);
+static ssize_t query(const Rec *,
+        unsigned long, unsigned long, size_t,
+        size_t, size_t, char, char,
         void (*)(const unsigned long *, size_t));
 
-static int incSetValues(unsigned long *, size_t, unsigned long,
-        size_t);
+static void incSetValues(unsigned long *, size_t, size_t);
 static void indexToSet(unsigned long *, size_t, size_t);
 static size_t setToIndex(const unsigned long *, size_t);
 static unsigned long long mcn(size_t, size_t);
@@ -83,7 +84,8 @@ Base *sr_initialize(size_t size, unsigned long max)
 
     // Populate Information Structure
     base->size = size;
-    base->max = max;
+    base->mval_min = size;
+    base->mval_max = max;
 
     // Allocate Memory for Record Array
     Rec *rec = calloc(mcn(max, size), sizeof(Rec));
@@ -118,17 +120,18 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     if (base == NULL) return -1;
 
     // Check if set is valid: values must be increasing, and between 1
-    // and M, and size must be N
+    // and M, M-values in bounds, and size must be N
     if (setc != base->size) return -2;
-    if (set[0] < 1 || set[0] > base->max) return -2;
+    if (set[0] < 1 || set[0] > base->mval_max) return -2;
+    if (set[setc - 1] < base->mval_min) return -2;
     for (size_t i = 1; i < setc; i++)
     {
         if (set[i] <= set[i - 1]) return -2;
-        if (set[i] > base->max) return -2;
+        if (set[i] > base->mval_max) return -2;
     }
 
     // Mark this set on the record
-    ssize_t res = mark(base->rec, set, setc, mask);
+    int res = mark(base->rec, base->mval_min, set, setc, mask);
 
     return res;
 }
@@ -142,8 +145,9 @@ ssize_t sr_query(const Base *base, char mask, char bits,
     if (base == NULL) return -1;
 
     // Output Sets that Match Query
-    ssize_t res = query(base->rec, base->max, base->size,
-            0, 1, 0, 1, mask, bits, out);
+    ssize_t res = query(base->rec,
+            base->mval_min, base->mval_max, base->size,
+            0, 1, mask, bits, out);
 
     return res;
 }
@@ -166,8 +170,9 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
     if (mod >= concurrents) return -2;
 
     // Output Sets that Match Query
-    ssize_t res = query(base->rec, base->max, base->size,
-            mod, concurrents, 0, 1, mask, bits, out);
+    ssize_t res = query(base->rec,
+            base->mval_min, base->mval_max, base->size,
+            mod, concurrents, mask, bits, out);
 
     return res;
 }
@@ -190,10 +195,10 @@ int sr_import(const SR_Base *base, FILE *restrict f)
     else if (res != 2) return -3;
 
     // Exit if record is wrong size
-    if (size != base->size || max != base->max) return -2;
+    if (size != base->size || max != base->mval_max) return -2;
 
     // Number of Sets (elements in array)
-    size_t total = mcn(base->max, base->size);
+    size_t total = mcn(base->mval_max, base->size);
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -219,14 +224,14 @@ int sr_export(const SR_Base *base, FILE *restrict f)
     res = fseek(f, 0, SEEK_SET);
     if (res < 0) return -1;
 
-    res = fprintf(f, headerFormat, base->size, base->max);
+    res = fprintf(f, headerFormat, base->size, base->mval_max);
     if (res < 0) return -1;
 
     res = fprintf(f, headerMsg);
     if (res < 0) return -1;
 
     // Number of Sets (elements in array)
-    size_t total = mcn(base->max, base->size);
+    size_t total = mcn(base->mval_max, base->size);
 
     // Write raw array one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -249,16 +254,17 @@ int sr_export(const SR_Base *base, FILE *restrict f)
 // This function marks a particular set in the record, OR'ing the given
 // bits. Assumes given set is in ascending order, the right size, and in
 // the right range of values.
-ssize_t mark(Rec *rec, const unsigned long *set, size_t setc, char mask)
+int mark(Rec *rec, unsigned long minm,
+        const unsigned long *set, size_t setc, char mask)
 {
     // Get the address
-    size_t index = setToIndex(set, setc);
+    size_t index = setToIndex(set, setc) - mcn(minm - 1, setc);
 
     // OR the bits we care about
     char prev = atomic_fetch_or(rec + index, mask);
 
     // If they weren't already set, return 1, else 0
-    return ((prev & mask) != mask) ? 1 : 0;
+    return (prev & mask) != mask;
 }
 
 // Compute Index from Set
@@ -313,9 +319,9 @@ void indexToSet(unsigned long *set, size_t setc, size_t index)
 // The function also can be configured for running in parallel. It gives
 // options for splitting the record into segments and/or querying every
 // Nth element.
-ssize_t query(const Rec *rec, unsigned long max, size_t size,
-        size_t offset, size_t skip, size_t seg, size_t divs,
-        char mask, char bits,
+ssize_t query(const Rec *rec,
+        unsigned long minm, unsigned long maxm, size_t size,
+        size_t offset, size_t skip, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Counter for Number of Sets
@@ -325,19 +331,20 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
     unsigned long *values = calloc(size, sizeof(unsigned long));
     if (values == NULL) return -1;
 
+    // First set with the min M-value
+    indexToSet(values, size, 0);
+    values[size - 1] = minm;
+
     // Find the Segment Bounds
-    size_t total = mcn(max, size);
-    size_t segBegin = total * seg / divs;
-    size_t segEnd = total * (seg + 1) / divs;
+    size_t total = mcn(maxm, size) - mcn(minm - 1, size);
+    // size_t begin = total * <seg> / <divs>;
+    // size_t end = total * (<seg> + 1) / <divs>;
 
     // Starting Point
-    size_t start = segBegin + offset;
-    indexToSet(values, size, start);
-
-    int res = 0;
+    incSetValues(values, size, offset);
 
     // Loop over every Nth set, checking and outputting
-    for (size_t i = start; i < segEnd && res == 0; i += skip)
+    for (size_t i = offset; i < total; i += skip)
     {
         // Whether this set is a match
         bool match = false;
@@ -355,21 +362,22 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
         else match = (cur & bits) != 0 || bits == 0;
 
         // If we have a match, output and keep count
-        if (match)
-        {
+        if (match) {
             if (out != NULL) out(values, size);
             setc++;
         }
 
         // Advance to Next Nth Set
-        res = incSetValues(values, size, max, skip);
+        incSetValues(values, size, skip);
     }
+
+    // Deallocate Memory
+    free(values);
 
     return setc;
 }
 
 // Increment Set Value Array
-// Returns 0 on success, 1 on overflow
 
 // This is a helper function for the query function, and it takes an
 // array of set values and advances it N sets lexicographically. If the
@@ -377,15 +385,14 @@ ssize_t query(const Rec *rec, unsigned long max, size_t size,
 // so, and otherwise it'll increment the next value, using a loop to
 // deal with chains of overflowing place values. It'll repeat this
 // process until it's able to settle the first value.
-int incSetValues(unsigned long *set, size_t setc, unsigned long max,
-        size_t add)
+void incSetValues(unsigned long *set, size_t setc, size_t add)
 {
-    // Handle Complete Overflow
-    if (setc > max) return 1;
-    if (setc == 0) return 1;
+    // Handle Trivial Size Cases
+    if (setc == 0);
+    else if (setc == 1) set[0] += add;
 
     // Repeat until we're done increasing
-    while (add > 0)
+    else while (add > 0)
     {
         // The furthest we can increase the first value
         unsigned long avail = set[1] - set[0] - 1;
@@ -403,16 +410,15 @@ int incSetValues(unsigned long *set, size_t setc, unsigned long max,
             set[i - 1] = i;
 
             // If we can increment this value, do so
-            unsigned long next = i == setc - 1 ? max + 1 : set[i + 1];
-            if (++set[i] < next) break;
+            if (i == setc - 1) ++set[i];
+            else if (++set[i] < set[i + 1]) break;
         }
 
-        // Handle overflow, account for additional set from increment
-        if (i == setc) return 1;
+        // Account for additional set from increment
         add -= avail + 1;
     }
 
-    return 0;
+    return;
 }
 
 // M Choose N
