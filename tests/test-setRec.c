@@ -4,14 +4,26 @@
 
 #include "../setRec/setRec.h"
 
-#define PATTERN 1 << 1
-#define THREE   1 << 2
+#define SINGLE  1 << 0
+#define SKIP    1 << 1
+
+unsigned long setv[4][3] = {
+    {1, 2, 3},
+    {2, 3, 4},
+    {3, 4, 5},
+    {4, 5, 6}
+};
+
+unsigned long special[2][3] = {
+    {1, 3, 5},
+    {2, 4, 6}
+};
 
 void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    SR_Base *rec = sr_initialize(4, 7);
+    SR_Base *rec = sr_initialize(3, 6);
     if (rec == NULL) return 1;
     printf("Record Initialized\n\n");
 
@@ -29,24 +41,28 @@ int main(int argc, char *argv[])
 
     long long markReturnCode;
 
-    unsigned long subset[2] = {2, 4};
-    markReturnCode = sr_mark(rec, subset, 2, PATTERN);
-    printf("Marked (2,4) bit 0 \t\t%d\n", markReturnCode);
+    for (size_t i = 0; i < 4; i++) {
+        markReturnCode = sr_mark(rec, setv[i], 3, SINGLE);
+        printf("%lld, ", markReturnCode);
+    }
+    printf("\nSingles bit 0\n\n");
 
-    markReturnCode = sr_mark(rec, subset, 2, PATTERN);
-    printf("Repeat Previous \t\t%d\n", markReturnCode);
+    for (size_t i = 0; i < 2; i++) {
+        markReturnCode = sr_mark(rec, special[i], 3, SKIP);
+        printf("%lld, ", markReturnCode);
+    }
+    printf("\nSkips bit 1\n\n");
 
-    unsigned long three[1] = {3};
-    markReturnCode = sr_mark(rec, three, 1, THREE);
-    printf("Marked (3) bit 1 \t\t%d\n", markReturnCode);
+    unsigned long anotherSpecial[3] = {2, 3, 4};
+    markReturnCode = sr_mark(rec, anotherSpecial, 3, SKIP);
+    printf("%lld, (2, 3, 4) bit 1\n", markReturnCode);
 
-    unsigned long anotherThree[2] = {3, 5};
-    markReturnCode = sr_mark(rec, anotherThree, 2, PATTERN);
-    printf("Marked (3,5) bit 0 \t\t%d\n", markReturnCode);
+    markReturnCode = sr_mark(rec, anotherSpecial, 3, SKIP);
+    printf("%lld, Repeat Previous\n", markReturnCode);
 
     unsigned long invalid[2] = {6, 4};
     markReturnCode = sr_mark(rec, invalid, 2, ~0);
-    printf("Should be an error \t\t%d\n\n", markReturnCode);
+    printf("%lld, Should be an error\n\n", markReturnCode);
 
     long long queryReturnCode;
 
@@ -56,24 +72,24 @@ int main(int argc, char *argv[])
     queryReturnCode = sr_query_parallel(rec, 0, 0, 2, 1, &printSet);
     printf("\nShould be every other set, %d\n\n", queryReturnCode);
 
-    queryReturnCode = sr_query(rec, PATTERN, PATTERN, &printSet);
+    queryReturnCode = sr_query(rec, SINGLE, SINGLE, &printSet);
     printf("\nShould be those with bit 0 marked, %d\n\n",
             queryReturnCode);
 
-    queryReturnCode = sr_query(rec, THREE, THREE, &printSet);
+    queryReturnCode = sr_query(rec, SKIP, SKIP, &printSet);
     printf("\nShould be those with bit 1 marked, %d\n\n",
             queryReturnCode);
 
-    queryReturnCode = sr_query(rec, PATTERN | THREE, PATTERN,
+    queryReturnCode = sr_query(rec, SINGLE | SKIP, SINGLE,
             &printSet);
     printf("\nShould be those with bit 0 marked and bit 1 unmarked, "
             "%d\n\n", queryReturnCode);
 
-    queryReturnCode = sr_query(rec, 0, PATTERN | THREE, &printSet);
+    queryReturnCode = sr_query(rec, 0, SINGLE | SKIP, &printSet);
     printf("\nShould be those with either bit marked, %d\n\n",
             queryReturnCode);
 
-    queryReturnCode = sr_query(rec, PATTERN | THREE, 0, &printSet);
+    queryReturnCode = sr_query(rec, SINGLE | SKIP, 0, &printSet);
     printf("\nShould be all the completely unmarked sets, %d\n\n",
             queryReturnCode);
 
