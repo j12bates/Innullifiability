@@ -51,6 +51,10 @@ struct Base {
 const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
 const char *headerMsg = "Data begins 4K (4096) into the file\n";
 
+// Macros for Calculating Size of Record
+#define TOTAL(minm, maxm, size) (mcn(maxm, size) - mcn(minm - 1, size))
+#define TOTAL_B(base) TOTAL(base->mval_min, base->mval_max, base->size)
+
 // Helper Function Declarations
 static int mark(Rec *, unsigned long,
         const unsigned long *, size_t, char);
@@ -88,7 +92,7 @@ Base *sr_initialize(size_t size, unsigned long max)
     base->mval_max = max;
 
     // Allocate Memory for Record Array
-    Rec *rec = calloc(mcn(max, size), sizeof(Rec));
+    Rec *rec = calloc(TOTAL_B(base), sizeof(Rec));
     if (rec == NULL) return NULL;
     base->rec = rec;
 
@@ -180,7 +184,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 // Import Record from Binary File
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
-int sr_import(const SR_Base *base, FILE *restrict f)
+int sr_import(const Base *base, FILE *restrict f)
 {
     int res;
 
@@ -198,7 +202,7 @@ int sr_import(const SR_Base *base, FILE *restrict f)
     if (size != base->size || max != base->mval_max) return -2;
 
     // Number of Sets (elements in array)
-    size_t total = mcn(base->mval_max, base->size);
+    size_t total = TOTAL_B(base);
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -216,7 +220,7 @@ int sr_import(const SR_Base *base, FILE *restrict f)
 
 // Export Record to Binary File
 // Returns 0 on success, -1 on error (read errno)
-int sr_export(const SR_Base *base, FILE *restrict f)
+int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
@@ -231,7 +235,7 @@ int sr_export(const SR_Base *base, FILE *restrict f)
     if (res < 0) return -1;
 
     // Number of Sets (elements in array)
-    size_t total = mcn(base->mval_max, base->size);
+    size_t total = TOTAL_B(base);
 
     // Write raw array one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -336,7 +340,7 @@ ssize_t query(const Rec *rec,
     values[size - 1] = minm;
 
     // Find the Segment Bounds
-    size_t total = mcn(maxm, size) - mcn(minm - 1, size);
+    size_t total = TOTAL(minm, maxm, size);
     // size_t begin = total * <seg> / <divs>;
     // size_t end = total * (<seg> + 1) / <divs>;
 
