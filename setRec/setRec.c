@@ -68,6 +68,8 @@ static void indexToSet(unsigned long *, size_t, size_t);
 static size_t setToIndex(const unsigned long *, size_t);
 static unsigned long long mcn(size_t, size_t);
 
+int sr_alloc(Base *, unsigned long, unsigned long);
+
 // ============ User-Level Functions
 
 // These functions are for the main program to interact with, and they
@@ -87,16 +89,44 @@ Base *sr_initialize(size_t size, unsigned long max)
     if (base == NULL) return NULL;
 
     // Populate Information Structure
+    base->rec = NULL;
     base->size = size;
-    base->mval_min = size;
-    base->mval_max = max;
+
+    // Allocate Array
+    int res = sr_alloc(base, 0, max);
+    if (res == -1) {
+        free(base);
+        base = NULL;
+    }
+
+    return base;
+}
+
+// Allocate a Set Record
+// Returns 0 on success, -1 on memory error, -2 on input error
+
+// Min/Max M-values determine range of M-values covered by the array.
+// Min can be set to any low number safely to include every set up to
+// Max.
+int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
+{
+    // Deallocate the Existing Record Array
+    free(base->rec);
+
+    // Check input values, adjust if necessary
+    if (minm < base->size) minm = base->size;
+    if (maxm < minm) return -2;
+
+    // Populate Information Structure
+    base->mval_min = minm;
+    base->mval_max = maxm;
 
     // Allocate Memory for Record Array
     Rec *rec = calloc(TOTAL_B(base), sizeof(Rec));
-    if (rec == NULL) return NULL;
+    if (rec == NULL) return -1;
     base->rec = rec;
 
-    return base;
+    return 0;
 }
 
 // Release a Set Record
