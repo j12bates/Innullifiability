@@ -48,8 +48,11 @@ struct Base {
 };
 
 // Strings
-const char *headerFormat = "setRec -- N = %lu, M = %lu\n";
-const char *headerMsg = "Data begins 4K (4096) into the file\n";
+const char *headerFormat =
+        "setRec -- N = %lu, "
+        "M-Value Range is %lu to %lu\n";
+const char *headerMsg =
+        "Data begins 4K (4096) into the file\n";
 
 // Macros for Calculating Size of Record
 #define TOTAL(minm, maxm, size) (mcn(maxm, size) - mcn(minm - 1, size))
@@ -214,7 +217,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 // Import Record from Binary File
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
-int sr_import(const Base *base, FILE *restrict f)
+int sr_import(Base *base, FILE *restrict f)
 {
     int res;
 
@@ -223,22 +226,25 @@ int sr_import(const Base *base, FILE *restrict f)
     if (res < 0) return -1;
 
     size_t size;
-    unsigned long max;
-    res = fscanf(f, headerFormat, &size, &max);
+    unsigned long minm, maxm;
+    res = fscanf(f, headerFormat, &size, &minm, &maxm);
     if (res == EOF && ferror(f)) return -1;
-    else if (res != 2) return -3;
+    else if (res != 3) return -3;
 
     // Exit if record is wrong size
-    if (size != base->size || max != base->mval_max) return -2;
+    if (size != base->size) return -2;
 
-    // Number of Sets (elements in array)
-    size_t total = TOTAL_B(base);
+    // Allocate New Array
+    res = sr_alloc(base, minm, maxm);
+    if (res == -1) return -1;
+    else if (res == -2) return -3;
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
     if (res < 0) return -1;
 
     // Attempt to read entire array
+    size_t total = TOTAL_B(base);
     size_t written = fread(base->rec, sizeof(Rec), total, f);
     if (written != total) {
         if (feof(f)) return -3;
@@ -258,7 +264,8 @@ int sr_export(const Base *base, FILE *restrict f)
     res = fseek(f, 0, SEEK_SET);
     if (res < 0) return -1;
 
-    res = fprintf(f, headerFormat, base->size, base->mval_max);
+    res = fprintf(f, headerFormat,
+            base->size, base->mval_min, base->mval_max);
     if (res < 0) return -1;
 
     res = fprintf(f, headerMsg);
