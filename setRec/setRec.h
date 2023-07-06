@@ -17,6 +17,11 @@ SR_Base *sr_initialize(size_t, unsigned long);
 // Release a Set Record
 void sr_release(SR_Base *);
 
+// Get Record Properties
+size_t sr_getSize(const SR_Base *);
+unsigned long sr_getMinM(const SR_Base *);
+unsigned long sr_getMaxM(const SR_Base *);
+
 // Mark a Certain Set and Supersets
 int sr_mark(const SR_Base *, const unsigned long *, size_t,
         char);

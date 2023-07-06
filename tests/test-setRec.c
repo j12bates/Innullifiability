@@ -39,6 +39,10 @@ int main(int argc, char *argv[])
         fclose(f);
     }
 
+    unsigned long minm = sr_getMinM(rec);
+    unsigned long maxm = sr_getMaxM(rec);
+    printf("M-Value Ranges from %lu to %lu\n\n", minm, maxm);
+
     long long markReturnCode;
 
     for (size_t i = 0; i < 4; i++) {

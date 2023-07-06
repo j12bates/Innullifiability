@@ -110,12 +110,9 @@ Base *sr_initialize(size_t size, unsigned long max)
 
 // Min/Max M-values determine range of M-values covered by the array.
 // Min can be set to any low number safely to include every set up to
-// Max.
+// Max. On error, record is preserved.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
-    // Deallocate the Existing Record Array
-    free(base->rec);
-
     // Check input values, adjust if necessary
     if (minm < base->size) minm = base->size;
     if (maxm < minm) return -2;
@@ -127,6 +124,9 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
     // Allocate Memory for Record Array
     Rec *rec = calloc(TOTAL_B(base), sizeof(Rec));
     if (rec == NULL) return -1;
+
+    // Deallocate existing array and replace it
+    free(base->rec);
     base->rec = rec;
 
     return 0;
@@ -142,6 +142,24 @@ void sr_release(Base *base)
     free(base);
 
     return;
+}
+
+// Get Property: Set Size
+size_t sr_getSize(const Base *base)
+{
+    return base->size;
+}
+
+// Get Property: Minimum M-Value
+unsigned long sr_getMinM(const Base *base)
+{
+    return base->mval_min;
+}
+
+// Get Property: Maximum M-Value
+unsigned long sr_getMaxM(const Base *base)
+{
+    return base->mval_max;
 }
 
 // Mark a Certain Set
