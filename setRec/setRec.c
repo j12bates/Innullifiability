@@ -71,8 +71,6 @@ static void indexToSet(unsigned long *, size_t, size_t);
 static size_t setToIndex(const unsigned long *, size_t);
 static unsigned long long mcn(size_t, size_t);
 
-int sr_alloc(Base *, unsigned long, unsigned long);
-
 // ============ User-Level Functions
 
 // These functions are for the main program to interact with, and they
@@ -82,10 +80,10 @@ int sr_alloc(Base *, unsigned long, unsigned long);
 
 // Initialize a Set Record
 // Returns NULL on memory or input error
-Base *sr_initialize(size_t size, unsigned long max)
+Base *sr_initialize(size_t size)
 {
-    // We can't have more elements than possible values
-    if (max < size) return NULL;
+    // Invalid Set Size
+    if (size == 0) return NULL;
 
     // Allocate Memory for Information Structure
     Base *base = malloc(sizeof(Base));
@@ -94,13 +92,8 @@ Base *sr_initialize(size_t size, unsigned long max)
     // Populate Information Structure
     base->rec = NULL;
     base->size = size;
-
-    // Allocate Array
-    int res = sr_alloc(base, 0, max);
-    if (res == -1) {
-        free(base);
-        base = NULL;
-    }
+    base->mval_min = 1; // avoid uflow when decrementing for total calc
+    base->mval_max = 0;
 
     return base;
 }

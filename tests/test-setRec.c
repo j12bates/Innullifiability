@@ -23,8 +23,10 @@ void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    SR_Base *rec = sr_initialize(3, 6);
+    SR_Base *rec = sr_initialize(3);
     if (rec == NULL) return 1;
+    int res = sr_alloc(rec, 0, 6);
+    if (res) return 1;
     printf("Record Initialized\n\n");
 
     FILE *f;

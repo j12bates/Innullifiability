@@ -12,7 +12,10 @@
 typedef struct Base SR_Base;
 
 // Initialize a Set Record
-SR_Base *sr_initialize(size_t, unsigned long);
+SR_Base *sr_initialize(size_t);
+
+// Allocate a Set Record
+int sr_alloc(SR_Base *, unsigned long, unsigned long);
 
 // Release a Set Record
 void sr_release(SR_Base *);

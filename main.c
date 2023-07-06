@@ -226,9 +226,10 @@ int main(int argc, char *argv[])
     // Import Input if Supplied
     if (inFname != NULL)
     {
-        // Allocate Record as Destination (will be moved over to source)
+        // Initialize Record as Destination (will be moved over to
+        // source)
         sizeSrc = inSize;
-        recDest = sr_initialize(sizeSrc, max);
+        recDest = sr_initialize(sizeSrc);
 
         // Open Input File
         FILE *f = fopen(inFname, "rb");
@@ -287,7 +288,8 @@ int main(int argc, char *argv[])
         recSrc = recDest;
 
         // Allocate new Destination
-        recDest = sr_initialize(sizeSrc + 1, max);
+        recDest = sr_initialize(sizeSrc + 1);
+        sr_alloc(recDest, 0, max);
 
         // If we're just starting out, base from the trivial sets,
         // expanding them
