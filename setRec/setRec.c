@@ -74,12 +74,16 @@ static unsigned long long mcn(size_t, size_t);
 // ============ User-Level Functions
 
 // These functions are for the main program to interact with, and they
-// make reference to proper values and the base information structure,
-// abstracting nodes away from the user level. They make use of the
-// helper functions, which are defined later on.
+// make reference to proper values and the base information structure.
+// They make use of the helper functions, which are defined later on.
+// They should be the only functions that do input validation.
 
 // Initialize a Set Record
 // Returns NULL on memory or input error
+
+// Creates the information structure used by this library to access the
+// record. Instantiated with the Set Size, which is immutable. Must be
+// allocated or imported to in order to have a usable record.
 Base *sr_initialize(size_t size)
 {
     // Invalid Set Size
@@ -101,9 +105,11 @@ Base *sr_initialize(size_t size)
 // Allocate a Set Record
 // Returns 0 on success, -1 on memory error, -2 on input error
 
-// Min/Max M-values determine range of M-values covered by the array.
+// Allocates memory to a set record, enabling it for use. Calling this
+// function also will specify the M-Value Range for the record to cover.
 // Min can be set to any low number safely to include every set up to
-// Max. On error, record is preserved.
+// Max. On error, record is preserved. Record can be re-allocated any
+// number of times with any M-Value range, until released.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
     // Check input values, adjust if necessary
@@ -126,6 +132,9 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 }
 
 // Release a Set Record
+
+// Deallocates the information structure, and effectively destroys the
+// record.
 void sr_release(Base *base)
 {
     // Free the Record Array
@@ -156,16 +165,17 @@ unsigned long sr_getMaxM(const Base *base)
 }
 
 // Mark a Certain Set
-// Returns 1 if newly marked, 0 if already marked, -1 on memory error,
-// -2 on input error
+// Returns 1 if newly marked, 0 if already marked, -2 on input error
 
-// The input must be a valid set, in increasing order, with all values
-// less than the max.
+// ANDs on the given bits on the specified set in the record, thus
+// 'Marking' that set. The input must be a valid set, in increasing
+// order, within the record's allocated M-Value Range.
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
     // Exit if Null Pointer
-    if (base == NULL) return -1;
+    if (base == NULL) return -2;
+    if (base->rec == NULL) return -2;
 
     // Check if set is valid: values must be increasing, and between 1
     // and M, M-values in bounds, and size must be N
@@ -186,11 +196,15 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 
 // Output Sets with Particular Mark Status
 // Returns number of sets on success, -1 on memory error
+
+// Scans the entire record, outputting raw sets that are marked in it
+// according to the given bit settings.
 ssize_t sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
-    if (base == NULL) return -1;
+    if (base == NULL) return -2;
+    if (base->rec == NULL) return -2;
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
@@ -204,15 +218,16 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 // Returns number of sets on success, -1 on memory error, -2 on input
 // error
 
-// The mod is a number less than the number of concurrent calls. Each
-// call should give a different value for that parameter, to ensure full
-// coverage.
+// Same as above, but for parallelism. The mod is a number less than the
+// number of concurrent calls. Each call should give a different value
+// for that parameter, giving full coverage.
 ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
     // Exit if Null Pointer
-    if (base == NULL) return -1;
+    if (base == NULL) return -2;
+    if (base->rec == NULL) return -2;
 
     // Check if parallelism is valid
     if (mod >= concurrents) return -2;
@@ -228,9 +243,16 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 // Import Record from Binary File
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
+
+// Loads a record's data from a file into the record provided. Must be
+// of matching set sizes.
 int sr_import(Base *base, FILE *restrict f)
 {
     int res;
+
+    // Exit if Null Pointer
+    if (base == NULL) return -2;
+    if (base->rec == NULL) return -2;
 
     // Read and interpret the header
     res = fseek(f, 0, SEEK_SET);
@@ -266,10 +288,16 @@ int sr_import(Base *base, FILE *restrict f)
 }
 
 // Export Record to Binary File
-// Returns 0 on success, -1 on error (read errno)
+// Returns 0 on success, -1 on error (read errno), -2 on input error
+
+// Writes a record's state to a data file, to be Imported later.
 int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
+
+    // Exit if Null Pointer
+    if (base == NULL) return -2;
+    if (base->rec == NULL) return -2;
 
     // Write an info header at the start of the file
     res = fseek(f, 0, SEEK_SET);
@@ -298,7 +326,9 @@ int sr_export(const Base *base, FILE *restrict f)
 // ============ Helper Functions
 
 // These functions are helper functions for the main user-level
-// functions.
+// functions. They shouldn't have any input validation, they only need
+// to do the calculations. They don't refer to information structures of
+// user-space.
 
 // Mark a Set
 // Returns 1 if newly marked (new bits set), 0 if already marked
@@ -369,8 +399,7 @@ void indexToSet(unsigned long *set, size_t setc, size_t index)
 // to the given function.
 
 // The function also can be configured for running in parallel. It gives
-// options for splitting the record into segments and/or querying every
-// Nth element.
+// an option for querying every Nth element.
 ssize_t query(const Rec *rec,
         unsigned long minm, unsigned long maxm, size_t size,
         size_t offset, size_t skip, char mask, char bits,
@@ -474,10 +503,9 @@ void incSetValues(unsigned long *set, size_t setc, size_t add)
 }
 
 // M Choose N
-// Returns 0 on error
 unsigned long long mcn(size_t m, size_t n)
 {
-    // Invalid Case
+    // Zero Case
     if (m < n) return 0;
 
     // Total Ordered Combinations, Permutations
@@ -489,6 +517,8 @@ unsigned long long mcn(size_t m, size_t n)
     }
 
     // Don't divide by zero
+    // (wait hold up, this isn't even possible is it? if we get an
+    // overflow, bigger problems...)
     if (perms == 0) return 0;
 
     return total / perms;
