@@ -1,25 +1,56 @@
 // ============================ SET RECORDS ============================
 
 // This library controls an array that can hold data pertaining to sets,
-// called a 'Set Record'. In essence, you initialize it with a set size
-// and max value, and it creates an array where each byte represents a
-// particular combination. The sets are in a lexicographic order sorted
-// in ascending order by highest values. This is called 'Combinadics'
-// (see 'Combinatorial Number System' on the English Wikipedia). The
-// sets themselves are represented with values in ascending order. The
-// value zero is unused, so sets start from (1, 2, 3, 4).
+// called a 'Set Record'. In essence, it provides a single byte for
+// every possible combination of N positive integers (i.e. 1 or greater)
+// within the range of sets allocated. An element corresponding to a set
+// can be directly addressed using its value representation, an array of
+// the integers in the set, strictly in ascending order (e.g. {2, 5, 6,
+// 14}). This means the last value in the representation is the largest,
+// and it's called the M-value. Sets can be addressed to have particular
+// bits on their corresponding byte-sized bit-field set ('Mark'), and
+// then the entire record can be scanned to return back the original set
+// representations ('Query').
+
+// When a Set Record is initialized, a small data structure is created.
+// This structure is opaque to the user, and it's used by the library to
+// hold parameters about the record and point to the array. A pointer to
+// this structure is passed into library functions to identify the
+// Record.
+
+// A Record is initialized with a Set Size, which defines how many
+// numbers are in the set representations the Record accepts. After
+// initialization, a record can be Allocated any number of times to
+// create the actual array. This can be done with the Allocate function,
+// which creates an empty Record, or by Importing an existing Record
+// from a file. The range of sets represented is determined upon
+// Allocation, and is specified as a range of M-values, meaning the
+// addressable sets will be the ones whose M-value is between a given
+// min and max, inclusive.
 
 // The bytes are like bit-fields for each set, and different bits can be
 // OR'd on by using the 'Mark' function. The Mark function takes in the
-// set to mark, as well as a bitmask. It will mark the bits given on the
-// input set.
+// representation of the set to mark, as well as a bitmask. It will mark
+// the bits given on the input set's corresponding element.
 
 // Sets with their bit-fields set a certain way can be retrieved using
 // the 'Query' function. It takes in two parameters for the bit-field
 // criteria: a bitmask and a bit-field. The function will scan the
-// record and output all sets for which the bits set in the bitmask are
-// set according to the bit-field. It outputs by way of a function
-// pointer.
+// record and output all sets for which the bits in the bitmask are set
+// according to the bit-field. It outputs set representations by way of
+// a function pointer.
+
+// The sets are in a lexicographic order sorted highest values. This is
+// called 'Combinadics' (see 'Combinatorial Number System' on the
+// English Wikipedia). It means that the sets are essentially grouped
+// together by M-value, least to greatest. Here's an example of how this
+// would look using length-3 set representations:
+//      1   2   3
+//      1   2   4
+//      1   3   4
+//      2   3   4
+//      1   2   5
+//      ...
 
 // The library is completely thread-safe (as far as I can tell), as it
 // uses atomic characters as bit-fields. It provides a variant of the
