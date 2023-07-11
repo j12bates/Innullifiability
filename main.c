@@ -86,7 +86,7 @@
 #include <pthread.h>
 
 #include "setRec/setRec.h"
-#include "eqSets/eqSets.h"
+#include "mutate/mutate.h"
 #include "supers/supers.h"
 #include "nulTest/nulTest.h"
 
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
     // parent set.
 
     // Configure the programs
-    eqSetsInit(max);
+    mutateInit(max);
     supersInit(max);
 
     printf("Generating Nullifiable Sets...\n");
@@ -319,7 +319,7 @@ int main(int argc, char *argv[])
     printf("Done\n\n");
 
     // Deallocate the dynamic memory
-    eqSetsInit(0);
+    mutateInit(0);
 
 
     // ============ Verify and Print Sets
@@ -484,7 +484,7 @@ void expand_mut(const unsigned long *set, size_t setc)
 
     // Expand set and mutate it, pass it on to elimination; these sets
     // might be new but maybe not
-    eqSets(set, setc, &elim_nul);
+    mutate(set, setc, &elim_nul);
 
     return;
 }

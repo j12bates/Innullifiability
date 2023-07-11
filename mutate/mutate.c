@@ -1,10 +1,11 @@
-// ========================== EQUIVALENT SETS ==========================
+// =========================== SET MUTATION ============================
 
-// This program is my approach to finding nullifiable sets quickly and
-// efficiently. Rather than enumerating each set and performing some
-// exhaustive test on it to see if it's nullifiable, this will instead
-// 'dream up' nullifiable sets based on patterns that lead to
-// nullifiability.
+// This program will expand sets into equivalents (can be made into all
+// the same values) by introducing Mutations to the values. None of the
+// output sets will be supersets of the input, as those are handled by a
+// separate program. There will always be some change introduced to the
+// values, and that mutation will always preserve the ability for the
+// set to be computed down to a particular value (and thus, nullifiable)
 
 // This all works based off the notion of 'equivalent pairs'--pairs of
 // values that, when an allowed arithmetic operation is applied, equal a
@@ -24,16 +25,6 @@
 // iterating over every value in a set and replacing it with every
 // equivalent pair for that value, all the while calling some function
 // and passing in the new sets as a means of output.
-
-// So what does this have to do with nullifiability? Well, the only way
-// for a set to be nullifiable is by it having some means of getting a
-// value to equal another value, so that they can be subtracted and then
-// that zero can be multiplied to any remaining values. Given this, we
-// can start from a base set containing two of the same value, and then
-// repeatedly expand by equivalent pairs up to as many elements as a set
-// can allow. As we keep going, the set will continue to have a route to
-// equalling zero. Any sets we calculate along the way, as well as their
-// supersets, can be marked as nullifiable.
 
 // It's important to realize though that this cannot cover all possible
 // equivalent sets. The equivalent pairs, being 1-M only, cannot cover
@@ -64,7 +55,7 @@ static bool storeEqPair(unsigned long, size_t,
 static bool insertPair(const unsigned long *, size_t, size_t,
         unsigned long *, long long);
 
-// Configure Equivalent Set Maximum Value
+// Configure Maximum Value
 // Returns 0 on success, -1 on memory error, -2 on input error
 
 // This function will configure the equivalent sets program, generating
@@ -101,7 +92,7 @@ static bool insertPair(const unsigned long *, size_t, size_t,
 //     M - 3 + M / 2 - 2
 // or:
 //     3M / 2 - 5
-int eqSetsInit(unsigned long max)
+int mutateInit(unsigned long max)
 {
     // Free everything in case there was something here before
     if (eqPairs != NULL)
@@ -132,7 +123,7 @@ int eqSetsInit(unsigned long max)
     return 0;
 }
 
-// Expand Set into Equivalents with One Added Element
+// Expand Set by One Element with Mutation
 // Returns 0 on success, -1 on memory error, -2 on input error
 
 // This function iteratively expands a set by one element using
@@ -145,7 +136,7 @@ int eqSetsInit(unsigned long max)
 // The sets it generates are guaranteed to have no repetitions and be in
 // ascending order as well. These sets are passed into the output
 // function as they are generated.
-int eqSets(const unsigned long *set, size_t setc,
+int mutate(const unsigned long *set, size_t setc,
         void (*out)(const unsigned long *, size_t))
 {
     // Validate Input Set Values
