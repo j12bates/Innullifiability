@@ -143,6 +143,9 @@ Base *sr_initialize(size_t size)
 // number of times with any M-Value range, until released.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
+    // Exit if Null Pointer
+    if (base == NULL) return -2;
+
     // Check input values, adjust if necessary
     if (minm < base->size) minm = base->size;
     if (maxm < minm) return -2;
@@ -168,6 +171,9 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 // record.
 void sr_release(Base *base)
 {
+    // Exit if Null Pointer
+    if (base == NULL) return;
+
     // Free the Record Array
     free(base->rec);
 
@@ -283,7 +289,6 @@ int sr_import(Base *base, FILE *restrict f)
 
     // Exit if Null Pointer
     if (base == NULL) return -2;
-    if (base->rec == NULL) return -2;
 
     // Read and interpret the header
     res = fseek(f, 0, SEEK_SET);
