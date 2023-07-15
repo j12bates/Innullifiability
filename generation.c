@@ -12,7 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <assert.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "setRec/setRec.h"
 #include "mutate/mutate.h"
@@ -104,6 +106,18 @@ int main(int argc, char **argv)
                 sr_getSize(dest), sr_getMinM(dest), destMaxM);
     }
 
+    // ============ Perform Expansions in Threads
+
+    // Set Up Expansion Programs
+    supersInit(max);
+    mutateInit(max);
+
+    // Alloc array of threads, instantiate threads with threadOp(), join
+    // them, dealloc
+
+    // Clean Up
+    mutateInit(0);
+
     return 0;
 }
 
@@ -131,4 +145,34 @@ int openImport(SR_Base *rec, char *fname)
     fprintf(stderr, "Success\n");
 
     return 0;
+}
+
+// Thread Function for Performing Expansion
+void *threadOp(void *arg)
+{
+    size_t res;
+
+    // Mutex Lock in case we call exit()
+    static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
+
+    // Get Thread Number
+    size_t mod = *(size_t *) arg;
+
+    // For every nullifiable set, expand to supersets
+    if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
+            threads, mod, &expand_sup);
+
+    // For the new nullifiable sets, introduce mutations
+    if (expandMutate && res >= 0) res = sr_query_parallel(src,
+            MARKED, NULLIF, threads, mod, &expand_mut);
+
+    // Check for Errors
+    assert(res != -2);
+    if (res == -1) {
+        perror("Error");
+        pthread_mutex_lock(&exitLock);
+        exit(1);
+    }
+
+    return NULL;
 }
