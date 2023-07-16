@@ -84,15 +84,15 @@ int main(int argc, char **argv)
         int openImport(SR_Base *, char *);
 
         fprintf(stderr, "Importing Source Record...");
-        fflush(stderr);
         if (openImport(src, srcFname)) return 1;
 
         fprintf(stderr, "Importing Destination Record...");
-        fflush(stderr);
         if (openImport(dest, destFname)) return 1;
     }
 
-    // Get some Information about the Record
+    // ============ Perform Expansions in Threads
+
+    // Print Information about Execution
     {
         // Max M-Values
         unsigned long srcMaxM = sr_getMaxM(src);
@@ -104,19 +104,70 @@ int main(int argc, char **argv)
                 sr_getSize(src), sr_getMinM(src), srcMaxM);
         fprintf(stderr, "dest - Size: %2zu; M: %4lu to %4lu\n",
                 sr_getSize(dest), sr_getMinM(dest), destMaxM);
+        fprintf(stderr, "Performing Generation with %zu Threads\n",
+                threads);
     }
-
-    // ============ Perform Expansions in Threads
 
     // Set Up Expansion Programs
     supersInit(max);
     mutateInit(max);
 
-    // Alloc array of threads, instantiate threads with threadOp(), join
-    // them, dealloc
+    // Use threads to do all the computing
+    {
+        void *threadOp(void *);
+
+        // Arrays for Threads and Args
+        pthread_t th[threads];
+        size_t num[threads];
+
+        // Iteratively Create Threads with Number
+        for (size_t i = 0; i < threads; i++) {
+            num[i] = i;
+            errno = pthread_create(th + i, NULL, &threadOp,
+                    (void *) (num + i));
+            if (errno) perror("Thread Creation");
+        }
+
+        // Iteratively Join Threads
+        for (size_t i = 0; i < threads; i++) {
+            errno = pthread_join(th[i], NULL);
+            if (errno) perror("Thread Joining");
+        }
+    }
 
     // Clean Up
     mutateInit(0);
+
+    fprintf(stderr, "Done\n");
+
+    // ============ Export and Cleanup
+
+    // Export Destination
+    fprintf(stderr, "Exporting Destination Record...");
+    {
+        // Open File
+        FILE *f = fopen(destFname, "wb");
+        if (f == NULL) {
+            perror("File Error");
+            return 1;
+        }
+
+        // Export Record
+        int res = sr_export(dest, f);
+        assert(res != -2);
+        if (res == -1) {
+            perror("Export Error");
+            return 1;
+        }
+
+        // Close File
+        fclose(f);
+        fprintf(stderr, "Success\n");
+    }
+
+    // Unlink Records
+    sr_release(src);
+    sr_release(dest);
 
     return 0;
 }
