@@ -202,7 +202,8 @@ unsigned long sr_getMaxM(const Base *base)
 }
 
 // Mark a Certain Set
-// Returns 1 if newly marked, 0 if already marked, -2 on input error
+// Returns 1 if newly marked, 0 if already marked or unallocated, -2 on
+// input error
 
 // ANDs on the given bits on the specified set in the record, thus
 // 'Marking' that set. The input must be a valid set, in increasing
@@ -214,16 +215,16 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     if (base == NULL) return -2;
     if (base->rec == NULL) return -2;
 
-    // Check if set is valid: values must be increasing, and between 1
-    // and M, M-values in bounds, and size must be N
+    // Check if set is valid: values must be positive and increasing,
+    // and size must be N
     if (setc != base->size) return -2;
-    if (set[0] < 1 || set[0] > base->mval_max) return -2;
-    if (set[setc - 1] < base->mval_min) return -2;
+    if (set[0] < 1) return -2;
     for (size_t i = 1; i < setc; i++)
-    {
         if (set[i] <= set[i - 1]) return -2;
-        if (set[i] > base->mval_max) return -2;
-    }
+
+    // Skip if set is unallocated
+    if (set[setc - 1] > base->mval_max
+            || set[setc - 1] < base->mval_min) return 0;
 
     // Mark this set on the record
     int res = mark(base->rec, base->mval_min, set, setc, mask);
