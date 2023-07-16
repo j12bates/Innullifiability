@@ -150,6 +150,9 @@ int openImport(SR_Base *rec, char *fname)
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
+    void expand_sup(const unsigned long *, size_t);
+    void expand_mut(const unsigned long *, size_t);
+
     size_t res;
 
     // Mutex Lock in case we call exit()
@@ -161,12 +164,14 @@ void *threadOp(void *arg)
     // For every nullifiable set, expand to supersets
     if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
             threads, mod, &expand_sup);
+    if (res < 0) goto errCk;
 
     // For the new nullifiable sets, introduce mutations
-    if (expandMutate && res >= 0) res = sr_query_parallel(src,
-            MARKED, NULLIF, threads, mod, &expand_mut);
+    if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
+            threads, mod, &expand_mut);
 
     // Check for Errors
+errCk:
     assert(res != -2);
     if (res == -1) {
         perror("Error");
@@ -175,4 +180,48 @@ void *threadOp(void *arg)
     }
 
     return NULL;
+}
+
+// Individual Set Expansion Functions
+
+void expand_sup(const unsigned long *set, size_t setc)
+{
+    void elim_onlySup(const unsigned long *, size_t);
+
+    // Set must be size of source
+    assert(setc == srcSize);
+
+    // Expand set to supersets; don't mutate further
+    supers(set, setc, &elim_onlySup);
+
+    return;
+}
+
+void expand_mut(const unsigned long *set, size_t setc)
+{
+    void elim_nul(const unsigned long *, size_t);
+
+    // Set must be size of source
+    assert(setc == srcSize);
+
+    // Introduce mutations; set might need further mutation
+    mutate(set, setc, &elim_nul);
+
+    return;
+}
+
+// Individual Set Elimination Functions
+
+void elim_onlySup(const unsigned long *set, size_t setc)
+{
+    // Mark this set as Nullifiable/Superset
+    int res = sr_mark(dest, set, setc, NULLIF | ONLY_SUP);
+    assert(res != -2);
+}
+
+void elim_nul(const unsigned long *set, size_t setc)
+{
+    // Mark this set as Nullifiable only
+    int res = sr_mark(dest, set, setc, NULLIF);
+    assert(res != -2);
 }
