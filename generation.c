@@ -20,6 +20,8 @@
 #include "mutate/mutate.h"
 #include "supers/supers.h"
 
+#include "common.c"
+
 #define NULLIF 1 << 0
 #define ONLY_SUP 1 << 1
 #define MARKED NULLIF | ONLY_SUP
@@ -143,57 +145,16 @@ int main(int argc, char **argv)
     // ============ Export and Cleanup
 
     // Export Destination
-    fprintf(stderr, "Exporting Destination Record...");
     {
-        // Open File
-        FILE *f = fopen(destFname, "wb");
-        if (f == NULL) {
-            perror("File Error");
-            return 1;
-        }
+        int openExport(SR_Base *, char *);
 
-        // Export Record
-        int res = sr_export(dest, f);
-        assert(res != -2);
-        if (res == -1) {
-            perror("Export Error");
-            return 1;
-        }
-
-        // Close File
-        fclose(f);
-        fprintf(stderr, "Success\n");
+        fprintf(stderr, "Exporting Destination Record...");
+        if (openExport(dest, destFname)) return 1;
     }
 
     // Unlink Records
     sr_release(src);
     sr_release(dest);
-
-    return 0;
-}
-
-// Open Record File and Import
-int openImport(SR_Base *rec, char *fname)
-{
-    // Open File
-    FILE *f = fopen(fname, "rb");
-    if (f == NULL) {
-        perror("File Error");
-        return 1;
-    }
-
-    // Import Record
-    int res = sr_import(rec, f);
-    if (res) {
-        if (res == -1) perror("Import Error");
-        else if (res == -2) fprintf(stderr, "Wrong Size\n");
-        else if (res == -3) fprintf(stderr, "Invalid Record File\n");
-        return 1;
-    }
-
-    // Close File
-    fclose(f);
-    fprintf(stderr, "Success\n");
 
     return 0;
 }
