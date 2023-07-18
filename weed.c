@@ -14,8 +14,6 @@
 #include "setRec/setRec.h"
 #include "nulTest/nulTest.h"
 
-#include "common.c"
-
 #define NULLIF 1 << 0
 
 // Number of Threads
@@ -41,7 +39,7 @@ int main(int argc, char **argv)
     errno = 0;
     size = strtoul(argv[1], NULL, 10);
     if (errno) {
-        perror("recSize Argument");
+        perror("recSize argument");
         return 1;
     }
 
@@ -68,6 +66,47 @@ int main(int argc, char **argv)
         if (openImport(rec, fname)) return 1;
     }
 
+    // ============ Iteratively Perform Test
+
+    // Print Information about Execution
+    {
+        fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
+                size, sr_getMinM(rec), sr_getMaxM(rec));
+        fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
+                threads);
+    }
+
+    // Launch Threads to do the Computing
+    {
+        void *threadOp(void *);
+
+        // VLAs for Threads and Args
+        pthread_t th[threads];
+        size_t num[threads];
+
+        // Iteratively Create Threads with Number
+        for (size_t i = 0; i < threads; i++) {
+            num[i] = i;
+            errno = pthread_create(th + i, NULL, &threadOp,
+                    (void *) num + i);
+            if (errno) {
+                perror("Thread Creation");
+                return 1;
+            }
+        }
+
+        // Iteratively Join Threads
+        for (size_t i = 0; i < threads; i++) {
+            errno = pthread_join(th[i], NULL);
+            if (errno) {
+                perror("Thread Joining");
+                return 1;
+            }
+        }
+    }
+
+    fprintf(stderr, "Done\n");
+
     // ============ Export and Cleanup
     {
         int openExport(SR_Base *, char *);
@@ -80,6 +119,9 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+// Common Program Functions
+#include "common.c"
 
 // Thread Function for Testing Sets
 void *threadOp(void *arg)

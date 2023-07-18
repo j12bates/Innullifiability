@@ -51,4 +51,6 @@ int openExport(SR_Base *rec, char *fname)
     // Close File
     fclose(f);
     fprintf(stderr, "Success\n");
+
+    return 0;
 }
