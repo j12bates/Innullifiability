@@ -20,8 +20,6 @@
 #include "mutate/mutate.h"
 #include "supers/supers.h"
 
-#include "common.c"
-
 #define NULLIF 1 << 0
 #define ONLY_SUP 1 << 1
 #define MARKED NULLIF | ONLY_SUP
@@ -49,7 +47,8 @@ int main(int argc, char **argv)
     // Usage Check
     if (argc < 4) {
         fprintf(stderr, "Usage: %s %s %s %s %s\n",
-                argv[0], "srcSize", "src.dat", "dest.dat", "[threads]");
+                argv[0], "srcSize", "src.dat", "dest.dat",
+                "[threads [-ms]]");
         return 1;
     }
 
@@ -68,6 +67,24 @@ int main(int argc, char **argv)
         if (errno) {
             perror("threads argument");
             return 1;
+        }
+    }
+
+    // Options for Expansion Phases
+    if (argc > 5) {
+        if (argv[5][0] == '-') {
+            expandSupers = false;
+            expandMutate = false;
+            for (size_t i = 1; i < 2; i++) {
+                char opt = argv[5][i];
+                if (opt == '\0') break;
+                else if (opt == 'm') expandMutate = true;
+                else if (opt == 's') expandSupers = true;
+                else {
+                    fprintf(stderr, "Invalid option '%c'\n", opt);
+                    return 1;
+                }
+            }
         }
     }
 
@@ -127,13 +144,19 @@ int main(int argc, char **argv)
             num[i] = i;
             errno = pthread_create(th + i, NULL, &threadOp,
                     (void *) (num + i));
-            if (errno) perror("Thread Creation");
+            if (errno) {
+                perror("Thread Creation");
+                return 1;
+            }
         }
 
         // Iteratively Join Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_join(th[i], NULL);
-            if (errno) perror("Thread Joining");
+            if (errno) {
+                perror("Thread Joining");
+                return 1;
+            }
         }
     }
 
@@ -158,6 +181,9 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+// Common Program Functions
+#include "common.c"
 
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
