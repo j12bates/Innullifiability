@@ -80,3 +80,58 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+// Thread Function for Testing Sets
+void *threadOp(void *arg)
+{
+    void testElim(const unsigned long *, size_t);
+    _Noreturn void tryExitFail(void);
+
+    // Get Thread Number
+    size_t mod = *(size_t *) arg;
+
+    // For every unmarked set, run exhaustive test
+    size_t res = sr_query_parallel(rec, NULLIF, 0,
+            threads, mod, &testElim);
+    assert(res != -2);
+    if (res == -1) {
+        perror("Error");
+        tryExitFail();
+    }
+
+    return NULL;
+}
+
+// Individual Set Testing/Elimination
+void testElim(const unsigned long *set, size_t setc)
+{
+    _Noreturn void tryExitFail(void);
+
+    int res;
+    assert(setc == size);
+
+    // Run the Test
+    res = nulTest(set, setc);
+    if (res == -1) {
+        perror("Test Error");
+        tryExitFail();
+    }
+
+    // Eliminate if Nullifiable
+    if (res == 0) {
+        res = sr_mark(rec, set, setc, NULLIF);
+        assert(res != -2);
+    }
+
+    return;
+}
+
+// Exit with a Fail Code
+_Noreturn void tryExitFail(void)
+{
+    // exit() depends on global var(s), not thread-safe
+    static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
+
+    pthread_mutex_lock(&exitLock);
+    exit(1);
+}
