@@ -49,12 +49,21 @@ int main(int argc, char **argv)
         if (openImport(rec, fname)) return 1;
     }
 
-    // ============ Export Record
+    // ============ Query Record to Print Sets
     {
-        int openExport(SR_Base *, char *);
+        void printSet(const unsigned long *, size_t);
 
-        fprintf(stderr, "Exporting Record...");
-        if (openExport(rec, fname)) return 1;
+        printf("\n");
+
+        ssize_t res = sr_query(rec, NULLIF, 0, &printSet);
+        assert(res != -2);
+        if (res == -1) {
+            perror("Error");
+            return 1;
+        }
+
+        printf("\n");
+        fprintf(stderr, "%ld Total Unmarked Sets\n", res);
     }
 
     sr_release(rec);
@@ -64,3 +73,13 @@ int main(int argc, char **argv)
 
 // Common Program Functions
 #include "common.c"
+
+// Print a Set to the Standard Output
+void printSet(const unsigned long *set, size_t setc)
+{
+    for (size_t i = 0; i < setc; i++)
+        printf("%4lu", set[i]);
+    printf("\n");
+
+    return;
+}
