@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 
     // Optional Threads Argument
     errno = 0;
-    if (argc > 4) {
+    if (argc > 3) {
         threads = strtoul(argv[3], NULL, 10);
         if (errno) {
             perror("threads argument");
@@ -69,12 +69,10 @@ int main(int argc, char **argv)
     // ============ Iteratively Perform Test
 
     // Print Information about Execution
-    {
-        fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
-                size, sr_getMinM(rec), sr_getMaxM(rec));
-        fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
-                threads);
-    }
+    fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
+            size, sr_getMinM(rec), sr_getMaxM(rec));
+    fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
+            threads);
 
     // Launch Threads to do the Computing
     {
@@ -88,7 +86,7 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < threads; i++) {
             num[i] = i;
             errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) num + i);
+                    (void *) (num + i));
             if (errno) {
                 perror("Thread Creation");
                 return 1;
