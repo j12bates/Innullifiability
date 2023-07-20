@@ -11,7 +11,7 @@
 
 #include "setRec/setRec.h"
 
-#define NULLIF 1 << 0
+#include "common.h"
 
 // Set Record
 SR_Base *rec;
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
         }
 
         printf("\n");
-        fprintf(stderr, "%ld Total Unmarked Sets\n", res);
+        printf("%ld Total Unmarked Sets\n", res);
     }
 
     sr_release(rec);

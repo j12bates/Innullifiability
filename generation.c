@@ -20,9 +20,7 @@
 #include "mutate/mutate.h"
 #include "supers/supers.h"
 
-#define NULLIF 1 << 0
-#define ONLY_SUP 1 << 1
-#define MARKED NULLIF | ONLY_SUP
+#include "common.h"
 
 // Number of Threads
 size_t threads = 1;

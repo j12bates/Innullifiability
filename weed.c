@@ -14,7 +14,7 @@
 #include "setRec/setRec.h"
 #include "nulTest/nulTest.h"
 
-#define NULLIF 1 << 0
+#include "common.h"
 
 // Number of Threads
 size_t threads = 1;

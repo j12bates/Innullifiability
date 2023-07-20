@@ -11,6 +11,8 @@
 
 #include "setRec/setRec.h"
 
+#include "common.h"
+
 // Set Record
 SR_Base *rec;
 size_t size;
