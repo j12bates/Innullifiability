@@ -20,48 +20,38 @@ size_t size;
 unsigned long minm, maxm;
 char *fname;
 
+// Usage Format String
+const char *usage = "Usage: %s size minm maxm rec.dat\n";
+
 int main(int argc, char **argv)
 {
     // ============ Command-Line Arguments
 
-    // Usage Check
-    if (argc < 5) {
-        fprintf(stderr, "Usage: %s size minm maxm rec.dat\n", argv[0]);
-        return 1;
-    }
+    // Parse arguments, show usage on invalid
+    {
+        int argParse(const Param *, int, int, char **, ...);
 
-    // Size Argument
-    errno = 0;
-    size = strtoul(argv[1], NULL, 10);
-    if (errno) {
-        perror("size argument");
-        return 1;
-    }
+        const Param params[5] = {PARAM_SIZE, PARAM_VAL, PARAM_VAL,
+                PARAM_FNAME, PARAM_END};
 
-    // MinM Argument
-    errno = 0;
-    minm = strtoul(argv[2], NULL, 10);
-    if (errno) {
-        perror("minm argument");
-        return 1;
-    }
-
-    // MaxM Argument
-    errno = 0;
-    maxm = strtoul(argv[3], NULL, 10);
-    if (errno) {
-        perror("maxm argument");
-        return 1;
+        int res = argParse(params, 4, argc, argv,
+                &size, &minm, &maxm, &fname);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
     }
 
     // Validate Input
+    if (size < 1) {
+        fprintf(stderr, "Size Must be Positive");
+        return 1;
+    }
+
     if (minm > maxm) {
         fprintf(stderr, "Minimum M-value Must be Less than Maximum\n");
         return 1;
     }
-
-    // Record Filename
-    fname = argv[4];
 
     // ============ Create Record and Export
     fprintf(stderr, "Creating... Size: %2zu; M: %4lu to %4lu\n",

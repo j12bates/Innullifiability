@@ -25,37 +25,27 @@ SR_Base *rec = NULL;
 size_t size;
 char *fname;
 
+// Usage Format String
+const char *usage = "Usage: %s recSize rec.dat [threads]\n";
+
 int main(int argc, char **argv)
 {
     // ============ Command-Line Arguments
 
-    // Usage Check
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s %s %s %s\n",
-                argv[0], "recSize", "rec.dat", "[threads]");
-        return 1;
-    }
+    // Parse arguments, show usage on invalid
+    {
+        int argParse(const Param *, int, int, char **, ...);
 
-    // RecSize Argument
-    errno = 0;
-    size = strtoul(argv[1], NULL, 10);
-    if (errno) {
-        perror("recSize argument");
-        return 1;
-    }
+        const Param params[4] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
+                PARAM_END};
 
-    // Optional Threads Argument
-    errno = 0;
-    if (argc > 3) {
-        threads = strtoul(argv[3], NULL, 10);
-        if (errno) {
-            perror("threads argument");
+        int res = argParse(params, 2, argc, argv,
+                &size, &fname, &threads);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
             return 1;
         }
     }
-
-    // Record Filename
-    fname = argv[2];
 
     // ============ Import Record
     rec = sr_initialize(size);

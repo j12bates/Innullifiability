@@ -54,7 +54,7 @@ int main(int argc, char **argv)
     {
         int argParse(const Param *, int, int, char **, ...);
 
-        Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
+        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
                 PARAM_CT, PARAM_STR, PARAM_END};
 
         int res = argParse(params, 3, argc, argv,

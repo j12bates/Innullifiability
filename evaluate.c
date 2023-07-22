@@ -19,26 +19,25 @@ SR_Base *rec;
 size_t size;
 char *fname;
 
+// Usage Format String
+const char *usage = "Usage: %s recSize rec.dat\n";
+
 int main(int argc, char **argv)
 {
     // ============ Command-Line Arguments
 
-    // Usage Check
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s recSize rec.dat\n", argv[0]);
-        return 1;
-    }
+    // Parse arguments, show usage on invalid
+    {
+        int argParse(const Param *, int, int, char **, ...);
 
-    // RecSize Argument
-    errno = 0;
-    size = strtoul(argv[1], NULL, 10);
-    if (errno) {
-        perror("recSize argument");
-        return 1;
-    }
+        const Param params[3] = {PARAM_SIZE, PARAM_FNAME, PARAM_END};
 
-    // Record Filename
-    fname = argv[2];
+        int res = argParse(params, 2, argc, argv, &size, &fname);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
+    }
 
     // ============ Import Record
     rec = sr_initialize(size);
