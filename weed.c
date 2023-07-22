@@ -4,6 +4,7 @@
 // unmarked nullifiable sets. It will iteratively apply the exhaustive
 // test and mark any sets that fail.
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 

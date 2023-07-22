@@ -8,6 +8,7 @@
 // that don't have the second bit set by introducing mutations to the
 // values. Each of these expansion phases are optional.
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,9 @@
 // Number of Threads
 size_t threads = 1;
 
+// Command-Line Options
+char *opts = NULL;
+
 // Toggles for each Expansion Phase
 bool expandSupers = true;
 bool expandMutate = true;
@@ -38,43 +42,36 @@ char *srcFname, *destFname;
 // Overall Maximum Value
 unsigned long max;
 
+// Usage Format String
+const char *usage = "Usage: %s srcSize src.dat dest.dat "
+                    "[threads [-ms]]\n";
+
 int main(int argc, char **argv)
 {
     // ============ Command-Line Arguments
 
-    // Usage Check
-    if (argc < 4) {
-        fprintf(stderr, "Usage: %s %s %s %s %s\n",
-                argv[0], "srcSize", "src.dat", "dest.dat",
-                "[threads [-ms]]");
-        return 1;
-    }
+    // Parse arguments, show usage on invalid
+    {
+        int argParse(const Param *, int, int, char **, ...);
 
-    // SrcSize is Numeric
-    errno = 0;
-    srcSize = strtoul(argv[1], NULL, 10);
-    if (errno) {
-        perror("srcSize argument");
-        return 1;
-    }
+        Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
+                PARAM_CT, PARAM_STR, PARAM_END};
 
-    // Optional Threads Argument
-    errno = 0;
-    if (argc > 4) {
-        threads = strtoul(argv[4], NULL, 10);
-        if (errno) {
-            perror("threads argument");
+        int res = argParse(params, 3, argc, argv,
+                &srcSize, &srcFname, &destFname, &threads, &opts);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
             return 1;
         }
     }
 
-    // Options for Expansion Phases
-    if (argc > 5) {
-        if (argv[5][0] == '-') {
+    // Parse Options for Expansion Phases
+    if (opts != NULL) {
+        if (opts[0] == '-') {
             expandSupers = false;
             expandMutate = false;
-            for (size_t i = 1; i < 2; i++) {
-                char opt = argv[5][i];
+            for (size_t i = 1; i <= 2; i++) {
+                char opt = opts[i];
                 if (opt == '\0') break;
                 else if (opt == 'm') expandMutate = true;
                 else if (opt == 's') expandSupers = true;
@@ -85,10 +82,6 @@ int main(int argc, char **argv)
             }
         }
     }
-
-    // Record Filenames
-    srcFname = argv[2];
-    destFname = argv[3];
 
     // ============ Import Records
 

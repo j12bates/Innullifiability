@@ -3,6 +3,7 @@
 // This program takes in a record and displays the value representations
 // of all the unmarked sets.
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 

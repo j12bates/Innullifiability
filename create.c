@@ -3,6 +3,7 @@
 // This program creates a blank record file with a specified Size and
 // M-Value Range, for use with the other programs.
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
