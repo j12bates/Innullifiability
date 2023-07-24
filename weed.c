@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <string.h>
 
 #include "setRec/setRec.h"
 #include "nulTest/nulTest.h"

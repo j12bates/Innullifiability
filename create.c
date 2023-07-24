@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 #include "setRec/setRec.h"
 
