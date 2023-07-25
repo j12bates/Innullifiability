@@ -27,9 +27,6 @@
 // Number of Threads
 size_t threads = 1;
 
-// Command-Line Options
-char *opts = NULL;
-
 // Toggles for each Expansion Phase
 bool expandSupers = true;
 bool expandMutate = true;
@@ -44,8 +41,8 @@ char *srcFname, *destFname;
 unsigned long max;
 
 // Usage Format String
-const char *usage = "Usage: %s srcSize src.dat dest.dat "
-                    "[threads [-ms]]\n";
+const char *usage = "Usage: %s [-sm] srcSize src.dat dest.dat "
+                    "[threads]\n";
 
 int main(int argc, char **argv)
 {
@@ -54,34 +51,31 @@ int main(int argc, char **argv)
     // Parse arguments, show usage on invalid
     {
         int argParse(const Param *, int, int, char **, ...);
+        int optHandle(const char *, bool, int, char **, ...);
 
-        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
-                PARAM_CT, PARAM_STR, PARAM_END};
+        const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
+                PARAM_CT, PARAM_END};
+        int res;
 
-        int res = argParse(params, 3, argc, argv,
-                &srcSize, &srcFname, &destFname, &threads, &opts);
+        res = argParse(params, 3, argc, argv,
+                &srcSize, &srcFname, &destFname, &threads);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
+
+        res = optHandle("sm", true, argc, argv,
+                &expandSupers, &expandMutate);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
         }
     }
 
-    // Parse Options for Expansion Phases
-    if (opts != NULL) {
-        if (opts[0] == '-') {
-            expandSupers = false;
-            expandMutate = false;
-            for (size_t i = 1; i <= 2; i++) {
-                char opt = opts[i];
-                if (opt == '\0') break;
-                else if (opt == 'm') expandMutate = true;
-                else if (opt == 's') expandSupers = true;
-                else {
-                    fprintf(stderr, "Invalid option '%c'\n", opt);
-                    return 1;
-                }
-            }
-        }
+    // Default to all expansion phases
+    if (!expandSupers && !expandMutate) {
+        expandSupers = true;
+        expandMutate = true;
     }
 
     // ============ Import Records
@@ -117,6 +111,9 @@ int main(int argc, char **argv)
                 sr_getSize(dest), sr_getMinM(dest), destMaxM);
         fprintf(stderr, "Performing Generation with %zu Threads\n",
                 threads);
+        fprintf(stderr, "Expanding by: %s%s\n",
+                expandSupers ? "Supersets " : "",
+                expandMutate ? "Mutations " : "");
     }
 
     // Set Up Expansion Programs

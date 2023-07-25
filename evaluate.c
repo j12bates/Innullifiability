@@ -4,6 +4,7 @@
 // of all the unmarked sets.
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,8 +21,11 @@ SR_Base *rec;
 size_t size;
 char *fname;
 
+// Whether to List Out Sets
+bool disp;
+
 // Usage Format String
-const char *usage = "Usage: %s recSize rec.dat\n";
+const char *usage = "Usage: %s [-s] recSize rec.dat\n";
 
 int main(int argc, char **argv)
 {
@@ -30,10 +34,18 @@ int main(int argc, char **argv)
     // Parse arguments, show usage on invalid
     {
         int argParse(const Param *, int, int, char **, ...);
+        int optHandle(const char *, bool, int, char **, ...);
 
         const Param params[3] = {PARAM_SIZE, PARAM_FNAME, PARAM_END};
+        int res;
 
-        int res = argParse(params, 2, argc, argv, &size, &fname);
+        res = argParse(params, 2, argc, argv, &size, &fname);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
+
+        res = optHandle("s", false, argc, argv, &disp);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -54,16 +66,16 @@ int main(int argc, char **argv)
     {
         void printSet(const unsigned long *, size_t);
 
-        printf("\n");
+        if (disp) printf("\n");
 
-        ssize_t res = sr_query(rec, NULLIF, 0, &printSet);
+        ssize_t res = sr_query(rec, NULLIF, 0, disp ? &printSet : NULL);
         assert(res != -2);
         if (res == -1) {
             perror("Error");
             return 1;
         }
 
-        printf("\n");
+        if (disp) printf("\n");
         printf("%ld Total Unmarked Sets\n", res);
     }
 
