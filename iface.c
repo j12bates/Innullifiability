@@ -1,8 +1,20 @@
-// ======================= COMMON UTIL FUNCTIONS =======================
+// ========================== UTIL INTERFACE ===========================
 
-// Some common functions used by the utility programs. Not implemented
-// as a separate object because these are meant to be part of the utils
-// themselves, and will simply be '#include'd in.
+// Some common functions used by the utility programs. Particularly File
+// I/O and Command-Line Argument stuff. Needs to be linked with every
+// utility program.
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
+#include "setRec/setRec.h"
+
+#include "iface.h"
 
 // Open Record File and Import
 int openImport(SR_Base *rec, char *fname)
@@ -123,7 +135,6 @@ int argParse(const Param *params, int reqd,
         goto invalid;
     }
 
-end:
     va_end(ap);
     return 0;
 

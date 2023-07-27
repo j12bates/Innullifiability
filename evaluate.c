@@ -3,18 +3,15 @@
 // This program takes in a record and displays the value representations
 // of all the unmarked sets.
 
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <assert.h>
-#include <errno.h>
-#include <string.h>
 
 #include "setRec/setRec.h"
 
-#include "common.h"
+#include "iface.h"
 
 // Set Record
 SR_Base *rec;
@@ -33,9 +30,6 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        int argParse(const Param *, int, int, char **, ...);
-        int optHandle(const char *, bool, int, char **, ...);
-
         const Param params[3] = {PARAM_SIZE, PARAM_FNAME, PARAM_END};
         int res;
 
@@ -55,12 +49,8 @@ int main(int argc, char **argv)
     // ============ Import Record
     rec = sr_initialize(size);
 
-    {
-        int openImport(SR_Base *, char *);
-
-        fprintf(stderr, "Importing Record...");
-        if (openImport(rec, fname)) return 1;
-    }
+    fprintf(stderr, "Importing Record...");
+    if (openImport(rec, fname)) return 1;
 
     // ============ Query Record to Print Sets
     {
@@ -83,9 +73,6 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
-// Common Program Functions
-#include "common.c"
 
 // Print a Set to the Standard Output
 void printSet(const unsigned long *set, size_t setc)

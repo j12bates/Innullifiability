@@ -3,17 +3,14 @@
 // This program creates a blank record file with a specified Size and
 // M-Value Range, for use with the other programs.
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <assert.h>
-#include <errno.h>
-#include <string.h>
 
 #include "setRec/setRec.h"
 
-#include "common.h"
+#include "iface.h"
 
 // Set Record
 SR_Base *rec;
@@ -30,8 +27,6 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        int argParse(const Param *, int, int, char **, ...);
-
         const Param params[5] = {PARAM_SIZE, PARAM_VAL, PARAM_VAL,
                 PARAM_FNAME, PARAM_END};
 
@@ -69,17 +64,10 @@ int main(int argc, char **argv)
         }
     }
 
-    {
-        int openExport(SR_Base *, char *);
-
-        fprintf(stderr, "Exporting Record...");
-        if (openExport(rec, fname)) return 1;
-    }
+    fprintf(stderr, "Exporting Record...");
+    if (openExport(rec, fname)) return 1;
 
     sr_release(rec);
 
     return 0;
 }
-
-// Common Program Function
-#include "common.c"

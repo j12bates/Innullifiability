@@ -4,19 +4,17 @@
 // unmarked nullifiable sets. It will iteratively apply the exhaustive
 // test and mark any sets that fail.
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
-#include <string.h>
 
 #include "setRec/setRec.h"
 #include "nulTest/nulTest.h"
 
-#include "common.h"
+#include "iface.h"
 
 // Number of Threads
 size_t threads = 1;
@@ -35,8 +33,6 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        int argParse(const Param *, int, int, char **, ...);
-
         const Param params[4] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
                 PARAM_END};
 
@@ -51,12 +47,8 @@ int main(int argc, char **argv)
     // ============ Import Record
     rec = sr_initialize(size);
 
-    {
-        int openImport(SR_Base *, char *);
-
-        fprintf(stderr, "Importing Record...");
-        if (openImport(rec, fname)) return 1;
-    }
+    fprintf(stderr, "Importing Record...");
+    if (openImport(rec, fname)) return 1;
 
     // ============ Iteratively Perform Test
 
@@ -98,20 +90,13 @@ int main(int argc, char **argv)
     fprintf(stderr, "Done\n");
 
     // ============ Export and Cleanup
-    {
-        int openExport(SR_Base *, char *);
-
-        fprintf(stderr, "Exporting Record...");
-        if (openExport(rec, fname)) return 1;
-    }
+    fprintf(stderr, "Exporting Record...");
+    if (openExport(rec, fname)) return 1;
 
     sr_release(rec);
 
     return 0;
 }
-
-// Common Program Functions
-#include "common.c"
 
 // Thread Function for Testing Sets
 void *threadOp(void *arg)
@@ -123,7 +108,7 @@ void *threadOp(void *arg)
     size_t mod = *(size_t *) arg;
 
     // For every unmarked set, run exhaustive test
-    size_t res = sr_query_parallel(rec, NULLIF, 0,
+    ssize_t res = sr_query_parallel(rec, NULLIF, 0,
             threads, mod, &testElim);
     assert(res != -2);
     if (res == -1) {

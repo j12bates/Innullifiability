@@ -8,7 +8,6 @@
 // that don't have the second bit set by introducing mutations to the
 // values. Each of these expansion phases are optional.
 
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,13 +15,12 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
-#include <string.h>
 
 #include "setRec/setRec.h"
 #include "mutate/mutate.h"
 #include "supers/supers.h"
 
-#include "common.h"
+#include "iface.h"
 
 // Number of Threads
 size_t threads = 1;
@@ -50,9 +48,6 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        int argParse(const Param *, int, int, char **, ...);
-        int optHandle(const char *, bool, int, char **, ...);
-
         const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
                 PARAM_CT, PARAM_END};
         int res;
@@ -85,15 +80,11 @@ int main(int argc, char **argv)
     dest = sr_initialize(srcSize + 1);
 
     // Import Records from Files
-    {
-        int openImport(SR_Base *, char *);
+    fprintf(stderr, "Importing Source Record...");
+    if (openImport(src, srcFname)) return 1;
 
-        fprintf(stderr, "Importing Source Record...");
-        if (openImport(src, srcFname)) return 1;
-
-        fprintf(stderr, "Importing Destination Record...");
-        if (openImport(dest, destFname)) return 1;
-    }
+    fprintf(stderr, "Importing Destination Record...");
+    if (openImport(dest, destFname)) return 1;
 
     // ============ Perform Expansions in Threads
 
@@ -157,12 +148,8 @@ int main(int argc, char **argv)
     // ============ Export and Cleanup
 
     // Export Destination
-    {
-        int openExport(SR_Base *, char *);
-
-        fprintf(stderr, "Exporting Destination Record...");
-        if (openExport(dest, destFname)) return 1;
-    }
+    fprintf(stderr, "Exporting Destination Record...");
+    if (openExport(dest, destFname)) return 1;
 
     // Unlink Records
     sr_release(src);
@@ -171,16 +158,13 @@ int main(int argc, char **argv)
     return 0;
 }
 
-// Common Program Functions
-#include "common.c"
-
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
     void expand_sup(const unsigned long *, size_t);
     void expand_mut(const unsigned long *, size_t);
 
-    size_t res;
+    ssize_t res;
 
     // Mutex Lock in case we call exit()
     static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
