@@ -29,6 +29,9 @@ size_t threads = 1;
 bool expandSupers = true;
 bool expandMutate = true;
 
+// Skip Importing Output
+bool omitImportDest;
+
 // Set Records
 SR_Base *src = NULL;
 SR_Base *dest = NULL;
@@ -39,8 +42,11 @@ char *srcFname, *destFname;
 unsigned long max;
 
 // Usage Format String
-const char *usage = "Usage: %s [-sm] srcSize src.dat dest.dat "
-                    "[threads]\n";
+const char *usage =
+        "Usage: %s [-smo] srcSize src.dat dest.dat [threads]\n"
+        "   -s      Expansion Phase Toggle -- Supersets\n"
+        "   -m      Expansion Phase Toggle -- Mutations\n"
+        "   -o      Create/Overwrite Destination (Source M-values)\n";
 
 int main(int argc, char **argv)
 {
@@ -59,8 +65,8 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        res = optHandle("sm", true, argc, argv,
-                &expandSupers, &expandMutate);
+        res = optHandle("smo", true, argc, argv,
+                &expandSupers, &expandMutate, &omitImportDest);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -79,12 +85,29 @@ int main(int argc, char **argv)
     src = sr_initialize(srcSize);
     dest = sr_initialize(srcSize + 1);
 
-    // Import Records from Files
+    // Import Source Record from File
     fprintf(stderr, "Importing Source Record...");
     if (openImport(src, srcFname)) return 1;
 
-    fprintf(stderr, "Importing Destination Record...");
-    if (openImport(dest, destFname)) return 1;
+    // Import Destination Record from File
+    if (!omitImportDest) {
+        fprintf(stderr, "Importing Destination Record...");
+        if (openImport(dest, destFname)) return 1;
+    }
+
+    // Or Create it from Scratch
+    else {
+        fprintf(stderr, "Allocating Destination Record...");
+
+        int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
+        assert(res != -2);
+        if (res == -1) {
+            perror("Allocation Error");
+            return 1;
+        }
+
+        fprintf(stderr, "Success\n");
+    }
 
     // ============ Perform Expansions in Threads
 
@@ -164,7 +187,7 @@ void *threadOp(void *arg)
     void expand_sup(const unsigned long *, size_t);
     void expand_mut(const unsigned long *, size_t);
 
-    ssize_t res;
+    ssize_t res = 0;
 
     // Mutex Lock in case we call exit()
     static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
