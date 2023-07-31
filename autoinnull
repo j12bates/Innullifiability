@@ -1,0 +1,38 @@
+#!/usr/bin/bash
+
+temp=$(mktemp rec.XXXXXX)
+tsize=$1
+tmaxm=$2
+th=$3
+output=$4
+
+echo "N = $tsize, M <= $tmaxm" >&2
+
+echo >&2
+echo ================ Finding Base Sets >&2
+./create 3 0 $tmaxm $temp
+./weed 3 $temp
+
+size=3
+while [ $size -lt $tsize ]
+do
+    echo >&2
+    echo ================ Expanding Size $size >&2
+    ./gen -o $size $temp $temp $th
+    size=$(($size + 1))
+done
+
+echo >&2
+echo ================ Testing Remaining Sets >&2
+./weed $tsize $temp $th
+
+echo >&2
+echo ================ Result >&2
+./eval $tsize $temp
+
+if ! [ -z "$output" ]
+then
+    mv $temp $output
+else
+    rm $temp
+fi
