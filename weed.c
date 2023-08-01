@@ -4,6 +4,7 @@
 // unmarked nullifiable sets. It will iteratively apply the exhaustive
 // test and mark any sets that fail.
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -24,8 +25,11 @@ SR_Base *rec = NULL;
 size_t size;
 char *fname;
 
+// Options
+bool verbose;
+
 // Usage Format String
-const char *usage = "Usage: %s recSize rec.dat [threads]\n";
+const char *usage = "Usage: %s [-v] recSize rec.dat [threads]\n";
 
 int main(int argc, char **argv)
 {
@@ -35,9 +39,16 @@ int main(int argc, char **argv)
     {
         const Param params[4] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
                 PARAM_END};
+        int res;
 
-        int res = argParse(params, 2, argc, argv,
+        res = argParse(params, 2, argc, argv,
                 &size, &fname, &threads);
+        if (res) {
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
+
+        res = optHandle("v", true, argc, argv, &verbose);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -47,16 +58,20 @@ int main(int argc, char **argv)
     // ============ Import Record
     rec = sr_initialize(size);
 
-    fprintf(stderr, "Importing Record...");
+    if (verbose) fprintf(stderr, "Importing Record...");
     if (openImport(rec, fname)) return 1;
+    else if (verbose) fprintf(stderr, "Success\n");
 
     // ============ Iteratively Perform Test
 
     // Print Information about Execution
-    fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
-            size, sr_getMinM(rec), sr_getMaxM(rec));
-    fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
-            threads);
+    if (verbose)
+    {
+        fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
+                size, sr_getMinM(rec), sr_getMaxM(rec));
+        fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
+                threads);
+    }
 
     // Launch Threads to do the Computing
     {
@@ -87,11 +102,12 @@ int main(int argc, char **argv)
         }
     }
 
-    fprintf(stderr, "Done\n");
+    if (verbose) fprintf(stderr, "Done\n");
 
     // ============ Export and Cleanup
-    fprintf(stderr, "Exporting Record...");
+    if (verbose) fprintf(stderr, "Exporting Record...");
     if (openExport(rec, fname)) return 1;
+    else if (verbose) fprintf(stderr, "Success\n");
 
     sr_release(rec);
 

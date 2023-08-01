@@ -49,8 +49,11 @@ int main(int argc, char **argv)
     // ============ Import Record
     rec = sr_initialize(size);
 
-    fprintf(stderr, "Importing Record...");
     if (openImport(rec, fname)) return 1;
+
+    // Display Infos
+    fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
+            size, sr_getMinM(rec), sr_getMaxM(rec));
 
     // ============ Query Record to Print Sets
     {

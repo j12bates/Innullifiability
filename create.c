@@ -64,7 +64,6 @@ int main(int argc, char **argv)
         }
     }
 
-    fprintf(stderr, "Exporting Record...");
     if (openExport(rec, fname)) return 1;
 
     sr_release(rec);

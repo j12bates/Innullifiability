@@ -26,11 +26,12 @@
 size_t threads = 1;
 
 // Toggles for each Expansion Phase
-bool expandSupers = true;
-bool expandMutate = true;
+bool expandSupers;
+bool expandMutate;
 
-// Skip Importing Output
+// Add'l Options
 bool omitImportDest;
+bool verbose;
 
 // Set Records
 SR_Base *src = NULL;
@@ -43,10 +44,11 @@ unsigned long max;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-smo] srcSize src.dat dest.dat [threads]\n"
+        "Usage: %s [-smov] srcSize src.dat dest.dat [threads]\n"
         "   -s      Expansion Phase Toggle -- Supersets\n"
         "   -m      Expansion Phase Toggle -- Mutations\n"
-        "   -o      Create/Overwrite Destination (Source M-values)\n";
+        "   -o      Create/Overwrite Destination (Source M-values)\n"
+        "   -v      Verbose: Display Progress Messages\n";
 
 int main(int argc, char **argv)
 {
@@ -65,8 +67,9 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        res = optHandle("smo", true, argc, argv,
-                &expandSupers, &expandMutate, &omitImportDest);
+        res = optHandle("smov", true, argc, argv,
+                &expandSupers, &expandMutate, &omitImportDest,
+                &verbose);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -86,18 +89,21 @@ int main(int argc, char **argv)
     dest = sr_initialize(srcSize + 1);
 
     // Import Source Record from File
-    fprintf(stderr, "Importing Source Record...");
+    if (verbose) fprintf(stderr, "Importing Source Record...");
     if (openImport(src, srcFname)) return 1;
+    else if (verbose) fprintf(stderr, "Success\n");
 
     // Import Destination Record from File
     if (!omitImportDest) {
-        fprintf(stderr, "Importing Destination Record...");
+        if (verbose) fprintf(stderr, "Importing Destination Record...");
         if (openImport(dest, destFname)) return 1;
+        else if (verbose) fprintf(stderr, "Success\n");
     }
 
     // Or Create it from Scratch
     else {
-        fprintf(stderr, "Allocating Destination Record...");
+        if (verbose) fprintf(stderr,
+                "Allocating Destination Record...");
 
         int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
         assert(res != -2);
@@ -106,7 +112,7 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        fprintf(stderr, "Success\n");
+        if (verbose) fprintf(stderr, "Success\n");
     }
 
     // ============ Perform Expansions in Threads
@@ -119,15 +125,18 @@ int main(int argc, char **argv)
         max = srcMaxM > destMaxM ? srcMaxM : destMaxM;
 
         // Print Infos
-        fprintf(stderr, "src  - Size: %2zu; M: %4lu to %4lu\n",
-                sr_getSize(src), sr_getMinM(src), srcMaxM);
-        fprintf(stderr, "dest - Size: %2zu; M: %4lu to %4lu\n",
-                sr_getSize(dest), sr_getMinM(dest), destMaxM);
-        fprintf(stderr, "Performing Generation with %zu Threads\n",
-                threads);
-        fprintf(stderr, "Expanding by: %s%s\n",
-                expandSupers ? "Supersets " : "",
-                expandMutate ? "Mutations " : "");
+        if (verbose)
+        {
+            fprintf(stderr, "src  - Size: %2zu; M: %4lu to %4lu\n",
+                    sr_getSize(src), sr_getMinM(src), srcMaxM);
+            fprintf(stderr, "dest - Size: %2zu; M: %4lu to %4lu\n",
+                    sr_getSize(dest), sr_getMinM(dest), destMaxM);
+            fprintf(stderr, "Performing Generation with %zu Threads\n",
+                    threads);
+            fprintf(stderr, "Expanding by: %s%s\n",
+                    expandSupers ? "Supersets " : "",
+                    expandMutate ? "Mutations " : "");
+        }
     }
 
     // Set Up Expansion Programs
@@ -166,13 +175,14 @@ int main(int argc, char **argv)
     // Clean Up
     mutateInit(0);
 
-    fprintf(stderr, "Done\n");
+    if (verbose) fprintf(stderr, "Done\n");
 
     // ============ Export and Cleanup
 
     // Export Destination
-    fprintf(stderr, "Exporting Destination Record...");
+    if (verbose) fprintf(stderr, "Exporting Destination Record...");
     if (openExport(dest, destFname)) return 1;
+    else if (verbose) fprintf(stderr, "Success\n");
 
     // Unlink Records
     sr_release(src);
