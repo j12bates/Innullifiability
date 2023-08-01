@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-temp=$(mktemp rec.XXXXXX)
+temp=$(mktemp /dev/shm/rec.XXXXXX)
 tsize=$1
 tmaxm=$2
 th=$3
@@ -11,14 +11,14 @@ echo "N = $tsize, M <= $tmaxm" >&2
 echo >&2
 echo ================ Finding Base Sets >&2
 ./create 3 0 $tmaxm $temp
-./weed 3 $temp
+./weed 3 $temp $th
 
 size=3
 while [ $size -lt $tsize ]
 do
     echo >&2
     echo ================ Expanding Size $size >&2
-    ./gen -o $size $temp $temp $th
+    ./gen -c $size $temp $temp $th
     size=$(($size + 1))
 done
 

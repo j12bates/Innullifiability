@@ -44,10 +44,10 @@ unsigned long max;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-smov] srcSize src.dat dest.dat [threads]\n"
+        "Usage: %s [-smcv] srcSize src.dat dest.dat [threads]\n"
         "   -s      Expansion Phase Toggle -- Supersets\n"
         "   -m      Expansion Phase Toggle -- Mutations\n"
-        "   -o      Create/Overwrite Destination (Source M-values)\n"
+        "   -c      Create/Overwrite Destination (Source M-values)\n"
         "   -v      Verbose: Display Progress Messages\n";
 
 int main(int argc, char **argv)
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        res = optHandle("smov", true, argc, argv,
+        res = optHandle("smcv", true, argc, argv,
                 &expandSupers, &expandMutate, &omitImportDest,
                 &verbose);
         if (res) {
