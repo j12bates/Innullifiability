@@ -12,9 +12,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include "setRec/setRec.h"
-
 #include "iface.h"
+#include "setRec.h"
 
 // Open Record File and Import
 int openImport(SR_Base *rec, char *fname)

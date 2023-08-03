@@ -85,10 +85,10 @@
 #include <assert.h>
 #include <pthread.h>
 
-#include "setRec/setRec.h"
-#include "mutate/mutate.h"
-#include "supers/supers.h"
-#include "nulTest/nulTest.h"
+#include "lib/setRec.h"
+#include "lib/mutate.h"
+#include "lib/supers.h"
+#include "lib/nulTest.h"
 
 // Bitmasks for Set Records
 #define NULLIF      1 << 0

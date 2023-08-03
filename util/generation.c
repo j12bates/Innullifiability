@@ -16,11 +16,10 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "setRec/setRec.h"
-#include "mutate/mutate.h"
-#include "supers/supers.h"
-
-#include "iface.h"
+#include "../lib/iface.h"
+#include "../lib/setRec.h"
+#include "../lib/mutate.h"
+#include "../lib/supers.h"
 
 // Number of Threads
 size_t threads = 1;

@@ -12,10 +12,9 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "setRec/setRec.h"
-#include "nulTest/nulTest.h"
-
-#include "iface.h"
+#include "../lib/iface.h"
+#include "../lib/setRec.h"
+#include "../lib/nulTest.h"
 
 // Number of Threads
 size_t threads = 1;

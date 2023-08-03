@@ -9,9 +9,8 @@
 
 #include <assert.h>
 
-#include "setRec/setRec.h"
-
-#include "iface.h"
+#include "../lib/iface.h"
+#include "../lib/setRec.h"
 
 // Set Record
 SR_Base *rec;

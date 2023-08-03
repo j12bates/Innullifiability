@@ -5,6 +5,8 @@
 #ifndef IFACE_H
 #define IFACE_H
 
+#include "setRec.h"
+
 #define NULLIF 1 << 0
 #define ONLY_SUP 1 << 1
 #define MARKED NULLIF | ONLY_SUP
