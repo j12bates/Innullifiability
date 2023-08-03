@@ -1,5 +1,6 @@
 *.out
-innullifiables
+bin/
+obj/
 
 *.o
 *.dat
