@@ -113,18 +113,18 @@ static unsigned long long mcn(size_t, size_t);
 // Returns NULL on memory or input error
 
 // Creates the information structure used by this library to access the
-// record. Instantiated with the Set Size, which is immutable. Must be
-// allocated or imported to in order to have a usable record.
+// record. Instantiated with the Set Size, which is immutable, and the
+// record is empty.
 Base *sr_initialize(size_t size)
 {
-    // Invalid Set Size
+    // Check input
     if (size == 0) return NULL;
 
-    // Allocate Memory for Information Structure
+    // Allocate Information Structure
     Base *base = malloc(sizeof(Base));
     if (base == NULL) return NULL;
 
-    // Populate Information Structure
+    // Populate to indicate empty
     base->rec = NULL;
     base->size = size;
     base->mval_min = 1; // avoid uflow when decrementing for total calc
@@ -134,13 +134,12 @@ Base *sr_initialize(size_t size)
 }
 
 // Allocate a Set Record
-// Returns 0 on success, -1 on memory error, -2 on input error
+// Returns 0 on success, -1 on memory error (read errno), -2 on input
+// error
 
-// Allocates memory to a set record, enabling it for use. Calling this
-// function also will specify the M-Value Range for the record to cover.
-// Min can be set to any low number safely to include every set up to
-// Max. On error, record is preserved. Record can be re-allocated any
-// number of times with any M-Value range, until released.
+// Allocates a specific M-Value range to a Set Record, enabling it for
+// use. Min can be set to any low number safely to include every set up
+// to Max. On error, record is preserved.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
     // Exit if Null Pointer
@@ -167,17 +166,15 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 
 // Release a Set Record
 
-// Deallocates the information structure, and effectively destroys the
-// record.
+// Deallocates the record and its information structure. Record is
+// destroyed.
 void sr_release(Base *base)
 {
     // Exit if Null Pointer
     if (base == NULL) return;
 
-    // Free the Record Array
+    // Free the array, then the information structure
     free(base->rec);
-
-    // Free the Information Structure itself
     free(base);
 
     return;
@@ -205,18 +202,18 @@ unsigned long sr_getMaxM(const Base *base)
 // Returns 1 if newly marked, 0 if already marked or unallocated, -2 on
 // input error
 
-// ANDs on the given bits on the specified set in the record, thus
+// ORs on the given bits on the specified set in the record, thus
 // 'Marking' that set. The input must be a valid set, in increasing
 // order, within the record's allocated M-Value Range.
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
-    // Exit if Null Pointer
+    // Exit if Null/Empty
     if (base == NULL) return -2;
     if (base->rec == NULL) return -2;
 
-    // Check if set is valid: values must be positive and increasing,
-    // and size must be N
+    // Validate input set: values must be positive and ascending, and
+    // size must be N
     if (setc != base->size) return -2;
     if (set[0] < 1) return -2;
     for (size_t i = 1; i < setc; i++)
@@ -233,14 +230,15 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 }
 
 // Output Sets with Particular Mark Status
-// Returns number of sets on success, -1 on memory error
+// Returns number of sets on success, -1 on memory error (read errno),
+// -2 on input error
 
 // Scans the entire record, outputting raw sets that are marked in it
 // according to the given bit settings.
 ssize_t sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
-    // Exit if Null Pointer
+    // Exit if Null/Empty
     if (base == NULL) return -2;
     if (base->rec == NULL) return -2;
 
@@ -253,8 +251,8 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 }
 
 // Output Sets with Particular Mark Status, for Parallelism
-// Returns number of sets on success, -1 on memory error, -2 on input
-// error
+// Returns number of sets on success, -1 on memory error (read errno),
+// -2 on input error
 
 // Same as above, but for parallelism. The mod is a number less than the
 // number of concurrent calls. Each call should give a different value
@@ -263,11 +261,9 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
-    // Exit if Null Pointer
+    // Exit if Null/Empty, invalid parallelism
     if (base == NULL) return -2;
     if (base->rec == NULL) return -2;
-
-    // Check if parallelism is valid
     if (mod >= concurrents) return -2;
 
     // Output Sets that Match Query
@@ -282,8 +278,8 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
 
-// Loads a record's data from a file into the record provided. Must be
-// of matching set sizes.
+// Loads a record's data from a file into the record provided, enabling
+// it for use. File must be of matching set size.
 int sr_import(Base *base, FILE *restrict f)
 {
     int res;
@@ -332,7 +328,7 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
-    // Exit if Null Pointer
+    // Exit if Null/Empty
     if (base == NULL) return -2;
     if (base->rec == NULL) return -2;
 
@@ -376,14 +372,73 @@ int sr_export(const Base *base, FILE *restrict f)
 int mark(Rec *rec, unsigned long minm,
         const unsigned long *set, size_t setc, char mask)
 {
-    // Get the address
-    size_t index = setToIndex(set, setc) - mcn(minm - 1, setc);
-
     // OR the bits we care about
+    size_t index = setToIndex(set, setc) - mcn(minm - 1, setc);
     char prev = atomic_fetch_or(rec + index, mask);
 
-    // If they weren't already set, return 1, else 0
+    // Whether they were already set
     return (prev & mask) != mask;
+}
+
+// Iteratively Check Records and Output Sets
+// Returns number of sets on success, -1 on memory error (read errno)
+
+// This is a function which looks across an entire record. It iterates
+// across all the sets, keeping a pointer to the current entry in the
+// record as well as an array of values that corresponds to that set.
+// If a set matches the bit-field criteria provided, it will be output
+// to the given function.
+
+// The function also can be configured for running in parallel. It gives
+// an option for querying every Nth element.
+ssize_t query(const Rec *rec,
+        unsigned long minm, unsigned long maxm, size_t size,
+        size_t offset, size_t skip, char mask, char bits,
+        void (*out)(const unsigned long *, size_t))
+{
+    // Number of Sets
+    ssize_t setc = 0;
+
+    // The set representation we'll use
+    unsigned long *values = calloc(size, sizeof(unsigned long));
+    if (values == NULL) return -1;
+
+    // The first allocated set, adjusted to our starting point
+    indexToSet(values, size, 0);
+    values[size - 1] = minm;
+    incSetValues(values, size, offset);
+
+    // Loop over every Nth set, checking and outputting
+    size_t total = TOTAL(minm, maxm, size);
+    for (size_t i = offset; i < total; i += skip)
+    {
+        bool match = false;
+
+        // Get current bits
+        char cur = atomic_load(rec + i);
+
+        // Specific Bitmask Case: if the bits in the bitmask are all set
+        // according to the settings
+        if (mask != 0) match = (cur & mask) == (bits & mask);
+
+        // Zero Bitmask Case: treat the settings as the bitmask; match
+        // if any of the bits in that bitmask are set, or if we have the
+        // wildcard bitmask of all zeros
+        else match = (cur & bits) != 0 || bits == 0;
+
+        // If we have a match, output and keep count
+        if (match) {
+            if (out != NULL) out(values, size);
+            setc++;
+        }
+
+        // Advance to Next Nth Set
+        incSetValues(values, size, skip);
+    }
+
+    free(values);
+
+    return setc;
 }
 
 // Compute Index from Set
@@ -424,75 +479,6 @@ void indexToSet(unsigned long *set, size_t setc, size_t index)
     }
 
     return;
-}
-
-// Iteratively Check Records and Output Sets
-// Returns number of sets on success, -1 on memory error
-
-// This is a function which looks across an entire record. It iterates
-// across all the sets, keeping a pointer to the current entry in the
-// record as well as an array of values that corresponds to that set.
-// If a set matches the bit-field criteria provided, it will be output
-// to the given function.
-
-// The function also can be configured for running in parallel. It gives
-// an option for querying every Nth element.
-ssize_t query(const Rec *rec,
-        unsigned long minm, unsigned long maxm, size_t size,
-        size_t offset, size_t skip, char mask, char bits,
-        void (*out)(const unsigned long *, size_t))
-{
-    // Counter for Number of Sets
-    ssize_t setc = 0;
-
-    // Initialize a Set
-    unsigned long *values = calloc(size, sizeof(unsigned long));
-    if (values == NULL) return -1;
-
-    // First set with the min M-value
-    indexToSet(values, size, 0);
-    values[size - 1] = minm;
-
-    // Find the Segment Bounds
-    size_t total = TOTAL(minm, maxm, size);
-    // size_t begin = total * <seg> / <divs>;
-    // size_t end = total * (<seg> + 1) / <divs>;
-
-    // Starting Point
-    incSetValues(values, size, offset);
-
-    // Loop over every Nth set, checking and outputting
-    for (size_t i = offset; i < total; i += skip)
-    {
-        // Whether this set is a match
-        bool match = false;
-
-        // Get current bits
-        char cur = atomic_load(rec + i);
-
-        // Specific Bitmask Case: if the bits in the bitmask are all set
-        // according to the settings
-        if (mask != 0) match = (cur & mask) == (bits & mask);
-
-        // Zero Bitmask Case: treat the settings as the bitmask; match
-        // if any of the bits in that bitmask are set, or if we have the
-        // wildcard bitmask of all zeros
-        else match = (cur & bits) != 0 || bits == 0;
-
-        // If we have a match, output and keep count
-        if (match) {
-            if (out != NULL) out(values, size);
-            setc++;
-        }
-
-        // Advance to Next Nth Set
-        incSetValues(values, size, skip);
-    }
-
-    // Deallocate Memory
-    free(values);
-
-    return setc;
 }
 
 // Increment Set Value Array
