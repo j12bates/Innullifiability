@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "../setRec/setRec.h"
+#include "../lib/setRec.h"
 
 #define SINGLE  1 << 0
 #define SKIP    1 << 1

@@ -2,36 +2,36 @@
 
 #include <stdio.h>
 
-#include "../eqSets/eqSets.h"
+#include "../lib/mutate.h"
 
 void expandPrint(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
 int main(int argc, char *argv[])
 {
-    eqSetsInit(6);
+    mutateInit(6);
     printf("Initialized with M = 6\n\n");
 
     unsigned long nullThree[2] = {3, 3};
-    eqSets(nullThree, 2, &printSet);
+    mutate(nullThree, 2, &printSet);
     printf("\nExpanded from (3,3)\n\n");
 
     unsigned long nullTwo[2] = {2, 2};
-    eqSets(nullTwo, 2, &printSet);
+    mutate(nullTwo, 2, &printSet);
     printf("\nExpanded from (2,2)\n\n");
 
     unsigned long oneFour[2] = {1, 4};
-    eqSets(oneFour, 2, &printSet);
+    mutate(oneFour, 2, &printSet);
     printf("\nExpanded from (1,4)\n\n");
 
     unsigned long justTwo[1] = {2};
-    eqSets(justTwo, 1, &printSet);
+    mutate(justTwo, 1, &printSet);
     printf("\nExpanded from (2)\n\n");
 
-    eqSets(justTwo, 1, &expandPrint);
+    mutate(justTwo, 1, &expandPrint);
     printf("\nExpanded from above expansions of (2)\n\n");
 
-    eqSetsInit(0);
+    mutateInit(0);
     printf("Freeing Memory\n");
 
     return 0;
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 
 void expandPrint(const unsigned long *set, size_t setc)
 {
-    eqSets(set, setc, &printSet);
+    mutate(set, setc, &printSet);
     return;
 }
 

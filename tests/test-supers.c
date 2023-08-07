@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "../supers/supers.h"
+#include "../lib/supers.h"
 
 void expandPrint(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);

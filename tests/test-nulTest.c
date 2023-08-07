@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "../nulTest/nulTest.h"
+#include "../lib/nulTest.h"
 
 int main(int argc, char *argv[])
 {
