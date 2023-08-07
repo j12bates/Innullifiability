@@ -30,21 +30,16 @@ int supersInit(unsigned long max)
 int supers(const unsigned long *set, size_t setc,
         void (*out)(const unsigned long *, size_t))
 {
-    // Validate Input Set Values
-    for (size_t i = 0; i < setc; i++)
-    {
-        // Exit if value out of range
-        if (set[i] > maxValue) return -2;
+    // Validate input set: values must be ascending and in-range
+    for (size_t i = 1; i < setc; i++)
+        if (set[i - 1] >= set[i]) return -2;
+    if (set[setc - 1] > maxValue) return -2;
 
-        // Exit if not in ascending order or has repetition
-        if (i > 0) if (set[i - 1] >= set[i]) return -2;
-    }
-
-    // Allocate space for expanded sets
+    // Set representation for expansions
     unsigned long *super = calloc(setc + 1, sizeof(unsigned long));
     if (super == NULL) return -1;
 
-    // Copy Set Values Over
+    // Initialize with input set
     for (size_t i = 0; i < setc; i++)
         super[i + 1] = set[i];
 
@@ -57,7 +52,7 @@ int supers(const unsigned long *set, size_t setc,
         super[pos] = i;
 
         // If we've reached the next value, move ahead of it so we stay
-        // in ascending order
+        // in ascending order, skip since we have a duplicate
         if (pos < setc) if (super[pos + 1] == i) {
             pos++;
             continue;
@@ -67,7 +62,6 @@ int supers(const unsigned long *set, size_t setc,
         if (out != NULL) out(super, setc + 1);
     }
 
-    // Deallocate Memory
     free(super);
 
     return 0;

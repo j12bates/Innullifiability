@@ -103,7 +103,7 @@ int mutateInit(unsigned long max)
     eqPairs = NULL;
     if (max < 2) return -2;
 
-    // Each value gets an array
+    // Each substitutable value gets an array
     eqPairs = calloc(max, sizeof(long long *));
     if (eqPairs == NULL) return -1;
 
@@ -127,66 +127,49 @@ int mutateInit(unsigned long max)
 // Returns 0 on success, -1 on memory error, -2 on input error
 
 // This function iteratively expands a set by one element using
-// equivalent pairs. It takes in a set, which must be an array of
-// numbers in ascending order and with no repetitions, except for the
-// important case in which the set is of length two, as either way one
-// of the values will be replaced with an equivalent pair which cannot
-// contain the same value anyways. The function will, for every value,
-// substitute every equivalent pair, inserting the values into an array.
-// The sets it generates are guaranteed to have no repetitions and be in
-// ascending order as well. These sets are passed into the output
-// function as they are generated.
+// equivalent pairs. It takes in a set, which must be either an array of
+// numbers in ascending order and with no repetitions, or a pair of the
+// same number. The function will, for every value, substitute every
+// equivalent pair, inserting the values into an array. The sets it
+// generates are guaranteed to have no repetitions and be in ascending
+// order as well. These sets are passed into the output function as they
+// are generated.
 int mutate(const unsigned long *set, size_t setc,
         void (*out)(const unsigned long *, size_t))
 {
-    // Validate Input Set Values
-    for (size_t i = 0; i < setc; i++)
-    {
-        // Exit if value out of range
-        if (set[i] > maxValue) return -2;
+    // Special case: size-2 set may be the same value twice
+    bool pairDup = false;
+    if (setc == 2) pairDup = set[0] == set[1];
 
-        if (i > 0)
-        {
-            // Exit if not in ascending order
-            if (set[i - 1] > set[i]) return -2;
+    // Validate input set: values must be ascending and in-range
+    if (!pairDup) for (size_t i = 1; i < setc; i++)
+        if (set[i - 1] >= set[i]) return -2;
+    if (set[setc - 1] > maxValue) return -2;
 
-            // Exit if there's a repetition and this isn't length-two
-            if (set[i - 1] == set[i] && setc != 2) return -2;
-        }
-    }
-
-    // Allocate space for expanded sets
+    // Set representation for expansions
     unsigned long *newSet = calloc(setc + 1, sizeof(unsigned long));
     if (newSet == NULL) return -1;
 
-    // Iterate over the values in the set
-    for (size_t i = 0; i < setc; i++)
+    // Iterate over the unique values in the set
+    for (size_t i = 0; i < (pairDup ? 1 : setc); i++)
     {
-        // Get the value in that position
         unsigned long value = set[i];
-
-        // If this is a repeat, it won't result in anything new
-        if (i > 0) if (set[i] == set[i - 1]) continue;
 
         // Iterate over the equivalent pairs for that value
         for (size_t j = 0; j < maxPairs; j++)
         {
-            // The equivalent pair
             long long pair = eqPairs[value - 1][j];
-
-            // Exit this loop if there are no more equivalent pairs
             if (pair == 0) break;
 
-            // Otherwise, try inserting it
-            if (insertPair(set, setc, i, newSet, pair) == false)
+            // Try inserting it and skip if it's invalid
+            if (!insertPair(set, setc, i, newSet, pair))
                 continue;
 
-            // If it worked, call function
+            // Otherwise, output set
             if (out != NULL) out(newSet, setc + 1);
         }
     }
 
-    // Deallocate memory
     free(newSet);
 
     return 0;
@@ -248,9 +231,9 @@ bool insertPair(const unsigned long *set, size_t setc, size_t replace,
     unsigned long pairA = (unsigned long) pair & 0xFFFFFFFF;
     unsigned long pairB = (unsigned long) (pair >> 32) & 0xFFFFFFFF;
 
-    // Insert values one at a time: `pairA` will contain the next new
-    // (equivalent pair) value until both values have been inserted, at
-    // which point it will be 0
+    // Insert values from the input set one at a time: 'pairA' will
+    // contain the next new (equivalent pair) value until both have been
+    // inserted, at which point it will be 0, 'index' is for the new set
     size_t index = 0;
     for (size_t i = 0; i < setc; i++)
     {
