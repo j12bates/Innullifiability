@@ -1,9 +1,16 @@
 // ================== EXHAUSTIVE NULLIFIABILITY TEST ==================
 
+// This code, honestly, is pretty bad. It works, but I know it could be
+// so much better. I just have no idea how to optimize it. This will be
+// replaced at some point, and I feel like it'll probably end up being
+// done in a high-level language like Haskell or something. This is just
+// so slow. For goodness sake, adding in a base case for zero-length
+// increases runtime by like 20-30%.
+
 #include <stdlib.h>
 #include <stdbool.h>
 
-// Returns 0 if nullifiable, 1 if innullifiable, or -1 on memory error
+// Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
 
 // This function will simply determine whether or not a set is
 // nullifiable. It is a recursive function, and it starts by checking if
@@ -15,9 +22,8 @@
 // after every operation.
 int nulTest(const unsigned long *set, size_t setc)
 {
-    // Base case: singleton set is nullifiable if zero, innullifiable
-    // otherwise
-    if (setc == 1) return *set == 0 ? 0 : 1;
+    // Base case
+    if (setc == 1) return !!*set;
 
     // Here we're going to pass over everything once, just to check if
     // we can immediately say this set is nullifiable without doing a
@@ -51,8 +57,7 @@ int nulTest(const unsigned long *set, size_t setc)
             // Fill the new set with all the other values, leave the
             // first position for the operation result
             size_t index = 1;
-            for (size_t i = 0; i < setc; i++)
-            {
+            for (size_t i = 0; i < setc; i++) {
                 if (i == pairA || i == pairB) continue;
                 else newSet[index++] = set[i];
             }
@@ -78,7 +83,7 @@ int nulTest(const unsigned long *set, size_t setc)
             else quotient = false;
 
             // Iterate through those replacement values
-            for (size_t i = 0; i < (quotient ? 4 : 3); i++)
+            for (size_t i = 0; i < 3ul + quotient; i++)
             {
                 // Place into the new set
                 newSet[0] = replacements[i];
@@ -88,7 +93,7 @@ int nulTest(const unsigned long *set, size_t setc)
 
                 // If we get an error or if it's been nullified, carry
                 // that on
-                if (ret == -1 || ret == 0) {
+                if (ret != 1) {
                     free(newSet);
                     return ret;
                 }
