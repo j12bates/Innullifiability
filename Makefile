@@ -1,5 +1,5 @@
 CC		:= gcc
-CCFLAGS	:= -Wall -Wextra
+CCFLAGS	:= -Wall -Wextra -std=c17
 
 OPFLAGS	:= -O2 -flto
 DBFLAGS	:= -g -DDEBUG

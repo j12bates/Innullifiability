@@ -27,15 +27,16 @@ int openImport(SR_Base *rec, char *fname)
 
     // Import Record
     int res = sr_import(rec, f);
+    fclose(f);
+
     if (res) {
         if (res == -1) perror("Import Error");
-        else if (res == -2) fprintf(stderr, "Wrong Size\n");
-        else if (res == -3) fprintf(stderr, "Invalid Record File\n");
+        else if (res == -2)
+            fprintf(stderr, "Import Error: Wrong Size\n");
+        else if (res == -3)
+            fprintf(stderr, "Import Error: Invalid Record File\n");
         return 1;
     }
-
-    // Close File
-    fclose(f);
 
     return 0;
 }
@@ -52,14 +53,13 @@ int openExport(SR_Base *rec, char *fname)
 
     // Export Record
     int res = sr_export(rec, f);
+    fclose(f);
+
     assert(res != -2);
     if (res == -1) {
         perror("Export Error");
         return 1;
     }
-
-    // Close File
-    fclose(f);
 
     return 0;
 }
@@ -157,7 +157,8 @@ int optHandle(const char *opts, _Bool setting,
 
     // For remembering whether or not an option was used
     size_t optc = strlen(opts);
-    _Bool used[optc] = {};
+    _Bool used[optc];
+    for (size_t i = 0; i < optc; i++) used[optc] = 0;
 
     // Go through the passed options and mark them in
     for (size_t i = 0; i < passc; i++) {

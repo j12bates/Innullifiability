@@ -60,9 +60,10 @@
 // the number of concurrent calls) each iteration, which I found to be
 // faster than splitting the query space up into N segments.
 
-#include <stdlib.h>
-#include <stdbool.h>
 #include <stdatomic.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "setRec.h"
 

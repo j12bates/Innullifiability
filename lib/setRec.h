@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 // Set Record Information Structure
 typedef struct Base SR_Base;
