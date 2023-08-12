@@ -158,7 +158,7 @@ int optHandle(const char *opts, _Bool setting,
     // For remembering whether or not an option was used
     size_t optc = strlen(opts);
     _Bool used[optc];
-    for (size_t i = 0; i < optc; i++) used[optc] = 0;
+    for (size_t i = 0; i < optc; i++) used[i] = 0;
 
     // Go through the passed options and mark them in
     for (size_t i = 0; i < passc; i++) {
