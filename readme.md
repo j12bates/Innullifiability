@@ -17,7 +17,9 @@ possible to construct a null-evaluating expression, a set is
 
 todo: examples of above
 
-## Basic Logic
+## Reasoning
+todo: necessary? maybe instead talk about 'null route' here
+
 Through some basic reasoning, we can know that a set is nullifiable if
 and only if there exist two non-overlapping expressions evaluating to
 the same number: since we're using positive integers, the only way to
@@ -28,22 +30,43 @@ nullifiability, we can easily say any set that contains the same value
 twice is nullifiable, so we'll only look at sets without repetition. We
 also know that any superset of a nullifiable set is also nullifiable.
 
+## Program Logic
 This program is for finding all the innullifiable sets in a given search
 space. Running an exhaustive test for every set in a search space would
 be quite costly, so the approach actually used here is to generate new
 nullifiable sets from smaller ones. There are two 'expansion phases' for
 generating new sets from already-computed smaller ones: making
-supersets, and introducing 'mutations' to the values. These mutations
-essentially replace values with pairs of different values, from which a
-simple expression evaluating to the original value can be made, thus
-creating a completely new set that is still nullifiable. Importantly,
-these mutations need not be introduced to sets generated through a
-superset phase, as for those the original set would've undergone all
-those same mutations too, making additional ones redundant.
+supersets, and introducing 'mutations' to the values.
 
-todo: examples of above
+Superset expansion is pretty straightforward: any values that can be
+inserted will be, and the set remains nullifiable. For example, the set
+$`[2, 3, 5]`$ is nullifiable, as $`2 + 3 - 5 = 0`$. When any value X is
+inserted, it is still nullifiable, as $`(2 + 3 - 5) * X = 0`$.
 
-todo: bit about how this doesn't cover everything
+Mutations essentially make a small change to the values. They replace a
+value with pairs of different values, from which a simple expression
+evaluating to the original value can be made, thus creating a completely
+new set that is still nullifiable. For example, given the same example
+set as before, we can substitute $`5`$ with $`[7, 12]`$, since $`12 - 7
+= 5`$, and $`2 + 3 - (12 - 7) = 0`$.
+
+todo: redo the following p, you're talking about 'null route' but really
+it's more precise to talk about reducing to a source set, but here's the
+basic idea
+
+When we're talking about a nullifiable set, it's going to have a 'null
+route', or just general arithmetic steps that yield a result of zero,
+not counting any further multiplication for spare values. Supersets
+serve to ensure that larger sets with the exact same null route are
+accounted for. Mutations account for other larger sets by adding steps
+to the original null route, ensuring every possible expansion of the
+arithmetic expression is covered. Mutations need not be introduced to
+sets generated through a superset phase, as the original set would've
+undergone all those same mutations too, making additional ones
+redundant. Together, these ensure that every set which can be
+immediately reduced to one of the source sets is covered, either by
+ignoring a value at the end (superset) or operating on two values to get
+the original (mutation).
 
 ## Workflow
 todo: synopsis? maybe just some command examples... idk
@@ -59,26 +82,29 @@ A Record is configured with set size--the number of values in each set,
 and M-Value Range--the range of the greatest set values, inclusive. Sets
 are represented as values in ascending order (no repeated values), and
 the record is itself sorted by set values, greater ones taking
-precedence[^1].
+precedence.[^1]
 
 For example, you might have a record with size 4 and M-Value ranging
 from 11 to 16. The record would store information about sets starting at
 $`{1, 2, 3, 11}`$ and ending at $`{13, 14, 15, 16}`$. The order would be
 as follows:
 
-0. $`{1, 2, 3, 11}`$
-1. $`{1, 2, 4, 11}`$
-2. $`{1, 3, 4, 11}`$
-3. $`{2, 3, 4, 11}`$
-4. $`{1, 2, 5, 11}`$
-5. $`{1, 3, 5, 11}`$
-...
-1607. $`{11, 14, 15, 16}`$
-1608. $`{12, 14, 15, 16}`$
-1609. $`{13, 14, 15, 16}`$
+0. $`[1, 2, 3, 11]`$
+1. $`[1, 2, 4, 11]`$
+2. $`[1, 3, 4, 11]`$
+3. $`[2, 3, 4, 11]`$
+4. $`[1, 2, 5, 11]`$
+5. $`[1, 3, 5, 11]`$
 
-[^1]: See ['Combinatorial Number System'](https://en.wikipedia.org/wiki/
-Combinatorial_Number_System) on the English Wikipedia
+...
+
+1607. $`[11, 14, 15, 16]`$
+1608. $`[12, 14, 15, 16]`$
+1609. $`[13, 14, 15, 16]`$
+
+[^1]: See ['Combinatorial Number System'
+](https://en.wikipedia.org/wiki/Combinatorial_Number_System) on the
+English Wikipedia
 
 ### Programs
 There are four programs. Each program works on a record at least, and so
@@ -116,4 +142,13 @@ be provided with the set size, as well as the min and max M-values, and
 the filename.
 
 ### Scripts
-todo: this
+
+#### `autoinnull`, Automatic
+This script takes in a set size and a max M-value, and will generate all
+innullifiable sets in that search space, all from scratch. It does this
+using a shared memory file for record storage, for fast I/O speeds
+between commands. It does sequential generations of all the same value
+range, with a weeding phase at the end, before displaying the resulting
+innullifiable sets. The weeding phase is necessary because the source
+sets are all within the M-value range, and so there may be sets which
+can't reduce to one of those and have to utilize higher values.
