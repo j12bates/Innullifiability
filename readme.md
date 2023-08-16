@@ -30,6 +30,20 @@ nullifiability, we can easily say any set that contains the same value
 twice is nullifiable, so we'll only look at sets without repetition. We
 also know that any superset of a nullifiable set is also nullifiable.
 
+Another way of thinking about this zero-evaluating arithmetic expression
+is to imagine binary operations being done on pairs of values in the
+set, one at a time, with the result taking those values' place,
+'reducing' the set. If there is ever two of the same value, those create
+a zero (by subtraction) and then the zero absorbs the remaining values
+(by multiplication). Here we see a set being continuously reduced to
+prove its nullifiability:
+
+1. $`[2, 3, 4, 10, 14]`$
+2. $`[2, 7, 10, 14], 3 + 4 = 7`$
+3. $`[10, 14, 14], 2 * 7 = 14`$
+4. $`[0, 10], 14 - 14 = 0`$
+5. $`[0], 0 * 10 = 0`$
+
 ## Program Logic
 This program is for finding all the innullifiable sets in a given search
 space. Running an exhaustive test for every set in a search space would
@@ -40,33 +54,27 @@ supersets, and introducing 'mutations' to the values.
 
 Superset expansion is pretty straightforward: any values that can be
 inserted will be, and the set remains nullifiable. For example, the set
-$`[2, 3, 5]`$ is nullifiable, as $`2 + 3 - 5 = 0`$. When any value X is
-inserted, it is still nullifiable, as $`(2 + 3 - 5) * X = 0`$.
+$`[2, 3, 5]`$ is nullifiable, as $`2 + 3 - 5 = 0`$. When any value $`X`$
+is inserted, it is still nullifiable, as $`(2 + 3 - 5) * X = 0`$.
 
 Mutations essentially make a small change to the values. They replace a
 value with pairs of different values, from which a simple expression
 evaluating to the original value can be made, thus creating a completely
 new set that is still nullifiable. For example, given the same example
 set as before, we can substitute $`5`$ with $`[7, 12]`$, since $`12 - 7
-= 5`$, and $`2 + 3 - (12 - 7) = 0`$.
-
-todo: redo the following p, you're talking about 'null route' but really
-it's more precise to talk about reducing to a source set, but here's the
-basic idea
-
-When we're talking about a nullifiable set, it's going to have a 'null
-route', or just general arithmetic steps that yield a result of zero,
-not counting any further multiplication for spare values. Supersets
-serve to ensure that larger sets with the exact same null route are
-accounted for. Mutations account for other larger sets by adding steps
-to the original null route, ensuring every possible expansion of the
-arithmetic expression is covered. Mutations need not be introduced to
+= 5`$, and $`2 + 3 - (12 - 7) = 0`$. Mutations need not be introduced to
 sets generated through a superset phase, as the original set would've
 undergone all those same mutations too, making additional ones
-redundant. Together, these ensure that every set which can be
-immediately reduced to one of the source sets is covered, either by
-ignoring a value at the end (superset) or operating on two values to get
-the original (mutation).
+redundant.
+
+When we think in terms of 'reducing' a set, mutations cover every way a
+set could immediately reduce to one of the input sets, and supersets
+cover any way of adding spare values. Thus, we know that everything that
+can be reduced to one of the input sets, or can be reduced to zero by
+the same pattern, will definitely be output. If we input every
+nullifiable set in the range of values up to $`X`$, then any remaining
+nullifiable sets cannot reduce to any of them. The first step in their
+reduction is to compute a value greater than $`X`$.
 
 ## Workflow
 todo: synopsis? maybe just some command examples... idk
@@ -102,8 +110,8 @@ as follows:
 1608. $`[12, 14, 15, 16]`$
 1609. $`[13, 14, 15, 16]`$
 
-[^1]: See ['Combinatorial Number System'
-](https://en.wikipedia.org/wiki/Combinatorial_Number_System) on the
+[^1]: See ['Combinatorial number system'
+](https://en.wikipedia.org/wiki/Combinatorial_number_system) on the
 English Wikipedia
 
 ### Programs
