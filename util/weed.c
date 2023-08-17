@@ -54,12 +54,16 @@ int main(int argc, char **argv)
         }
     }
 
+    // Validate Thread Count
+    if (threads < 1) {
+        fprintf(stderr, "Error: Must use at least 1 thread\n");
+        return 1;
+    }
+
     // ============ Import Record
     rec = sr_initialize(size);
 
-    if (verbose) fprintf(stderr, "Importing Record...");
     if (openImport(rec, fname)) return 1;
-    else if (verbose) fprintf(stderr, "Success\n");
 
     // ============ Iteratively Perform Test
 
@@ -101,12 +105,8 @@ int main(int argc, char **argv)
         }
     }
 
-    if (verbose) fprintf(stderr, "Done\n");
-
     // ============ Export and Cleanup
-    if (verbose) fprintf(stderr, "Exporting Record...");
     if (openExport(rec, fname)) return 1;
-    else if (verbose) fprintf(stderr, "Success\n");
 
     sr_release(rec);
 

@@ -81,6 +81,12 @@ int main(int argc, char **argv)
         expandMutate = true;
     }
 
+    // Validate Thread Count
+    if (threads < 1) {
+        fprintf(stderr, "Error: Must use at least 1 thread\n");
+        return 1;
+    }
+
     // ============ Import Records
 
     // Initialize Records
@@ -88,30 +94,27 @@ int main(int argc, char **argv)
     dest = sr_initialize(srcSize + 1);
 
     // Import Source Record from File
-    if (verbose) fprintf(stderr, "Importing Source Record...");
-    if (openImport(src, srcFname)) return 1;
-    else if (verbose) fprintf(stderr, "Success\n");
+    if (openImport(src, srcFname)) {
+        fprintf(stderr, "Caused by Source\n");
+        return 1;
+    }
 
     // Import Destination Record from File
     if (!omitImportDest) {
-        if (verbose) fprintf(stderr, "Importing Destination Record...");
-        if (openImport(dest, destFname)) return 1;
-        else if (verbose) fprintf(stderr, "Success\n");
+        if (openImport(dest, destFname)) {
+            fprintf(stderr, "Caused by Destination\n");
+            return 1;
+        }
     }
 
     // Or Create it from Scratch
     else {
-        if (verbose) fprintf(stderr,
-                "Allocating Destination Record...");
-
         int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
         assert(res != -2);
         if (res == -1) {
-            perror("Allocation Error");
+            perror("Destination Allocation Error");
             return 1;
         }
-
-        if (verbose) fprintf(stderr, "Success\n");
     }
 
     // ============ Perform Expansions in Threads
@@ -174,14 +177,10 @@ int main(int argc, char **argv)
     // Clean Up
     mutateInit(0);
 
-    if (verbose) fprintf(stderr, "Done\n");
-
     // ============ Export and Cleanup
 
     // Export Destination
-    if (verbose) fprintf(stderr, "Exporting Destination Record...");
     if (openExport(dest, destFname)) return 1;
-    else if (verbose) fprintf(stderr, "Success\n");
 
     // Unlink Records
     sr_release(src);
