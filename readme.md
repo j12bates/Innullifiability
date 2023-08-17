@@ -34,16 +34,17 @@ also know that any superset of a nullifiable set is also nullifiable.
 Another way of thinking about this null-evaluating arithmetic expression
 is to imagine binary operations being done on pairs of values in the
 set, one at a time, with the result taking those values' place,
-'reducing' the set. If there is ever two of the same value, those create
-a zero (by subtraction) and then the zero absorbs the remaining values
-(by multiplication). Here we see a set being continuously reduced to
-prove its nullifiability:
+'reducing' the set. If there are ever two of the same value, those
+create a zero (by subtraction) and then the zero absorbs any spare
+values (by multiplication). This means it's also perfectly legal to
+reduce a set by simply removing values. Here we see a set being
+continuously reduced to prove its nullifiability:
 
 1. $`[2, 3, 4, 10, 14]`$
 2. $`[2, 7, 10, 14], 3 + 4 = 7`$
 3. $`[10, 14, 14], 2 * 7 = 14`$
 4. $`[0, 10], 14 - 14 = 0`$
-5. $`[0], 0 * 10 = 0`$
+5. $`[0]`$
 
 ## Program Logic
 This program is for finding all the innullifiable sets in a given search
@@ -69,13 +70,12 @@ set would've undergone all those same mutations too, making additional
 ones redundant.
 
 When we think in terms of 'reducing' a set, mutations cover every way a
-set could immediately reduce to one of the input sets, and supersets
-cover any way of adding spare values. Thus, we know that everything that
-can be reduced to one of the input sets, or can be reduced to zero by
-the same pattern, will definitely be output. If we input every
-nullifiable set in the range of values up to $`X`$, then any remaining
-nullifiable sets cannot reduce to any of them. The first step in their
-reduction is to compute a value greater than $`X`$.
+set could reduce to one of the input sets by operation, and supersets
+cover all spare values. Thus, we know that everything that can be
+reduced to one of the input sets will definitely be output. If we input
+every nullifiable set in the range of values up to $`X`$, then any
+remaining nullifiable sets cannot reduce to any of them, and so the
+first step in their reduction is to compute a value greater than $`X`$.
 
 ## Workflow
 
