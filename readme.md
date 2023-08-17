@@ -15,10 +15,10 @@ generated. Such a set is 'innullifiable'. If, on the other hand, it is
 possible to construct a null-evaluating expression, a set is
 'nullifiable'.
 
-For example, the set $`[1, 2, 3]`$ is trivially *nullifiable,* since $`1
-+ 2 - 3 = 0`$, but the set $`[1, 2, 4]`$ is *innullifiable,* as there is
-no way to construct a null-evaluating expression. Try it, and you'll
-see.
+For example, the set $`[1, 2, 3]`$ is trivially *nullifiable,* since
+$`1 + 2 - 3 = 0`$, but the set $`[1, 2, 4]`$ is *innullifiable,* as
+there is no way to construct a null-evaluating expression. Try it, and
+you'll see.
 
 ## Reasoning
 Through some basic reasoning, we can know that a set is nullifiable if
@@ -62,11 +62,11 @@ Mutations essentially make a small change to the values. They replace a
 value with pairs of different values, from which a simple expression
 evaluating to the original value can be made, thus creating a completely
 new set that is still nullifiable. For example, given the same example
-set as before, we can substitute $`5`$ with $`[7, 12]`$, since $`12 - 7
-= 5`$, and $`2 + 3 - (12 - 7) = 0`$. Mutations need not be introduced to
-sets generated through a superset phase, as the original set would've
-undergone all those same mutations too, making additional ones
-redundant.
+set as before, we can substitute $`5`$ with $`[7, 12]`$, since
+$`12 - 7 = 5`$, and $`2 + 3 - (12 - 7) = 0`$. Mutations need not be
+introduced to sets generated through a superset phase, as the original
+set would've undergone all those same mutations too, making additional
+ones redundant.
 
 When we think in terms of 'reducing' a set, mutations cover every way a
 set could immediately reduce to one of the input sets, and supersets
