@@ -39,12 +39,12 @@ int main(int argc, char **argv)
 
     // Validate Input
     if (size < 1) {
-        fprintf(stderr, "Size Must be Positive");
+        fprintf(stderr, "Size Must be Positive\n");
         return 1;
     }
 
     if (minm > maxm) {
-        fprintf(stderr, "Minimum M-value Must be Less than Maximum\n");
+        fprintf(stderr, "Min M-value Cannot be Greater than Max\n");
         return 1;
     }
 

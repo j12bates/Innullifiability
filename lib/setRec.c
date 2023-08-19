@@ -138,17 +138,17 @@ Base *sr_initialize(size_t size)
 // Returns 0 on success, -1 on memory error (read errno), -2 on input
 // error
 
-// Allocates a specific M-Value range to a Set Record, enabling it for
-// use. Min can be set to any low number safely to include every set up
-// to Max. On error, record is preserved.
+// Allocates a specific M-Value range to a Set Record. Min can be set to
+// any low number safely to include every set up to Max. On error,
+// record is preserved.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
-    // Exit if Null Pointer
+    // Exit if Null
     if (base == NULL) return -2;
 
-    // Check input values, adjust if necessary
+    // Adjust input values if necessary
     if (minm < base->size) minm = base->size;
-    if (maxm < minm) return -2;
+    if (maxm < minm) maxm = minm - 1;
 
     // Populate Information Structure
     base->mval_min = minm;
@@ -171,7 +171,7 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 // destroyed.
 void sr_release(Base *base)
 {
-    // Exit if Null Pointer
+    // Exit if Null
     if (base == NULL) return;
 
     // Free the array, then the information structure
@@ -209,9 +209,8 @@ unsigned long sr_getMaxM(const Base *base)
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
-    // Exit if Null/Empty
+    // Exit if Null
     if (base == NULL) return -2;
-    if (base->rec == NULL) return -2;
 
     // Validate input set: values must be positive and ascending, and
     // size must be N
@@ -239,9 +238,8 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 ssize_t sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
-    // Exit if Null/Empty
+    // Exit if Null
     if (base == NULL) return -2;
-    if (base->rec == NULL) return -2;
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
@@ -262,9 +260,8 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
-    // Exit if Null/Empty, invalid parallelism
+    // Exit if Null, invalid parallelism
     if (base == NULL) return -2;
-    if (base->rec == NULL) return -2;
     if (mod >= concurrents) return -2;
 
     // Output Sets that Match Query
@@ -279,13 +276,13 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 // Returns 0 on success, -1 on error (read errno), -2 on wrong size, -3
 // on invalid file
 
-// Loads a record's data from a file into the record provided, enabling
-// it for use. File must be of matching set size.
+// Loads a record's data from a file into the record provided. File must
+// be of matching set size.
 int sr_import(Base *base, FILE *restrict f)
 {
     int res;
 
-    // Exit if Null Pointer
+    // Exit if Null
     if (base == NULL) return -2;
 
     // Read and interpret the header
@@ -329,9 +326,8 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
-    // Exit if Null/Empty
+    // Exit if Null
     if (base == NULL) return -2;
-    if (base->rec == NULL) return -2;
 
     // Write an info header at the start of the file
     res = fseek(f, 0, SEEK_SET);
