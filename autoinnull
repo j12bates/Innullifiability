@@ -1,6 +1,10 @@
-#!/usr/bin/bash
+#!/bin/sh
 
+# ================= AUTOMATIC INNULLIFIABLE SET SCRIPT =================
+
+# Store intermediary records in a shared memory tmpfile
 temp=$(mktemp /dev/shm/rec.XXXXXX)
+
 tsize=$1
 tmaxm=$2
 th=$3
@@ -8,33 +12,56 @@ output=$4
 
 utilpath=./bin
 
+usage="Usage: $0 target-size target-maxval [threads [output]]"
+usage1="All but <output> are positive integers"
+
+# Validate command-line arguments
+num='^[0-9]+$'
+invalid=0
+grep -Pq $num <<< "$tsize" || invalid=1
+grep -Pq $num <<< "$tmaxm" || invalid=1
+[ -z "$th" ] || grep -Pq $num <<< "$th" || invalid=1
+if [ $invalid -ne 0 ]
+then
+    echo "$usage" >&2
+    echo "$usage1" >&2
+    exit 1
+fi
+
 echo "N = $tsize, M <= $tmaxm" >&2
 
+# Get the base nullifiable sets (size-3)
 echo >&2
-echo ================ Finding Base Sets >&2
-$utilpath/create 3 0 $tmaxm $temp
-$utilpath/weed 3 $temp $th
+echo "================ Finding Base Sets" >&2
+$utilpath/create 3 0 $tmaxm $temp || exit 1
+$utilpath/weed 3 $temp $th || exit 1
 
+# Iteratively make generations, going up in size
 size=3
 while [ $size -lt $tsize ]
 do
     echo >&2
-    echo ================ Expanding Size $size >&2
-    $utilpath/gen -c $size $temp $temp $th
+    echo "================ Expanding Size $size" >&2
+    $utilpath/gen -c $size $temp $temp $th || exit 1
     size=$(($size + 1))
 done
 
+# Weed out any remaining nullifiable sets
 echo >&2
-echo ================ Testing Remaining Sets >&2
-$utilpath/weed $tsize $temp $th
+echo "================ Testing Remaining Sets" >&2
+$utilpath/weed $tsize $temp $th || exit 1
 
+# Print out the resulting innullifiable sets
 echo >&2
-echo ================ Result >&2
-$utilpath/eval $tsize $temp
+echo "================ Result" >&2
+$utilpath/eval $tsize $temp || exit 1
 
+# Copy output
 if ! [ -z "$output" ]
 then
-    mv $temp $output
+    mv $temp $output || exit 1
 else
     rm $temp
 fi
+
+exit 0
