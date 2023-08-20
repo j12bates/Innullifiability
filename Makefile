@@ -1,5 +1,5 @@
 CC		:= gcc
-CCFLAGS	:= -Wall -Wextra -std=c17
+CCFLAGS	:= -Wall -Wextra -std=c17 -pthread
 
 OPFLAGS	:= -O2 -flto
 DBFLAGS	:= -g -DDEBUG
