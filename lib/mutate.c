@@ -1,5 +1,8 @@
 // =========================== SET MUTATION ============================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This program will expand sets into equivalents (can be made into all
 // the same values) by introducing Mutations to the values. None of the
 // output sets will be supersets of the input, as those are handled by a

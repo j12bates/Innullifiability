@@ -1,5 +1,8 @@
 // ================== EXHAUSTIVE NULLIFIABILITY TEST ==================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This code, honestly, is pretty bad. It works, but I know it could be
 // so much better. I just have no idea how to optimize it. This will be
 // replaced at some point, and I feel like it'll probably end up being

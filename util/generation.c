@@ -1,5 +1,8 @@
 // ============================ GENERATION =============================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This program takes in two records, a source and a destination, and it
 // performs a generation. Given that all the marked sets on the source
 // correspond to nullifiable sets, the program will mark all their

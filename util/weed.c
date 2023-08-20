@@ -1,5 +1,8 @@
 // =============================== WEED ================================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This program takes in a record, and 'weeds out' all the remaining
 // unmarked nullifiable sets. It will iteratively apply the exhaustive
 // test and mark any sets that fail.

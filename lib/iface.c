@@ -1,5 +1,8 @@
 // ========================== UTIL INTERFACE ===========================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // Some common functions used by the utility programs. Particularly File
 // I/O and Command-Line Argument stuff. Needs to be linked with every
 // utility program.

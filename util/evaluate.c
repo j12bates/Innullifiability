@@ -1,5 +1,8 @@
 // ============================= EVALUATE ==============================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This program takes in a record and displays the value representations
 // of all the unmarked sets.
 

@@ -2,6 +2,9 @@
 
 # ================= AUTOMATIC INNULLIFIABLE SET SCRIPT =================
 
+# Copyright (c) 2023, Jacob Bates
+# SPDX-License-Identifier: BSD-2-Clause
+
 # Store intermediary records in a shared memory tmpfile
 temp=$(mktemp /dev/shm/rec.XXXXXX)
 

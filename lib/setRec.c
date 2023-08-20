@@ -1,5 +1,8 @@
 // ============================ SET RECORDS ============================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This library controls an array that can hold data pertaining to sets,
 // called a 'Set Record'. In essence, it provides a single byte for
 // every possible combination of N positive integers (i.e. 1 or greater)

@@ -1,5 +1,8 @@
 // ============================= SUPERSETS =============================
 
+// Copyright (c) 2023, Jacob Bates
+// SPDX-License-Identifier: BSD-2-Clause
+
 // This program will take in a set and expand it to supersets one
 // element larger. It will output all such sets within a range of
 // values.
