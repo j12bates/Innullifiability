@@ -121,8 +121,10 @@ static unsigned long long mcn(size_t, size_t);
 // record is empty.
 Base *sr_initialize(size_t size)
 {
+#ifndef NO_VALIDATE
     // Check input
     if (size == 0) return NULL;
+#endif
 
     // Allocate Information Structure
     Base *base = malloc(sizeof(Base));
@@ -146,8 +148,10 @@ Base *sr_initialize(size_t size)
 // record is preserved.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return -2;
+#endif
 
     // Adjust input values if necessary
     if (minm < base->size) minm = base->size;
@@ -174,8 +178,10 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 // destroyed.
 void sr_release(Base *base)
 {
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return;
+#endif
 
     // Free the array, then the information structure
     free(base->rec);
@@ -212,6 +218,7 @@ unsigned long sr_getMaxM(const Base *base)
 int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return -2;
 
@@ -221,6 +228,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
     if (set[0] < 1) return -2;
     for (size_t i = 1; i < setc; i++)
         if (set[i] <= set[i - 1]) return -2;
+#endif
 
     // Skip if set is unallocated
     if (set[setc - 1] > base->mval_max
@@ -241,8 +249,10 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 ssize_t sr_query(const Base *base, char mask, char bits,
         void (*out)(const unsigned long *, size_t))
 {
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return -2;
+#endif
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
@@ -263,9 +273,11 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
         void (*out)(const unsigned long *, size_t))
 {
+#ifndef NO_VALIDATE
     // Exit if Null, invalid parallelism
     if (base == NULL) return -2;
     if (mod >= concurrents) return -2;
+#endif
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
@@ -285,8 +297,10 @@ int sr_import(Base *base, FILE *restrict f)
 {
     int res;
 
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return -2;
+#endif
 
     // Read and interpret the header
     res = fseek(f, 0, SEEK_SET);
@@ -329,8 +343,10 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
+#ifndef NO_VALIDATE
     // Exit if Null
     if (base == NULL) return -2;
+#endif
 
     // Write an info header at the start of the file
     res = fseek(f, 0, SEEK_SET);

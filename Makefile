@@ -1,7 +1,7 @@
 CC		:= gcc
 CCFLAGS	:= -Wall -Wextra -std=c17 -pthread
 
-OPFLAGS	:= -O2 -flto
+OPFLAGS	:= -O2 -flto -DNO_VALIDATE
 DBFLAGS	:= -g -DDEBUG
 
 OBJ		:= obj

@@ -33,10 +33,12 @@ int supersInit(unsigned long max)
 int supers(const unsigned long *set, size_t setc,
         void (*out)(const unsigned long *, size_t))
 {
+#ifndef NO_VALIDATE
     // Validate input set: values must be ascending and in-range
     for (size_t i = 1; i < setc; i++)
         if (set[i - 1] >= set[i]) return -2;
     if (set[setc - 1] > maxValue) return -2;
+#endif
 
     // Set representation for expansions
     unsigned long *super = calloc(setc + 1, sizeof(unsigned long));
