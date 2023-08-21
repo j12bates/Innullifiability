@@ -56,6 +56,10 @@ int main(int argc, char **argv)
             size, minm, maxm);
 
     rec = sr_initialize(size);
+    if (rec == NULL) {
+        perror("Record Initialization Error");
+        return 1;
+    }
 
     {
         int res = sr_alloc(rec, minm, maxm);

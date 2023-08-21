@@ -95,6 +95,10 @@ int main(int argc, char **argv)
     // Initialize Records
     src = sr_initialize(srcSize);
     dest = sr_initialize(srcSize + 1);
+    if (src == NULL || dest == NULL) {
+        perror("Record Initialization Error");
+        return 1;
+    }
 
     // Import Source Record from File
     if (openImport(src, srcFname)) {

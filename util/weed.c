@@ -65,6 +65,10 @@ int main(int argc, char **argv)
 
     // ============ Import Record
     rec = sr_initialize(size);
+    if (rec == NULL) {
+        perror("Record Initialization Error");
+        return 1;
+    }
 
     if (openImport(rec, fname)) return 1;
 
