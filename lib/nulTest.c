@@ -1,4 +1,4 @@
-// ================== EXHAUSTIVE NULLIFIABILITY TEST ==================
+// ================== EXHAUSTIVE NULLIFIABILITY TEST ===================
 
 // Copyright (c) 2023, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
@@ -25,7 +25,8 @@
 // after every operation.
 int nulTest(const unsigned long *set, size_t setc)
 {
-    // Base case
+    // Base cases
+    if (setc == 2) return set[0] != set[1];
     if (setc == 1) return !!*set;
 
     // Here we're going to pass over everything once, just to check if
