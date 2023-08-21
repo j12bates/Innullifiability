@@ -13,6 +13,20 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+// Test if a set is Nullifiable or Not
+// Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
+int nulTest(const unsigned long *set, size_t setc)
+{
+    int recursiveTest(const unsigned long *, size_t);
+
+    // Simple cases to not use recursion on
+    if (setc == 0) return 1;
+    if (setc == 1) return !!set[0];
+
+    // Use recursion
+    return recursiveTest(set, setc);
+}
+
 // Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
 
 // This function will simply determine whether or not a set is
@@ -22,12 +36,12 @@
 // again as though that were a new set. If it finds that the set is
 // nullifiable at any point, that means the set was always nullifiable.
 // A set is only innullifiable if the test always returns that result
-// after every operation.
-int nulTest(const unsigned long *set, size_t setc)
+// after every operation. This function only works on sets that are
+// size-2 or larger.
+int recursiveTest(const unsigned long *set, size_t setc)
 {
-    // Base cases
+    // Base case
     if (setc == 2) return set[0] != set[1];
-    if (setc == 1) return !!*set;
 
     // Here we're going to pass over everything once, just to check if
     // we can immediately say this set is nullifiable without doing a
@@ -93,7 +107,7 @@ int nulTest(const unsigned long *set, size_t setc)
                 newSet[0] = replacements[i];
 
                 // Recurse on this set
-                int ret = nulTest(newSet, setc - 1);
+                int ret = recursiveTest(newSet, setc - 1);
 
                 // If we get an error or if it's been nullified, carry
                 // that on
