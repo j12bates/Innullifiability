@@ -99,6 +99,7 @@ static int mark(Rec *, unsigned long,
 static ssize_t query(const Rec *,
         unsigned long, unsigned long, size_t,
         size_t, size_t, char, char,
+        size_t *, size_t,
         void (*)(const unsigned long *, size_t));
 
 static void incSetValues(unsigned long *, size_t, size_t);
@@ -208,6 +209,12 @@ unsigned long sr_getMaxM(const Base *base)
     return base->mval_max;
 }
 
+// Get Property: Total Addressable Sets
+size_t sr_getTotal(const Base *base)
+{
+    return TOTAL_B(base);
+}
+
 // Mark a Certain Set
 // Returns 1 if newly marked, 0 if already marked or unallocated, -2 on
 // input error
@@ -257,7 +264,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->size,
-            0, 1, mask, bits, out);
+            0, 1, mask, bits, NULL, 0, out);
 
     return res;
 }
@@ -282,7 +289,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->size,
-            mod, concurrents, mask, bits, out);
+            mod, concurrents, mask, bits, NULL, 0, out);
 
     return res;
 }
@@ -406,10 +413,13 @@ int mark(Rec *rec, unsigned long minm,
 // to the given function.
 
 // The function also can be configured for running in parallel. It gives
-// an option for querying every Nth element.
+// an option for querying every Nth element. Additionally, it can give
+// periodic progress tracking by updating an object with the number of
+// sets remaining.
 ssize_t query(const Rec *rec,
         unsigned long minm, unsigned long maxm, size_t size,
         size_t offset, size_t skip, char mask, char bits,
+        size_t *progress, size_t period,
         void (*out)(const unsigned long *, size_t))
 {
     // Number of Sets
@@ -450,6 +460,10 @@ ssize_t query(const Rec *rec,
 
         // Advance to Next Nth Set
         incSetValues(values, size, skip);
+
+        // Update Progress every so often
+        if (progress != NULL) if (i % period == 0)
+            *progress = (total - i) / skip;
     }
 
     free(values);

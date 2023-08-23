@@ -25,6 +25,7 @@ void sr_release(SR_Base *);
 size_t sr_getSize(const SR_Base *);
 unsigned long sr_getMinM(const SR_Base *);
 unsigned long sr_getMaxM(const SR_Base *);
+size_t sr_getTotal(const SR_Base *);
 
 // Mark a Certain Set and Supersets
 int sr_mark(const SR_Base *, const unsigned long *, size_t,
