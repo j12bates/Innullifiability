@@ -70,6 +70,8 @@
 
 #include "setRec.h"
 
+#define PERIOD 0x1000
+
 // Individual Set Record Type
 typedef _Atomic char Rec;
 
@@ -252,9 +254,10 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 // -2 on input error
 
 // Scans the entire record, outputting raw sets that are marked in it
-// according to the given bit settings.
+// according to the given bit settings. Progress reference and output
+// function can be set to NULL if not desired.
 ssize_t sr_query(const Base *base, char mask, char bits,
-        void (*out)(const unsigned long *, size_t))
+        size_t *prog, void (*out)(const unsigned long *, size_t))
 {
 #ifndef NO_VALIDATE
     // Exit if Null
@@ -264,7 +267,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->size,
-            0, 1, mask, bits, NULL, 0, out);
+            0, 1, mask, bits, prog, PERIOD, out);
 
     return res;
 }
@@ -278,7 +281,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 // for that parameter, giving full coverage.
 ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
-        void (*out)(const unsigned long *, size_t))
+        size_t *prog, void (*out)(const unsigned long *, size_t))
 {
 #ifndef NO_VALIDATE
     // Exit if Null, invalid parallelism
@@ -289,7 +292,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->size,
-            mod, concurrents, mask, bits, NULL, 0, out);
+            mod, concurrents, mask, bits, prog, PERIOD, out);
 
     return res;
 }
@@ -462,8 +465,9 @@ ssize_t query(const Rec *rec,
         incSetValues(values, size, skip);
 
         // Update Progress every so often
-        if (progress != NULL) if (i % period == 0)
-            *progress = (total - i) / skip;
+        size_t remaining = (total - i) / skip;
+        if (progress != NULL) if (remaining % period == 0)
+            *progress = remaining;
     }
 
     free(values);

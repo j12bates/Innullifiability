@@ -67,7 +67,8 @@ int main(int argc, char **argv)
 
         if (disp) printf("\n");
 
-        ssize_t res = sr_query(rec, NULLIF, 0, disp ? &printSet : NULL);
+        ssize_t res = sr_query(rec, NULLIF, 0, NULL,
+                disp ? &printSet : NULL);
         assert(res != -2);
         if (res == -1) {
             perror("Error");

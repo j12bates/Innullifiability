@@ -131,7 +131,7 @@ void *threadOp(void *arg)
 
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, NULLIF, 0,
-            threads, mod, &testElim);
+            threads, mod, NULL, &testElim);
     assert(res != -2);
     if (res == -1) {
         perror("Error");

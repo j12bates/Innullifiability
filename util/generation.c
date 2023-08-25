@@ -212,12 +212,12 @@ void *threadOp(void *arg)
 
     // For every nullifiable set, expand to supersets
     if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, &expand_sup);
+            threads, mod, NULL, &expand_sup);
     if (res < 0) goto errCk;
 
     // For the new nullifiable sets, introduce mutations
     if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
-            threads, mod, &expand_mut);
+            threads, mod, NULL, &expand_mut);
 
     // Check for Errors
 errCk:
