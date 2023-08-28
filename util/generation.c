@@ -44,6 +44,14 @@ char *srcFname, *destFname;
 // Overall Maximum Value
 unsigned long max;
 
+// Thread Arguments
+typedef struct ThreadArg ThreadArg;
+struct ThreadArg {
+    size_t progSup;
+    size_t progMut;
+};
+ThreadArg *thargv = NULL;
+
 // Usage Format String
 const char *usage =
         "Usage: %s [-smcv] srcSize src.dat dest.dat [threads]\n"
@@ -158,13 +166,16 @@ int main(int argc, char **argv)
 
         // Arrays for Threads and Args
         pthread_t th[threads];
-        size_t num[threads];
+        thargv = calloc(threads, sizeof(ThreadArg));
+        if (thargv == NULL) {
+            perror("Thread Arguments");
+            return 1;
+        }
 
-        // Iteratively Create Threads with Number
+        // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
-            num[i] = i;
             errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) (num + i));
+                    (void *) (thargv + i));
             if (errno) {
                 perror("Thread Creation");
                 return 1;
@@ -179,6 +190,9 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
+
+        free(thargv);
+        thargv = NULL;
     }
 
     // Clean Up
@@ -203,21 +217,22 @@ void *threadOp(void *arg)
     void expand_mut(const unsigned long *, size_t);
 
     ssize_t res = 0;
+    ThreadArg *parg = (ThreadArg *) arg;
 
     // Mutex Lock in case we call exit()
     static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
 
     // Get Thread Number
-    size_t mod = *(size_t *) arg;
+    size_t mod = parg - thargv;
 
     // For every nullifiable set, expand to supersets
     if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, NULL, &expand_sup);
+            threads, mod, &parg->progSup, &expand_sup);
     if (res < 0) goto errCk;
 
     // For the new nullifiable sets, introduce mutations
     if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
-            threads, mod, NULL, &expand_mut);
+            threads, mod, &parg->progMut, &expand_mut);
 
     // Check for Errors
 errCk:
