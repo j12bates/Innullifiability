@@ -18,14 +18,13 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
 #include "../lib/mutate.h"
 #include "../lib/supers.h"
-
-// Number of Threads
-size_t threads = 1;
 
 // Toggles for each Expansion Phase
 bool expandSupers;
@@ -44,6 +43,9 @@ char *srcFname, *destFname;
 // Overall Maximum Value
 unsigned long max;
 
+// Number of Threads
+size_t threads = 1;
+
 // Thread Arguments
 typedef struct ThreadArg ThreadArg;
 struct ThreadArg {
@@ -51,6 +53,9 @@ struct ThreadArg {
     size_t progMut;
 };
 ThreadArg *thargv = NULL;
+
+// Progress Signal Mask
+sigset_t progmask;
 
 // Usage Format String
 const char *usage =
@@ -97,6 +102,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error: Must use at least 1 thread\n");
         return 1;
     }
+
+    // Block Progress Signal
+    sigemptyset(&progmask);
+    sigaddset(&progmask, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &progmask, NULL);
 
     // ============ Import Records
 
@@ -163,6 +173,7 @@ int main(int argc, char **argv)
     // Use threads to do all the computing
     {
         void *threadOp(void *);
+        void *threadUnblocked(void *);
 
         // Arrays for Threads and Args
         pthread_t th[threads];
@@ -182,6 +193,14 @@ int main(int argc, char **argv)
             }
         }
 
+        // Create Signal Handler Thread
+        pthread_t handler;
+        errno = pthread_create(&handler, NULL, &threadUnblocked, NULL);
+        if (errno) {
+            perror("Thread Creation");
+            return 1;
+        }
+
         // Iteratively Join Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_join(th[i], NULL);
@@ -189,6 +208,13 @@ int main(int argc, char **argv)
                 perror("Thread Joining");
                 return 1;
             }
+        }
+
+        // Cancel Handler Thread
+        errno = pthread_cancel(handler);
+        if (errno) {
+            perror("Thread Cancellation");
+            return 1;
         }
 
         free(thargv);
@@ -244,6 +270,33 @@ errCk:
     }
 
     return NULL;
+}
+
+// Thread Function for Unblocking Progress Signal
+void *threadUnblocked(void *arg)
+{
+    void progHandler(int);
+
+    // Set up handler and unblock signal
+    struct sigaction act = {0};
+    act.sa_handler = &progHandler;
+    sigaction(SIGUSR1, &act, NULL);
+
+    pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
+
+    // Just wait
+    while (1) pause();
+
+    return NULL;
+}
+
+// Progress Signal Handler
+void progHandler(int signo)
+{
+    if (signo != SIGUSR1) return;
+
+    write(STDERR_FILENO, "a ha\n", 6);
+    return;
 }
 
 // Individual Set Expansion Functions
