@@ -39,6 +39,7 @@ SR_Base *src = NULL;
 SR_Base *dest = NULL;
 size_t srcSize;
 char *srcFname, *destFname;
+size_t srcTotal;
 
 // Overall Maximum Value
 unsigned long max;
@@ -123,6 +124,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Caused by Source\n");
         return 1;
     }
+    srcTotal = sr_getTotal(src);
 
     // Import Destination Record from File
     if (!omitImportDest) {
@@ -295,7 +297,19 @@ void progHandler(int signo)
 {
     if (signo != SIGUSR1) return;
 
-    write(STDERR_FILENO, "a ha\n", 6);
+    // Sum of Progress
+    size_t progSup = 0, progMut = 0;
+    for (size_t i = 0; i < threads; i++) {
+        progSup += thargv[i].progSup;
+        progMut += thargv[i].progMut;
+    }
+
+    // This is unsafe, but doing it anyways bc y_0
+    fprintf(stderr, "Supersets: %zu / %zu\n",
+            progSup, srcTotal);
+    fprintf(stderr, "Mutations: %zu / %zu\n",
+            progMut, srcTotal);
+
     return;
 }
 

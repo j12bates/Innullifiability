@@ -437,7 +437,8 @@ ssize_t query(const Rec *rec,
     values[size - 1] = minm;
     incSetValues(values, size, offset);
 
-    // Loop over every Nth set, checking and outputting
+    // Loop over every Nth set, checking, outputting, and updating
+    // progress
     size_t total = TOTAL(minm, maxm, size);
     for (size_t i = offset; i < total; i += skip)
     {
@@ -465,10 +466,11 @@ ssize_t query(const Rec *rec,
         incSetValues(values, size, skip);
 
         // Update Progress every so often
-        size_t remaining = (total - i) / skip;
-        if (progress != NULL) if (remaining % period == 0)
-            *progress = remaining;
+        if (progress != NULL) if (i / skip % period == 0)
+            *progress = i / skip;
     }
+
+    if (progress != NULL) *progress = (total - offset - 1) / skip + 1;
 
     free(values);
 
