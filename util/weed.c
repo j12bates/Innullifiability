@@ -14,18 +14,24 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
 #include "../lib/nulTest.h"
 
-// Number of Threads
-size_t threads = 1;
-
 // Set Record
 SR_Base *rec = NULL;
 size_t size;
 char *fname;
+
+// Number of Threads
+size_t threads = 1;
+
+// Progress
+size_t *progv = NULL;
+sigset_t progmask;
 
 // Options
 bool verbose;
@@ -63,6 +69,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Block Progress Signal
+    sigemptyset(&progmask);
+    sigaddset(&progmask, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &progmask, NULL);
+
     // ============ Import Record
     rec = sr_initialize(size);
     if (rec == NULL) {
@@ -86,20 +97,32 @@ int main(int argc, char **argv)
     // Launch Threads to do the Computing
     {
         void *threadOp(void *);
+        void *threadHandler(void *);
 
-        // VLAs for Threads and Args
+        // Arrays for Threads and Args
         pthread_t th[threads];
-        size_t num[threads];
+        progv = calloc(threads, sizeof(size_t));
+        if (progv == NULL) {
+            perror("Progress Variables");
+            return 1;
+        }
 
-        // Iteratively Create Threads with Number
+        // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
-            num[i] = i;
             errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) (num + i));
+                    (void *) (progv + i));
             if (errno) {
                 perror("Thread Creation");
                 return 1;
             }
+        }
+
+        // Create Signal Handler Thread
+        pthread_t handler;
+        errno = pthread_create(&handler, NULL, &threadHandler, NULL);
+        if (errno) {
+            perror("Thread Creation");
+            return 1;
         }
 
         // Iteratively Join Threads
@@ -110,6 +133,16 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
+
+        // Cancel Handler Thread
+        errno = pthread_cancel(handler);
+        if (errno) {
+            perror("Thread Cancellation");
+            return 1;
+        }
+
+        free(progv);
+        progv = NULL;
     }
 
     // ============ Export and Cleanup
@@ -126,12 +159,14 @@ void *threadOp(void *arg)
     void testElim(const unsigned long *, size_t);
     _Noreturn void tryExitFail(void);
 
+    size_t *parg = (size_t *) arg;
+
     // Get Thread Number
-    size_t mod = *(size_t *) arg;
+    size_t mod = parg - progv;
 
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, NULLIF, 0,
-            threads, mod, NULL, &testElim);
+            threads, mod, parg, &testElim);
     assert(res != -2);
     if (res == -1) {
         perror("Error");
@@ -161,6 +196,32 @@ void testElim(const unsigned long *set, size_t setc)
         res = sr_mark(rec, set, setc, NULLIF);
         assert(res != -2);
     }
+
+    return;
+}
+
+// Thread Function for Intercepting Signals
+void *threadHandler(void *arg)
+{
+    void progHandler(int);
+
+    // Set up Handler and Unblock Signal
+    struct sigaction act = {0};
+    act.sa_handler = &progHandler;
+    sigaction(SIGUSR1, &act, NULL);
+
+    pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
+
+    // Just wait
+    while (1) pause();
+
+    return NULL;
+}
+
+// Progress Signal Handler
+void progHandler(int signo)
+{
+    if (signo != SIGUSR1) return;
 
     return;
 }
