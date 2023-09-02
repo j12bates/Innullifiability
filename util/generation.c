@@ -12,11 +12,13 @@
 // values. Each of these expansion phases are optional.
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -55,12 +57,14 @@ struct ThreadArg {
 };
 ThreadArg *thargv = NULL;
 
-// Progress Signal Mask
+// Progress
+char *progFname = NULL;
 sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-smcv] srcSize src.dat dest.dat [threads]\n"
+        "Usage: %s [-smcv] srcSize src.dat dest.dat"
+                "[threads [prog.out]]\n"
         "   -s      Expansion Phase Toggle -- Supersets\n"
         "   -m      Expansion Phase Toggle -- Mutations\n"
         "   -c      Create/Overwrite Destination (Source M-values)\n"
@@ -72,12 +76,12 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
-                PARAM_CT, PARAM_END};
+        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
+                PARAM_CT, PARAM_FNAME, PARAM_END};
         int res;
 
         res = argParse(params, 3, argc, argv,
-                &srcSize, &srcFname, &destFname, &threads);
+                &srcSize, &srcFname, &destFname, &threads, &progFname);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -296,6 +300,14 @@ void *threadUnblocked(void *arg)
 void progHandler(int signo)
 {
     if (signo != SIGUSR1) return;
+    if (progFname == NULL) return;
+
+    // Open Progress File
+    int fd = open(progFname, O_WRONLY | O_TRUNC);
+    if (fd == -1) {
+        perror("Progress File");
+        exit(1);
+    }
 
     // Sum of Progress
     size_t progSup = 0, progMut = 0;
@@ -304,11 +316,17 @@ void progHandler(int signo)
         progMut += thargv[i].progMut;
     }
 
-    // This is unsafe, but doing it anyways bc y_0
-    fprintf(stderr, "Supersets: %zu / %zu\n",
-            progSup, srcTotal);
-    fprintf(stderr, "Mutations: %zu / %zu\n",
-            progMut, srcTotal);
+    // Raw Number Buffers, Fixed Size
+    uint64_t buf[3] = {progSup, progMut, srcTotal};
+
+    // Output Progress
+    write(fd, buf, sizeof(buf));
+
+    // Close Progress File
+    if (close(fd)) {
+        perror("Progress File");
+        exit(1);
+    }
 
     return;
 }
