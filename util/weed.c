@@ -8,11 +8,13 @@
 // test and mark any sets that fail.
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -25,12 +27,14 @@
 SR_Base *rec = NULL;
 size_t size;
 char *fname;
+size_t total;
 
 // Number of Threads
 size_t threads = 1;
 
 // Progress
-size_t *progv = NULL;
+volatile size_t *progv = NULL;
+char *progFname = NULL;
 sigset_t progmask;
 
 // Options
@@ -45,12 +49,12 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[4] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
-                PARAM_END};
+        const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
+                PARAM_FNAME, PARAM_END};
         int res;
 
         res = argParse(params, 2, argc, argv,
-                &size, &fname, &threads);
+                &size, &fname, &threads, &progFname);
         if (res) {
             fprintf(stderr, usage, argv[0]);
             return 1;
@@ -82,6 +86,7 @@ int main(int argc, char **argv)
     }
 
     if (openImport(rec, fname)) return 1;
+    total = sr_getTotal(rec);
 
     // ============ Iteratively Perform Test
 
@@ -141,7 +146,7 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        free(progv);
+        free((void *) progv);
         progv = NULL;
     }
 
@@ -159,14 +164,15 @@ void *threadOp(void *arg)
     void testElim(const unsigned long *, size_t);
     _Noreturn void tryExitFail(void);
 
-    size_t *parg = (size_t *) arg;
+    // Argument is a Reference for Progress Output
+    size_t *prog = (size_t *) arg;
 
     // Get Thread Number
-    size_t mod = parg - progv;
+    size_t mod = prog - progv;
 
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, NULLIF, 0,
-            threads, mod, parg, &testElim);
+            threads, mod, prog, &testElim);
     assert(res != -2);
     if (res == -1) {
         perror("Error");
@@ -222,6 +228,30 @@ void *threadHandler(void *arg)
 void progHandler(int signo)
 {
     if (signo != SIGUSR1) return;
+    if (progFname == NULL) return;
+
+    // Open Progress File
+    int fd = open(progFname, O_WRONLY | O_TRUNC);
+    if (fd == -1) {
+        perror("Progress File");
+        exit(1);
+    }
+
+    // Sum of Progress
+    size_t prog = 0;
+    for (size_t i = 0; i < threads; i++) prog += progv[i];
+
+    // Raw Number Buffers, Fixed Size
+    uint64_t buf[2] = {prog, total};
+
+    // Output Progress
+    write(fd, buf, sizeof(buf));
+
+    // Close Progress File
+    if (close(fd)) {
+        perror("Progress File");
+        exit(1);
+    }
 
     return;
 }
