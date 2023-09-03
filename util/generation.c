@@ -49,15 +49,13 @@ unsigned long max;
 // Number of Threads
 size_t threads = 1;
 
-// Thread Arguments
-typedef struct ThreadArg ThreadArg;
-struct ThreadArg {
-    size_t progSup;
-    size_t progMut;
-};
-ThreadArg *thargv = NULL;
-
 // Progress
+typedef struct Prog Prog;
+struct Prog {
+    size_t sup;
+    size_t mut;
+};
+volatile Prog *progv = NULL;
 char *progFname = NULL;
 sigset_t progmask;
 
@@ -183,8 +181,8 @@ int main(int argc, char **argv)
 
         // Arrays for Threads and Args
         pthread_t th[threads];
-        thargv = calloc(threads, sizeof(ThreadArg));
-        if (thargv == NULL) {
+        progv = calloc(threads, sizeof(Prog));
+        if (progv == NULL) {
             perror("Thread Arguments");
             return 1;
         }
@@ -192,7 +190,7 @@ int main(int argc, char **argv)
         // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) (thargv + i));
+                    (void *) (progv + i));
             if (errno) {
                 perror("Thread Creation");
                 return 1;
@@ -223,8 +221,8 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        free(thargv);
-        thargv = NULL;
+        free((void *) progv);
+        progv = NULL;
     }
 
     // Clean Up
@@ -249,22 +247,24 @@ void *threadOp(void *arg)
     void expand_mut(const unsigned long *, size_t);
 
     ssize_t res = 0;
-    ThreadArg *parg = (ThreadArg *) arg;
 
     // Mutex Lock in case we call exit()
     static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
 
+    // Argument is a Reference for Progress Output
+    Prog *prog = (Prog *) arg;
+
     // Get Thread Number
-    size_t mod = parg - thargv;
+    size_t mod = prog - progv;
 
     // For every nullifiable set, expand to supersets
     if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, &parg->progSup, &expand_sup);
+            threads, mod, &prog->sup, &expand_sup);
     if (res < 0) goto errCk;
 
     // For the new nullifiable sets, introduce mutations
     if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
-            threads, mod, &parg->progMut, &expand_mut);
+            threads, mod, &prog->mut, &expand_mut);
 
     // Check for Errors
 errCk:
@@ -312,8 +312,8 @@ void progHandler(int signo)
     // Sum of Progress
     size_t progSup = 0, progMut = 0;
     for (size_t i = 0; i < threads; i++) {
-        progSup += thargv[i].progSup;
-        progMut += thargv[i].progMut;
+        progSup += progv[i].sup;
+        progMut += progv[i].mut;
     }
 
     // Raw Number Buffers, Fixed Size
