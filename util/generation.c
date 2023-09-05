@@ -116,10 +116,8 @@ int main(int argc, char **argv)
     // Initialize Records
     src = sr_initialize(srcSize);
     dest = sr_initialize(srcSize + 1);
-    if (src == NULL || dest == NULL) {
-        perror("Record Initialization Error");
-        return 1;
-    }
+    CK_PTR(src);
+    CK_PTR(dest);
 
     // Import Source Record from File
     if (openImport(src, srcFname)) {
@@ -140,10 +138,7 @@ int main(int argc, char **argv)
     else {
         int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
         assert(res != -2);
-        if (res == -1) {
-            perror("Destination Allocation Error");
-            return 1;
-        }
+        CK_RES(res);
     }
 
     // ============ Perform Expansions in Threads
@@ -182,44 +177,29 @@ int main(int argc, char **argv)
         // Arrays for Threads and Args
         pthread_t th[threads];
         progv = calloc(threads, sizeof(Prog));
-        if (progv == NULL) {
-            perror("Thread Arguments");
-            return 1;
-        }
+        CK_PTR(progv);
 
         // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_create(th + i, NULL, &threadOp,
                     (void *) (progv + i));
-            if (errno) {
-                perror("Thread Creation");
-                return 1;
-            }
+            CK_NO(errno);
         }
 
         // Create Signal Handler Thread
         pthread_t handler;
         errno = pthread_create(&handler, NULL, &threadUnblocked, NULL);
-        if (errno) {
-            perror("Thread Creation");
-            return 1;
-        }
+        CK_NO(errno);
 
         // Iteratively Join Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_join(th[i], NULL);
-            if (errno) {
-                perror("Thread Joining");
-                return 1;
-            }
+            CK_NO(errno);
         }
 
         // Cancel Handler Thread
         errno = pthread_cancel(handler);
-        if (errno) {
-            perror("Thread Cancellation");
-            return 1;
-        }
+        CK_NO(errno);
 
         free((void *) progv);
         progv = NULL;
@@ -248,9 +228,6 @@ void *threadOp(void *arg)
 
     ssize_t res = 0;
 
-    // Mutex Lock in case we call exit()
-    static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
-
     // Argument is a Reference for Progress Output
     Prog *prog = (Prog *) arg;
 
@@ -269,11 +246,7 @@ void *threadOp(void *arg)
     // Check for Errors
 errCk:
     assert(res != -2);
-    if (res == -1) {
-        perror("Error");
-        pthread_mutex_lock(&exitLock);
-        exit(1);
-    }
+    CK_RES(res);
 
     return NULL;
 }
@@ -304,10 +277,7 @@ void progHandler(int signo)
 
     // Open Progress File
     int fd = open(progFname, O_WRONLY | O_TRUNC);
-    if (fd == -1) {
-        perror("Progress File");
-        exit(1);
-    }
+    CK_RES(fd);
 
     // Sum of Progress
     size_t progSup = 0, progMut = 0;
@@ -320,13 +290,10 @@ void progHandler(int signo)
     uint64_t buf[3] = {progSup, progMut, srcTotal};
 
     // Output Progress
-    write(fd, buf, sizeof(buf));
+    CK_RES(write(fd, buf, sizeof(buf)));
 
     // Close Progress File
-    if (close(fd)) {
-        perror("Progress File");
-        exit(1);
-    }
+    CK_RES(close(fd));
 
     return;
 }

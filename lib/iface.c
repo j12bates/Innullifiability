@@ -13,6 +13,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <pthread.h>
 #include <string.h>
 
 #include "iface.h"
@@ -183,4 +184,14 @@ int optHandle(const char *opts, _Bool setting,
     va_end(ap);
 
     return 0;
+}
+
+// Safely Exit
+_Noreturn void safeExit(void)
+{
+    // exit() isn't thread-safe
+    static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
+
+    pthread_mutex_lock(&exitLock);
+    exit(1);
 }

@@ -5,11 +5,34 @@
 #ifndef IFACE_H
 #define IFACE_H
 
+#include <string.h>
+
 #include "setRec.h"
 
 #define NULLIF 1 << 0
 #define ONLY_SUP 1 << 1
 #define MARKED NULLIF | ONLY_SUP
+
+#define FAULT() { \
+            fprintf(stderr, "Fault at %s:%d -- %s\n", \
+                    __FILE__, __LINE__, strerror(errno)); \
+            safeExit(); \
+        }
+
+#define CK_NO(NO) { \
+            int __no = (NO); \
+            if (__no > 0) FAULT(); \
+        }
+
+#define CK_RES(RES) { \
+            int __res = (RES); \
+            if (__res < 0) FAULT(); \
+        }
+
+#define CK_PTR(PTR) { \
+            void *__p = ((void *) PTR); \
+            if (__p == NULL) FAULT(); \
+        }
 
 typedef enum ParamType {
     PARAM_END = 0,
@@ -31,5 +54,8 @@ int argParse(const Param *, int, int, char **, ...);
 
 // Handle Command-Line Options
 int optHandle(const char *, _Bool, int, char **, ...);
+
+// Safely Exit
+_Noreturn void safeExit(void);
 
 #endif
