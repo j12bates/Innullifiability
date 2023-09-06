@@ -5,6 +5,7 @@
 #ifndef IFACE_H
 #define IFACE_H
 
+#include <errno.h>
 #include <string.h>
 
 #include "setRec.h"
