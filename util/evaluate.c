@@ -50,10 +50,7 @@ int main(int argc, char **argv)
 
     // ============ Import Record
     rec = sr_initialize(size);
-    if (rec == NULL) {
-        perror("Record Initialization Error");
-        return 1;
-    }
+    CK_PTR(rec);
 
     if (openImport(rec, fname)) return 1;
 
@@ -70,10 +67,7 @@ int main(int argc, char **argv)
         ssize_t res = sr_query(rec, NULLIF, 0, NULL,
                 disp ? &printSet : NULL);
         assert(res != -2);
-        if (res == -1) {
-            perror("Error");
-            return 1;
-        }
+        CK_RES(res);
 
         if (disp) printf("\n");
         printf("%ld Total Unmarked Sets\n", res);

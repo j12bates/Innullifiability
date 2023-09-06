@@ -56,18 +56,12 @@ int main(int argc, char **argv)
             size, minm, maxm);
 
     rec = sr_initialize(size);
-    if (rec == NULL) {
-        perror("Record Initialization Error");
-        return 1;
-    }
+    CK_PTR(rec);
 
     {
         int res = sr_alloc(rec, minm, maxm);
         assert(res != -2);
-        if (res == -1) {
-            perror("Error");
-            return 1;
-        }
+        CK_RES(res);
     }
 
     if (openExport(rec, fname)) return 1;

@@ -80,10 +80,7 @@ int main(int argc, char **argv)
 
     // ============ Import Record
     rec = sr_initialize(size);
-    if (rec == NULL) {
-        perror("Record Initialization Error");
-        return 1;
-    }
+    CK_PTR(rec);
 
     if (openImport(rec, fname)) return 1;
     total = sr_getTotal(rec);
@@ -107,44 +104,29 @@ int main(int argc, char **argv)
         // Arrays for Threads and Args
         pthread_t th[threads];
         progv = calloc(threads, sizeof(size_t));
-        if (progv == NULL) {
-            perror("Progress Variables");
-            return 1;
-        }
+        CK_PTR(progv);
 
         // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_create(th + i, NULL, &threadOp,
                     (void *) (progv + i));
-            if (errno) {
-                perror("Thread Creation");
-                return 1;
-            }
+            CK_NO(errno);
         }
 
         // Create Signal Handler Thread
         pthread_t handler;
         errno = pthread_create(&handler, NULL, &threadHandler, NULL);
-        if (errno) {
-            perror("Thread Creation");
-            return 1;
-        }
+        CK_NO(errno);
 
         // Iteratively Join Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_join(th[i], NULL);
-            if (errno) {
-                perror("Thread Joining");
-                return 1;
-            }
+            CK_NO(errno);
         }
 
         // Cancel Handler Thread
         errno = pthread_cancel(handler);
-        if (errno) {
-            perror("Thread Cancellation");
-            return 1;
-        }
+        CK_NO(errno);
 
         free((void *) progv);
         progv = NULL;
@@ -162,7 +144,6 @@ int main(int argc, char **argv)
 void *threadOp(void *arg)
 {
     void testElim(const unsigned long *, size_t);
-    _Noreturn void tryExitFail(void);
 
     // Argument is a Reference for Progress Output
     size_t *prog = (size_t *) arg;
@@ -174,10 +155,7 @@ void *threadOp(void *arg)
     ssize_t res = sr_query_parallel(rec, NULLIF, 0,
             threads, mod, prog, &testElim);
     assert(res != -2);
-    if (res == -1) {
-        perror("Error");
-        tryExitFail();
-    }
+    CK_RES(res);
 
     return NULL;
 }
@@ -185,17 +163,12 @@ void *threadOp(void *arg)
 // Individual Set Testing/Elimination
 void testElim(const unsigned long *set, size_t setc)
 {
-    _Noreturn void tryExitFail(void);
-
     int res;
     assert(setc == size);
 
     // Run the Test
     res = nulTest(set, setc);
-    if (res == -1) {
-        perror("Test Error");
-        tryExitFail();
-    }
+    CK_RES(res);
 
     // Eliminate if Nullifiable
     if (res == 0) {
@@ -232,10 +205,7 @@ void progHandler(int signo)
 
     // Open Progress File
     int fd = open(progFname, O_WRONLY | O_TRUNC);
-    if (fd == -1) {
-        perror("Progress File");
-        exit(1);
-    }
+    CK_RES(fd);
 
     // Sum of Progress
     size_t prog = 0;
@@ -245,23 +215,10 @@ void progHandler(int signo)
     uint64_t buf[2] = {prog, total};
 
     // Output Progress
-    write(fd, buf, sizeof(buf));
+    CK_RES(write(fd, buf, sizeof(buf)));
 
     // Close Progress File
-    if (close(fd)) {
-        perror("Progress File");
-        exit(1);
-    }
+    CK_RES(close(fd));
 
     return;
-}
-
-// Exit with a Fail Code
-_Noreturn void tryExitFail(void)
-{
-    // exit() depends on global var(s), not thread-safe
-    static pthread_mutex_t exitLock = PTHREAD_MUTEX_INITIALIZER;
-
-    pthread_mutex_lock(&exitLock);
-    exit(1);
 }
