@@ -124,11 +124,6 @@ static unsigned long long mcn(size_t, size_t);
 // record is empty.
 Base *sr_initialize(size_t size)
 {
-#ifndef NO_VALIDATE
-    // Check input
-    if (size == 0) return NULL;
-#endif
-
     // Allocate Information Structure
     Base *base = malloc(sizeof(Base));
     if (base == NULL) return NULL;
@@ -151,11 +146,6 @@ Base *sr_initialize(size_t size)
 // record is preserved.
 int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 {
-#ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return -2;
-#endif
-
     // Adjust input values if necessary
     if (minm < base->size) minm = base->size;
     if (maxm < minm) maxm = minm - 1;
@@ -181,11 +171,6 @@ int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
 // destroyed.
 void sr_release(Base *base)
 {
-#ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return;
-#endif
-
     // Free the array, then the information structure
     free(base->rec);
     free(base);
@@ -228,9 +213,6 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
         char mask)
 {
 #ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return -2;
-
     // Validate input set: values must be positive and ascending, and
     // size must be N
     if (setc != base->size) return -2;
@@ -259,11 +241,6 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 ssize_t sr_query(const Base *base, char mask, char bits,
         size_t *prog, void (*out)(const unsigned long *, size_t))
 {
-#ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return -2;
-#endif
-
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->size,
@@ -284,8 +261,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t *prog, void (*out)(const unsigned long *, size_t))
 {
 #ifndef NO_VALIDATE
-    // Exit if Null, invalid parallelism
-    if (base == NULL) return -2;
+    // Validate Parallelism
     if (mod >= concurrents) return -2;
 #endif
 
@@ -306,11 +282,6 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 int sr_import(Base *base, FILE *restrict f)
 {
     int res;
-
-#ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return -2;
-#endif
 
     // Read and interpret the header
     res = fseek(f, 0, SEEK_SET);
@@ -353,11 +324,6 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
-#ifndef NO_VALIDATE
-    // Exit if Null
-    if (base == NULL) return -2;
-#endif
-
     // Write an info header at the start of the file
     res = fseek(f, 0, SEEK_SET);
     if (res < 0) return -1;
@@ -396,10 +362,10 @@ int sr_export(const Base *base, FILE *restrict f)
 // bits. Assumes given set is in ascending order, the right size, and in
 // the right range of values.
 int mark(Rec *rec, unsigned long minm,
-        const unsigned long *set, size_t setc, char mask)
+        const unsigned long *set, size_t size, char mask)
 {
     // OR the bits we care about
-    size_t index = setToIndex(set, setc) - mcn(minm - 1, setc);
+    size_t index = setToIndex(set, size) - mcn(minm - 1, size);
     char prev = atomic_fetch_or(rec + index, mask);
 
     // Whether they were already set
@@ -479,12 +445,12 @@ ssize_t query(const Rec *rec,
 
 // Compute Index from Set
 // Returns the index, no error checking
-size_t setToIndex(const unsigned long *set, size_t setc)
+size_t setToIndex(const unsigned long *set, size_t size)
 {
     size_t index = 0;
 
     // Go from most significant (highest) to least
-    for (size_t vals = setc; vals > 0; vals--)
+    for (size_t vals = size; vals > 0; vals--)
     {
         // Get set value, decrement since we're not using zero, add
         // combinations to index
@@ -497,10 +463,10 @@ size_t setToIndex(const unsigned long *set, size_t setc)
 
 // Compute Set from Index
 // Set is written into given array pointer
-void indexToSet(unsigned long *set, size_t setc, size_t index)
+void indexToSet(unsigned long *set, size_t size, size_t index)
 {
     // Go from most significant (highest) to least
-    for (size_t vals = setc; vals > 0; vals--)
+    for (size_t vals = size; vals > 0; vals--)
     {
         // Find the last value for which the number of combinations is
         // within the remainder
@@ -525,11 +491,11 @@ void indexToSet(unsigned long *set, size_t setc, size_t index)
 // so, and otherwise it'll increment the next value, using a loop to
 // deal with chains of overflowing place values. It'll repeat this
 // process until it's able to settle the first value.
-void incSetValues(unsigned long *set, size_t setc, size_t add)
+void incSetValues(unsigned long *set, size_t size, size_t add)
 {
     // Handle Trivial Size Cases
-    if (setc == 0);
-    else if (setc == 1) set[0] += add;
+    if (size == 0);
+    else if (size == 1) set[0] += add;
 
     // Repeat until we're done increasing
     else while (add > 0)
@@ -544,13 +510,13 @@ void incSetValues(unsigned long *set, size_t setc, size_t add)
         // If there's more, increment the next value, dealing with the
         // further ones if necessary
         size_t i;
-        for (i = 1; i < setc; i++)
+        for (i = 1; i < size; i++)
         {
             // Reset previous value
             set[i - 1] = i;
 
             // If we can increment this value, do so
-            if (i == setc - 1) ++set[i];
+            if (i == size - 1) ++set[i];
             else if (++set[i] < set[i + 1]) break;
         }
 
