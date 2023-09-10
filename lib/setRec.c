@@ -117,7 +117,7 @@ static unsigned long long mcn(size_t, size_t);
 // They should be the only functions that do input validation.
 
 // Initialize a Set Record
-// Returns NULL on memory or input error
+// Returns NULL on error (read errno)
 
 // Creates the information structure used by this library to access the
 // record. Instantiated with the Set Size, which is immutable, and the
@@ -138,8 +138,7 @@ Base *sr_initialize(size_t size)
 }
 
 // Allocate a Set Record
-// Returns 0 on success, -1 on memory error (read errno), -2 on input
-// error
+// Returns 0 on success, -1 on error (read errno)
 
 // Allocates a specific M-Value range to a Set Record. Min can be set to
 // any low number safely to include every set up to Max. On error,
@@ -203,8 +202,8 @@ size_t sr_getTotal(const Base *base)
 }
 
 // Mark a Certain Set
-// Returns 1 if newly marked, 0 if already marked or unallocated, -2 on
-// input error
+// Returns 1 if newly marked, 0 if already marked or unallocated, -1 on
+// error (read errno)
 
 // ORs on the given bits on the specified set in the record, thus
 // 'Marking' that set. The input must be a valid set, in increasing
@@ -215,10 +214,12 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 #ifndef NO_VALIDATE
     // Validate input set: values must be positive and ascending, and
     // size must be N
-    if (setc != base->size) return -2;
-    if (set[0] < 1) return -2;
+    errno = EINVAL;
+    if (setc != base->size) return -1;
+    if (set[0] < 1) return -1;
     for (size_t i = 1; i < setc; i++)
-        if (set[i] <= set[i - 1]) return -2;
+        if (set[i] <= set[i - 1]) return -1;
+    errno = 0;
 #endif
 
     // Skip if set is unallocated
@@ -232,8 +233,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 }
 
 // Output Sets with Particular Mark Status
-// Returns number of sets on success, -1 on memory error (read errno),
-// -2 on input error
+// Returns number of sets on success, -1 on error (read errno)
 
 // Scans the entire record, outputting raw sets that are marked in it
 // according to the given bit settings. Progress reference and output
@@ -250,8 +250,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 }
 
 // Output Sets with Particular Mark Status, for Parallelism
-// Returns number of sets on success, -1 on memory error (read errno),
-// -2 on input error
+// Returns number of sets on success, -1 on error (read errno)
 
 // Same as above, but for parallelism. The mod is a number less than the
 // number of concurrent calls. Each call should give a different value
@@ -262,7 +261,9 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 {
 #ifndef NO_VALIDATE
     // Validate Parallelism
-    if (mod >= concurrents) return -2;
+    errno = EINVAL;
+    if (mod >= concurrents) return -1;
+    errno = 0;
 #endif
 
     // Output Sets that Match Query
@@ -299,7 +300,6 @@ int sr_import(Base *base, FILE *restrict f)
     // Allocate New Array
     res = sr_alloc(base, minm, maxm);
     if (res == -1) return -1;
-    else if (res == -2) return -3;
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -309,15 +309,15 @@ int sr_import(Base *base, FILE *restrict f)
     size_t total = TOTAL_B(base);
     size_t written = fread(base->rec, sizeof(Rec), total, f);
     if (written != total) {
-        if (feof(f)) return -3;
-        else return -1;
+        if (ferror(f)) return -1;
+        else return -3;
     }
 
     return 0;
 }
 
 // Export Record to Binary File
-// Returns 0 on success, -1 on error (read errno), -2 on input error
+// Returns 0 on success, -1 on error (read errno)
 
 // Writes a record's state to a data file, to be Imported later.
 int sr_export(const Base *base, FILE *restrict f)
@@ -335,13 +335,11 @@ int sr_export(const Base *base, FILE *restrict f)
     res = fprintf(f, headerMsg);
     if (res < 0) return -1;
 
-    // Number of Sets (elements in array)
-    size_t total = TOTAL_B(base);
-
-    // Write raw array one block into the file
+    // Write entire raw array one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
     if (res < 0) return -1;
 
+    size_t total = TOTAL_B(base);
     size_t written = fwrite(base->rec, sizeof(Rec), total, f);
     if (written != total) return -1;
 
@@ -373,7 +371,7 @@ int mark(Rec *rec, unsigned long minm,
 }
 
 // Iteratively Check Records and Output Sets
-// Returns number of sets on success, -1 on memory error (read errno)
+// Returns number of sets on success, -1 on error (read errno)
 
 // This is a function which looks across an entire record. It iterates
 // across all the sets, keeping a pointer to the current entry in the
