@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
@@ -60,7 +59,6 @@ int main(int argc, char **argv)
 
     {
         int res = sr_alloc(rec, minm, maxm);
-        assert(res != -2);
         CK_RES(res);
     }
 

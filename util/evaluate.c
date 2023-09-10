@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
@@ -66,7 +65,6 @@ int main(int argc, char **argv)
 
         ssize_t res = sr_query(rec, NULLIF, 0, NULL,
                 disp ? &printSet : NULL);
-        assert(res != -2);
         CK_RES(res);
 
         if (disp) printf("\n");

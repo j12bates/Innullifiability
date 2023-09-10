@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -41,7 +40,8 @@ sigset_t progmask;
 bool verbose;
 
 // Usage Format String
-const char *usage = "Usage: %s [-v] recSize rec.dat [threads]\n";
+const char *usage =
+        "Usage: %s [-v] recSize rec.dat [threads [prog.out]]\n";
 
 int main(int argc, char **argv)
 {
@@ -154,7 +154,6 @@ void *threadOp(void *arg)
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, NULLIF, 0,
             threads, mod, prog, &testElim);
-    assert(res != -2);
     CK_RES(res);
 
     return NULL;
@@ -164,7 +163,6 @@ void *threadOp(void *arg)
 void testElim(const unsigned long *set, size_t setc)
 {
     int res;
-    assert(setc == size);
 
     // Run the Test
     res = nulTest(set, setc);
@@ -173,7 +171,7 @@ void testElim(const unsigned long *set, size_t setc)
     // Eliminate if Nullifiable
     if (res == 0) {
         res = sr_mark(rec, set, setc, NULLIF);
-        assert(res != -2);
+        CK_RES(res);
     }
 
     return;

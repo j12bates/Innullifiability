@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -61,7 +60,7 @@ sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-smcv] srcSize src.dat dest.dat"
+        "Usage: %s [-smcv] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
         "   -s      Expansion Phase Toggle -- Supersets\n"
         "   -m      Expansion Phase Toggle -- Mutations\n"
@@ -137,7 +136,6 @@ int main(int argc, char **argv)
     // Or Create it from Scratch
     else {
         int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
-        assert(res != -2);
         CK_RES(res);
     }
 
@@ -237,15 +235,11 @@ void *threadOp(void *arg)
     // For every nullifiable set, expand to supersets
     if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
             threads, mod, &prog->sup, &expand_sup);
-    if (res < 0) goto errCk;
+    CK_RES(res);
 
     // For the new nullifiable sets, introduce mutations
     if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
             threads, mod, &prog->mut, &expand_mut);
-
-    // Check for Errors
-errCk:
-    assert(res != -2);
     CK_RES(res);
 
     return NULL;
@@ -304,9 +298,6 @@ void expand_sup(const unsigned long *set, size_t setc)
 {
     void elim_onlySup(const unsigned long *, size_t);
 
-    // Set must be size of source
-    assert(setc == srcSize);
-
     // Expand set to supersets; don't mutate further
     supers(set, setc, &elim_onlySup);
 
@@ -316,9 +307,6 @@ void expand_sup(const unsigned long *set, size_t setc)
 void expand_mut(const unsigned long *set, size_t setc)
 {
     void elim_nul(const unsigned long *, size_t);
-
-    // Set must be size of source
-    assert(setc == srcSize);
 
     // Introduce mutations; set might need further mutation
     mutate(set, setc, &elim_nul);
@@ -332,12 +320,16 @@ void elim_onlySup(const unsigned long *set, size_t setc)
 {
     // Mark this set as Nullifiable/Superset
     int res = sr_mark(dest, set, setc, NULLIF | ONLY_SUP);
-    assert(res != -2);
+    CK_RES(res);
+
+    return;
 }
 
 void elim_nul(const unsigned long *set, size_t setc)
 {
     // Mark this set as Nullifiable only
     int res = sr_mark(dest, set, setc, NULLIF);
-    assert(res != -2);
+    CK_RES(res);
+
+    return;
 }

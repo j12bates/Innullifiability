@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <pthread.h>
 #include <string.h>
@@ -20,6 +19,7 @@
 #include "setRec.h"
 
 // Open Record File and Import
+// Returns 0 on success, 1 on error
 int openImport(SR_Base *rec, char *fname)
 {
     // Open File
@@ -31,21 +31,20 @@ int openImport(SR_Base *rec, char *fname)
 
     // Import Record
     int res = sr_import(rec, f);
-    fclose(f);
-
     if (res) {
         if (res == -1) perror("Import Error");
         else if (res == -2)
             fprintf(stderr, "Import Error: Wrong Size\n");
         else if (res == -3)
             fprintf(stderr, "Import Error: Invalid Record File\n");
-        return 1;
     }
 
-    return 0;
+    fclose(f);
+    return res != 0;
 }
 
 // Open File and Export Record
+// Returns 0 on success, 1 on error
 int openExport(SR_Base *rec, char *fname)
 {
     // Open File
@@ -57,15 +56,10 @@ int openExport(SR_Base *rec, char *fname)
 
     // Export Record
     int res = sr_export(rec, f);
+    if (res == -1) perror("Export Error");
+
     fclose(f);
-
-    assert(res != -2);
-    if (res == -1) {
-        perror("Export Error");
-        return 1;
-    }
-
-    return 0;
+    return res != 0;
 }
 
 // Parse Command-Line Arguments
