@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 // Thread Function for Testing Sets
 void *threadOp(void *arg)
 {
-    void testElim(const unsigned long *, size_t);
+    void testElim(const unsigned long *, size_t, char);
 
     // Argument is a Reference for Progress Output
     size_t *prog = (size_t *) arg;
@@ -160,7 +160,7 @@ void *threadOp(void *arg)
 }
 
 // Individual Set Testing/Elimination
-void testElim(const unsigned long *set, size_t setc)
+void testElim(const unsigned long *set, size_t setc, char bits)
 {
     int res;
 

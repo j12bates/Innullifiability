@@ -84,6 +84,9 @@ struct Base {
     unsigned long mval_max;
 };
 
+// Output Function
+typedef void OutFun(const unsigned long *, size_t, char);
+
 // Strings
 const char *headerFormat =
         "setRec -- N = %lu, "
@@ -101,8 +104,7 @@ static int mark(Rec *, unsigned long,
 static ssize_t query(const Rec *,
         unsigned long, unsigned long, size_t,
         size_t, size_t, char, char,
-        size_t *, size_t,
-        void (*)(const unsigned long *, size_t));
+        size_t *, size_t, OutFun *);
 
 static void incSetValues(unsigned long *, size_t, size_t);
 static void indexToSet(unsigned long *, size_t, size_t);
@@ -239,7 +241,7 @@ int sr_mark(const Base *base, const unsigned long *set, size_t setc,
 // according to the given bit settings. Progress reference and output
 // function can be set to NULL if not desired.
 ssize_t sr_query(const Base *base, char mask, char bits,
-        size_t *prog, void (*out)(const unsigned long *, size_t))
+        size_t *prog, OutFun *out)
 {
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
@@ -257,7 +259,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 // for that parameter, giving full coverage.
 ssize_t sr_query_parallel(const Base *base, char mask, char bits,
         size_t concurrents, size_t mod,
-        size_t *prog, void (*out)(const unsigned long *, size_t))
+        size_t *prog, OutFun *out)
 {
 #ifndef NO_VALIDATE
     // Validate Parallelism
@@ -386,8 +388,7 @@ int mark(Rec *rec, unsigned long minm,
 ssize_t query(const Rec *rec,
         unsigned long minm, unsigned long maxm, size_t size,
         size_t offset, size_t skip, char mask, char bits,
-        size_t *progress, size_t period,
-        void (*out)(const unsigned long *, size_t))
+        size_t *progress, size_t period, OutFun *out)
 {
     // Number of Sets
     ssize_t setc = 0;
@@ -422,7 +423,7 @@ ssize_t query(const Rec *rec,
 
         // If we have a match, output and keep count
         if (match) {
-            if (out != NULL) out(values, size);
+            if (out != NULL) out(values, size, cur);
             setc++;
         }
 

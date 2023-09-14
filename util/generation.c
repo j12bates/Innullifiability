@@ -221,8 +221,8 @@ int main(int argc, char **argv)
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
-    void expand_sup(const unsigned long *, size_t);
-    void expand_mut(const unsigned long *, size_t);
+    void expand_sup(const unsigned long *, size_t, char);
+    void expand_mut(const unsigned long *, size_t, char);
 
     ssize_t res = 0;
 
@@ -294,7 +294,7 @@ void progHandler(int signo)
 
 // Individual Set Expansion Functions
 
-void expand_sup(const unsigned long *set, size_t setc)
+void expand_sup(const unsigned long *set, size_t setc, char bits)
 {
     void elim_onlySup(const unsigned long *, size_t);
 
@@ -304,7 +304,7 @@ void expand_sup(const unsigned long *set, size_t setc)
     return;
 }
 
-void expand_mut(const unsigned long *set, size_t setc)
+void expand_mut(const unsigned long *set, size_t setc, char bits)
 {
     void elim_nul(const unsigned long *, size_t);
 

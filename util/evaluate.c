@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 
     // ============ Query Record to Print Sets
     {
-        void printSet(const unsigned long *, size_t);
+        void printSet(const unsigned long *, size_t, char);
 
         if (disp) printf("\n");
 
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 }
 
 // Print a Set to the Standard Output
-void printSet(const unsigned long *set, size_t setc)
+void printSet(const unsigned long *set, size_t setc, char bits)
 {
     for (size_t i = 0; i < setc; i++)
         printf("%4lu", set[i]);

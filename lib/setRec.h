@@ -33,11 +33,11 @@ int sr_mark(const SR_Base *, const unsigned long *, size_t,
 
 // Output Sets with Particular Mark Status
 ssize_t sr_query(const SR_Base *, char, char,
-        size_t *, void (*)(const unsigned long *, size_t));
+        size_t *, void (*)(const unsigned long *, size_t, char));
 
 // Output Sets with Particular Mark Status, for Parallelism
 ssize_t sr_query_parallel(const SR_Base *, char, char, size_t, size_t,
-        size_t *, void (*)(const unsigned long *, size_t));
+        size_t *, void (*)(const unsigned long *, size_t, char));
 
 // Import Record from Binary FIle
 int sr_import(SR_Base *, FILE *restrict);
