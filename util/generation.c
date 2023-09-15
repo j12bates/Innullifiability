@@ -54,7 +54,7 @@ struct Prog {
     size_t sup;
     size_t mut;
 };
-volatile Prog *progv = NULL;
+volatile size_t *progv = NULL;
 char *progFname = NULL;
 sigset_t progmask;
 
@@ -221,25 +221,17 @@ int main(int argc, char **argv)
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
-    void expand_sup(const unsigned long *, size_t, char);
-    void expand_mut(const unsigned long *, size_t, char);
-
-    ssize_t res = 0;
+    void expand(const unsigned long *, size_t, char);
 
     // Argument is a Reference for Progress Output
-    Prog *prog = (Prog *) arg;
+    size_t *prog = (size_t *) arg;
 
     // Get Thread Number
     size_t mod = prog - progv;
 
-    // For every nullifiable set, expand to supersets
-    if (expandSupers) res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, &prog->sup, &expand_sup);
-    CK_RES(res);
-
-    // For the new nullifiable sets, introduce mutations
-    if (expandMutate) res = sr_query_parallel(src, MARKED, NULLIF,
-            threads, mod, &prog->mut, &expand_mut);
+    // Perform expansion phases on every nullifiable set
+    ssize_t res = sr_query_parallel(src, NULLIF, NULLIF,
+            threads, mod, prog, &expand);
     CK_RES(res);
 
     return NULL;
@@ -274,14 +266,11 @@ void progHandler(int signo)
     CK_RES(fd);
 
     // Sum of Progress
-    size_t progSup = 0, progMut = 0;
-    for (size_t i = 0; i < threads; i++) {
-        progSup += progv[i].sup;
-        progMut += progv[i].mut;
-    }
+    size_t prog = 0;
+    for (size_t i = 0; i < threads; i++) prog += progv[i];
 
     // Raw Number Buffers, Fixed Size
-    uint64_t buf[3] = {progSup, progMut, srcTotal};
+    uint64_t buf[2] = {prog, srcTotal};
 
     // Output Progress
     CK_RES(write(fd, buf, sizeof(buf)));
@@ -292,24 +281,22 @@ void progHandler(int signo)
     return;
 }
 
-// Individual Set Expansion Functions
+// Set Expansion Function
 
-void expand_sup(const unsigned long *set, size_t setc, char bits)
+void expand(const unsigned long *set, size_t setc, char bits)
 {
     void elim_onlySup(const unsigned long *, size_t);
-
-    // Expand set to supersets; don't mutate further
-    supers(set, setc, &elim_onlySup);
-
-    return;
-}
-
-void expand_mut(const unsigned long *set, size_t setc, char bits)
-{
     void elim_nul(const unsigned long *, size_t);
 
-    // Introduce mutations; set might need further mutation
-    mutate(set, setc, &elim_nul);
+    // Either way, a nullifiable set's supersets should be marked;
+    // further mutations are accounted for
+    if (expandSupers)
+        supers(set, setc, &elim_onlySup);
+
+    // Introduce Mutations, but only if not touched by supersets; don't
+    // rule out further mutations
+    if (expandMutate)
+        if (!(bits & ONLY_SUP)) mutate(set, setc, &elim_nul);
 
     return;
 }
