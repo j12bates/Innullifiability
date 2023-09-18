@@ -8,12 +8,15 @@
 // utility program.
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "iface.h"
 #include "setRec.h"
@@ -25,7 +28,7 @@ int openImport(SR_Base *rec, char *fname)
     // Open File
     FILE *f = fopen(fname, "rb");
     if (f == NULL) {
-        perror("File Error");
+        fprintf(stderr, "File %s: %s\n", fname, strerror(errno));
         return 1;
     }
 
@@ -50,7 +53,7 @@ int openExport(SR_Base *rec, char *fname)
     // Open File
     FILE *f = fopen(fname, "wb");
     if (f == NULL) {
-        perror("File Error");
+        fprintf(stderr, "File %s: %s\n", fname, strerror(errno));
         return 1;
     }
 
@@ -60,6 +63,29 @@ int openExport(SR_Base *rec, char *fname)
 
     fclose(f);
     return res != 0;
+}
+
+// Push Progress Update
+// Returns 0 on success, 1 on error
+int pushProg(size_t prog, size_t total, char *fname)
+{
+    int res;
+
+    // Raw Number Buffers, Fixed Size
+    uint64_t buf[2] = {prog, total};
+
+    // Open Progress File
+    int fd = open(fname, O_WRONLY | O_TRUNC);
+    if (fd < 0) return 1;
+
+    // Output Progress and Close
+    res = write(fd, buf, sizeof(buf));
+    if (res != sizeof(buf)) return 1;
+
+    res = close(fd);
+    if (res == -1) return 1;
+
+    return 0;
 }
 
 // Parse Command-Line Arguments

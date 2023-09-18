@@ -50,6 +50,9 @@ int openImport(SR_Base *, char *);
 // Open File and Export Record
 int openExport(SR_Base *, char *);
 
+// Push Progress Update
+int pushProg(size_t, size_t, char *);
+
 // Parse Command-Line Arguments
 int argParse(const Param *, int, int, char **, ...);
 
