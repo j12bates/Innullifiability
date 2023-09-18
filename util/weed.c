@@ -8,12 +8,10 @@
 // test and mark any sets that fail.
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <errno.h>
-#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -77,6 +75,15 @@ int main(int argc, char **argv)
     sigemptyset(&progmask);
     sigaddset(&progmask, SIGUSR1);
     sigprocmask(SIG_BLOCK, &progmask, NULL);
+
+    // Set up Handler for Progress
+    {
+        void progHandler(int);
+
+        struct sigaction act = {0};
+        act.sa_handler = &progHandler;
+        sigaction(SIGUSR1, &act, NULL);
+    }
 
     // ============ Import Record
     rec = sr_initialize(size);
@@ -180,16 +187,8 @@ void testElim(const unsigned long *set, size_t setc, char bits)
 // Thread Function for Intercepting Signals
 void *threadHandler(void *arg)
 {
-    void progHandler(int);
-
-    // Set up Handler and Unblock Signal
-    struct sigaction act = {0};
-    act.sa_handler = &progHandler;
-    sigaction(SIGUSR1, &act, NULL);
-
+    // Unblock the signal and just wait
     pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
-
-    // Just wait
     while (1) pause();
 
     return NULL;
@@ -201,22 +200,12 @@ void progHandler(int signo)
     if (signo != SIGUSR1) return;
     if (progFname == NULL) return;
 
-    // Open Progress File
-    int fd = open(progFname, O_WRONLY | O_TRUNC);
-    CK_RES(fd);
-
     // Sum of Progress
     size_t prog = 0;
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
-    // Raw Number Buffers, Fixed Size
-    uint64_t buf[2] = {prog, total};
-
-    // Output Progress
-    CK_RES(write(fd, buf, sizeof(buf)));
-
-    // Close Progress File
-    CK_RES(close(fd));
+    // Push Progress Update
+    if (pushProg(prog, total, progFname)) FAULT();
 
     return;
 }

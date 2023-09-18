@@ -12,12 +12,10 @@
 // values. Each of these expansion phases are optional.
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <errno.h>
-#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -109,6 +107,15 @@ int main(int argc, char **argv)
     sigemptyset(&progmask);
     sigaddset(&progmask, SIGUSR1);
     sigprocmask(SIG_BLOCK, &progmask, NULL);
+
+    // Set up Handler for Progress
+    {
+        void progHandler(int);
+
+        struct sigaction act = {0};
+        act.sa_handler = &progHandler;
+        sigaction(SIGUSR1, &act, NULL);
+    }
 
     // ============ Import Records
 
@@ -237,19 +244,11 @@ void *threadOp(void *arg)
     return NULL;
 }
 
-// Thread Function for Unblocking Progress Signal
+// Thread Function for Intercepting Signals
 void *threadUnblocked(void *arg)
 {
-    void progHandler(int);
-
-    // Set up handler and unblock signal
-    struct sigaction act = {0};
-    act.sa_handler = &progHandler;
-    sigaction(SIGUSR1, &act, NULL);
-
+    // Unblock the signal and just wait
     pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
-
-    // Just wait
     while (1) pause();
 
     return NULL;
@@ -261,22 +260,12 @@ void progHandler(int signo)
     if (signo != SIGUSR1) return;
     if (progFname == NULL) return;
 
-    // Open Progress File
-    int fd = open(progFname, O_WRONLY | O_TRUNC);
-    CK_RES(fd);
-
     // Sum of Progress
     size_t prog = 0;
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
-    // Raw Number Buffers, Fixed Size
-    uint64_t buf[2] = {prog, srcTotal};
-
-    // Output Progress
-    CK_RES(write(fd, buf, sizeof(buf)));
-
-    // Close Progress File
-    CK_RES(close(fd));
+    // Push Progress Update
+    if (pushProg(prog, srcTotal, progFname)) FAULT();
 
     return;
 }
