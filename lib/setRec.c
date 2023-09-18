@@ -68,6 +68,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <errno.h>
+
 #include "setRec.h"
 
 #define PERIOD 0x1000
