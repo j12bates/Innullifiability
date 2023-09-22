@@ -75,20 +75,14 @@ int main(int argc, char **argv)
                 PARAM_CT, PARAM_FNAME, PARAM_END};
         int res;
 
-        res = argParse(params, 3, argc, argv,
+        res = argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        if (res) return 1;
 
-        res = optHandle("smcv", true, argc, argv,
+        res = optHandle("smcv", true, usage, argc, argv,
                 &expandSupers, &expandMutate, &omitImportDest,
                 &verbose);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        if (res) return 1;
     }
 
     // Default to all expansion phases

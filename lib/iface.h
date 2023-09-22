@@ -54,10 +54,10 @@ int openExport(SR_Base *, char *);
 int pushProg(size_t, size_t, char *);
 
 // Parse Command-Line Arguments
-int argParse(const Param *, int, int, char **, ...);
+int argParse(const Param *, int, const char *, int, char **, ...);
 
 // Handle Command-Line Options
-int optHandle(const char *, _Bool, int, char **, ...);
+int optHandle(const char *, _Bool, const char *, int, char **, ...);
 
 // Safely Exit
 _Noreturn void safeExit(void);

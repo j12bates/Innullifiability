@@ -51,18 +51,12 @@ int main(int argc, char **argv)
                 PARAM_FNAME, PARAM_END};
         int res;
 
-        res = argParse(params, 2, argc, argv,
+        res = argParse(params, 2, usage, argc, argv,
                 &size, &fname, &threads, &progFname);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        if (res) return 1;
 
-        res = optHandle("v", true, argc, argv, &verbose);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        res = optHandle("v", true, usage, argc, argv, &verbose);
+        if (res) return 1;
     }
 
     // Validate Thread Count

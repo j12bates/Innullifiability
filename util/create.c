@@ -31,12 +31,9 @@ int main(int argc, char **argv)
         const Param params[5] = {PARAM_SIZE, PARAM_VAL, PARAM_VAL,
                 PARAM_FNAME, PARAM_END};
 
-        int res = argParse(params, 4, argc, argv,
+        int res = argParse(params, 4, usage, argc, argv,
                 &size, &minm, &maxm, &fname);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        if (res) return 1;
     }
 
     // Validate Input

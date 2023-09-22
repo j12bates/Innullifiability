@@ -34,17 +34,11 @@ int main(int argc, char **argv)
         const Param params[3] = {PARAM_SIZE, PARAM_FNAME, PARAM_END};
         int res;
 
-        res = argParse(params, 2, argc, argv, &size, &fname);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        res = argParse(params, 2, usage, argc, argv, &size, &fname);
+        if (res) return 1;
 
-        res = optHandle("s", false, argc, argv, &disp);
-        if (res) {
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        res = optHandle("s", false, usage, argc, argv, &disp);
+        if (res) return 1;
     }
 
     // ============ Import Record

@@ -95,10 +95,9 @@ int pushProg(size_t prog, size_t total, char *fname)
 // terminated array of symbols for argument formats, which are used to
 // interpret the actual command-line args and then set the references
 // provided as the variable number of arguments. A certain number of
-// required parameters may be specified. 1 is returned on invalid
-// arguments/options, and here the program should show the usage message
-// and exit.
-int argParse(const Param *params, int reqd,
+// required parameters may be specified. On invalid arguments, this will
+// print the usage message and error out.
+int argParse(const Param *params, int reqd, const char *usage,
         int argc, char **argv, ...)
 {
     // Check if options are present
@@ -107,13 +106,13 @@ int argParse(const Param *params, int reqd,
     int first = 1 + optsPresent;
 
     // If not enough arguments, invalid usage
-    if (argc - first < reqd) return 1;
+    if (argc - first < reqd) goto usage;
 
     // Go Through Arguments
     va_list ap;
     va_start(ap, argv);
     for (int i = first; i < argc; i++)
-        switch (params[i - first])
+    switch (params[i - first])
     {
         char *endptr;
 
@@ -161,6 +160,12 @@ int argParse(const Param *params, int reqd,
 
 invalid:
     va_end(ap);
+
+usage:
+    // Show Usage Message, error out
+    fprintf(stderr, usage, argv[0]);
+    errno = EINVAL;
+
     return 1;
 }
 
@@ -170,8 +175,9 @@ invalid:
 // This is for handling options provided in command-line args. The
 // string provides the valid option characters, and the variable
 // arguments are references to booleans to set according to whether the
-// corresponding option was used.
-int optHandle(const char *opts, _Bool setting,
+// corresponding option was used. On invalid option, usage message is
+// printed and an error is returned.
+int optHandle(const char *opts, _Bool setting, const char *usage,
         int argc, char **argv, ...)
 {
     // Options passed: none or first arg if leading hyphen
@@ -189,6 +195,8 @@ int optHandle(const char *opts, _Bool setting,
         char *opt = strchr(opts, passed[i]);
         if (opt == NULL) {
             fprintf(stderr, "Invalid option '%c'\n", passed[i]);
+            fprintf(stderr, usage, argv[0]);
+            errno = EINVAL;
             return 1;
         }
         used[opt - opts] = 1;
