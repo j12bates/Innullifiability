@@ -35,6 +35,11 @@
             if (__p == NULL) FAULT(); \
         }
 
+#define CK_IFACE_FN(RES) { \
+            int __res = (RES); \
+            if (__res) safeExit(); \
+        }
+
 typedef enum ParamType {
     PARAM_END = 0,
     PARAM_CT,

@@ -28,18 +28,23 @@ int openImport(SR_Base *rec, char *fname)
     // Open File
     FILE *f = fopen(fname, "rb");
     if (f == NULL) {
-        fprintf(stderr, "File %s: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Error on Opening '%s': %s\n",
+                fname, strerror(errno));
         return 1;
     }
 
     // Import Record
     int res = sr_import(rec, f);
     if (res) {
-        if (res == -1) perror("Import Error");
+        if (res == -1)
+            fprintf(stderr, "Error on Importing '%s': %s\n",
+                    fname, strerror(errno));
         else if (res == -2)
-            fprintf(stderr, "Import Error: Wrong Size\n");
+            fprintf(stderr, "Error on Importing '%s': %s\n",
+                    fname, "Wrong Size");
         else if (res == -3)
-            fprintf(stderr, "Import Error: Invalid Record File\n");
+            fprintf(stderr, "Error on Importing '%s': %s\n",
+                    fname, "Invalid Record File");
     }
 
     fclose(f);
@@ -53,13 +58,16 @@ int openExport(SR_Base *rec, char *fname)
     // Open File
     FILE *f = fopen(fname, "wb");
     if (f == NULL) {
-        fprintf(stderr, "File %s: %s\n", fname, strerror(errno));
+        fprintf(stderr, "Error on Opening '%s': %s\n",
+                fname, strerror(errno));
         return 1;
     }
 
     // Export Record
     int res = sr_export(rec, f);
-    if (res == -1) perror("Export Error");
+    if (res == -1)
+        fprintf(stderr, "Error on Exporting '%s': %s\n",
+                fname, strerror(errno));
 
     fclose(f);
     return res != 0;
