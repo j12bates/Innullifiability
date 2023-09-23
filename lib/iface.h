@@ -14,31 +14,36 @@
 #define ONLY_SUP 1 << 1
 #define MARKED NULLIF | ONLY_SUP
 
-#define FAULT() { \
-            fprintf(stderr, "Fault at %s:%d -- %s\n", \
-                    __FILE__, __LINE__, strerror(errno)); \
-            safeExit(); \
-        }
+#define FAULT() \
+    do { \
+        fprintf(stderr, "Fault at %s:%d -- %s\n", \
+                __FILE__, __LINE__, strerror(errno)); \
+        safeExit(); \
+    } while (0)
 
-#define CK_NO(NO) { \
-            int __no = (NO); \
-            if (__no > 0) FAULT(); \
-        }
+#define CK_NO(NO) \
+    do { \
+        int __no = (NO); \
+        if (__no > 0) FAULT(); \
+    } while (0)
 
-#define CK_RES(RES) { \
-            int __res = (RES); \
-            if (__res < 0) FAULT(); \
-        }
+#define CK_RES(RES) \
+    do { \
+        int __res = (RES); \
+        if (__res < 0) FAULT(); \
+    } while (0)
 
-#define CK_PTR(PTR) { \
-            void *__p = ((void *) PTR); \
-            if (__p == NULL) FAULT(); \
-        }
+#define CK_PTR(PTR) \
+    do { \
+        void *__p = ((void *) PTR); \
+        if (__p == NULL) FAULT(); \
+    } while (0)
 
-#define CK_IFACE_FN(RES) { \
-            int __res = (RES); \
-            if (__res) safeExit(); \
-        }
+#define CK_IFACE_FN(RES) \
+    do { \
+        int __res = (RES); \
+        if (__res) safeExit(); \
+    } while (0)
 
 typedef enum ParamType {
     PARAM_END = 0,
