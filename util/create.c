@@ -31,9 +31,8 @@ int main(int argc, char **argv)
         const Param params[5] = {PARAM_SIZE, PARAM_VAL, PARAM_VAL,
                 PARAM_FNAME, PARAM_END};
 
-        int res = argParse(params, 4, usage, argc, argv,
-                &size, &minm, &maxm, &fname);
-        if (res) return 1;
+        CK_IFACE_FN(argParse(params, 4, usage, argc, argv,
+                &size, &minm, &maxm, &fname));
     }
 
     // Validate Input
@@ -59,7 +58,7 @@ int main(int argc, char **argv)
         CK_RES(res);
     }
 
-    if (openExport(rec, fname)) return 1;
+    CK_IFACE_FN(openExport(rec, fname));
 
     sr_release(rec);
 

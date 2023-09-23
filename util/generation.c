@@ -73,16 +73,13 @@ int main(int argc, char **argv)
     {
         const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_FNAME,
                 PARAM_CT, PARAM_FNAME, PARAM_END};
-        int res;
 
-        res = argParse(params, 3, usage, argc, argv,
-                &srcSize, &srcFname, &destFname, &threads, &progFname);
-        if (res) return 1;
+        CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
+                &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        res = optHandle("smcv", true, usage, argc, argv,
+        CK_IFACE_FN(optHandle("smcv", true, usage, argc, argv,
                 &expandSupers, &expandMutate, &omitImportDest,
-                &verbose);
-        if (res) return 1;
+                &verbose));
     }
 
     // Default to all expansion phases
@@ -120,19 +117,11 @@ int main(int argc, char **argv)
     CK_PTR(dest);
 
     // Import Source Record from File
-    if (openImport(src, srcFname)) {
-        fprintf(stderr, "Caused by Source\n");
-        return 1;
-    }
+    CK_IFACE_FN(openImport(src, srcFname));
     srcTotal = sr_getTotal(src);
 
     // Import Destination Record from File
-    if (!omitImportDest) {
-        if (openImport(dest, destFname)) {
-            fprintf(stderr, "Caused by Destination\n");
-            return 1;
-        }
-    }
+    if (!omitImportDest) CK_IFACE_FN(openImport(dest, destFname));
 
     // Or Create it from Scratch
     else {
@@ -210,7 +199,7 @@ int main(int argc, char **argv)
     // ============ Export and Cleanup
 
     // Export Destination
-    if (openExport(dest, destFname)) return 1;
+    CK_IFACE_FN(openExport(dest, destFname));
 
     // Unlink Records
     sr_release(src);

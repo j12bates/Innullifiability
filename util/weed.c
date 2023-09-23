@@ -49,14 +49,11 @@ int main(int argc, char **argv)
     {
         const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
                 PARAM_FNAME, PARAM_END};
-        int res;
 
-        res = argParse(params, 2, usage, argc, argv,
-                &size, &fname, &threads, &progFname);
-        if (res) return 1;
+        CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
+                &size, &fname, &threads, &progFname));
 
-        res = optHandle("v", true, usage, argc, argv, &verbose);
-        if (res) return 1;
+        CK_IFACE_FN(optHandle("v", true, usage, argc, argv, &verbose));
     }
 
     // Validate Thread Count
@@ -83,7 +80,7 @@ int main(int argc, char **argv)
     rec = sr_initialize(size);
     CK_PTR(rec);
 
-    if (openImport(rec, fname)) return 1;
+    CK_IFACE_FN(openImport(rec, fname));
     total = sr_getTotal(rec);
 
     // ============ Iteratively Perform Test
@@ -134,7 +131,7 @@ int main(int argc, char **argv)
     }
 
     // ============ Export and Cleanup
-    if (openExport(rec, fname)) return 1;
+    CK_IFACE_FN(openExport(rec, fname));
 
     sr_release(rec);
 

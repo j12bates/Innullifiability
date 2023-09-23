@@ -32,20 +32,18 @@ int main(int argc, char **argv)
     // Parse arguments, show usage on invalid
     {
         const Param params[3] = {PARAM_SIZE, PARAM_FNAME, PARAM_END};
-        int res;
 
-        res = argParse(params, 2, usage, argc, argv, &size, &fname);
-        if (res) return 1;
+        CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
+                    &size, &fname));
 
-        res = optHandle("s", false, usage, argc, argv, &disp);
-        if (res) return 1;
+        CK_IFACE_FN(optHandle("s", false, usage, argc, argv, &disp));
     }
 
     // ============ Import Record
     rec = sr_initialize(size);
     CK_PTR(rec);
 
-    if (openImport(rec, fname)) return 1;
+    CK_IFACE_FN(openImport(rec, fname));
 
     // Display Infos
     fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
