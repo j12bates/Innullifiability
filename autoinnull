@@ -8,6 +8,10 @@
 # Store intermediary records in a shared memory tmpfile
 temp=$(mktemp /dev/shm/rec.XXXXXX)
 
+# Make a named pipe for progress updates
+progf=$(mktemp -u /tmp/prog.XXXXXX)
+mkfifo $progf
+
 tsize=$1
 tmaxm=$2
 th=$3
@@ -18,12 +22,40 @@ utilpath=./bin
 usage="Usage: $0 target-size target-maxval [threads [output]]"
 usage1="All but <output> are positive integers"
 
+# Read in binary numbers from the named pipe, output them in progress
+# form
+progRead () {
+python << END
+import sys
+def next(p):
+    return int.from_bytes(p.read(8), sys.byteorder)
+
+p = open("$1", 'rb')
+current = next(p)
+total = next(p)
+p.close()
+
+print(f"{current} / {total}")
+END
+}
+
+# Send the signal to the program and print the progress data each second
+progLoop () {
+while true
+do
+    sleep 1
+    progRead $2 >&2 &
+    kill -s USR1 $1 || return
+done
+}
+
 # Validate command-line arguments
 num='^[0-9]+$'
 invalid=0
 grep -Pq $num <<< "$tsize" || invalid=1
 grep -Pq $num <<< "$tmaxm" || invalid=1
 [ -z "$th" ] || grep -Pq $num <<< "$th" || invalid=1
+[ -z "$th" ] && th=1
 if [ $invalid -ne 0 ]
 then
     echo "$usage" >&2
@@ -36,8 +68,12 @@ echo "N = $tsize, M <= $tmaxm" >&2
 # Get the base nullifiable sets (size-3)
 echo >&2
 echo "================ Finding Base Sets" >&2
+
 $utilpath/create 3 0 $tmaxm $temp || exit 1
-$utilpath/weed 3 $temp $th || exit 1
+$utilpath/weed 3 $temp $th $progf & curwork=$!
+progLoop $curwork $progf & curloop=$!
+wait -n $curwork || exit 1
+kill $curloop
 
 # Iteratively make generations, going up in size
 size=3
@@ -45,14 +81,23 @@ while [ $size -lt $tsize ]
 do
     echo >&2
     echo "================ Expanding Size $size" >&2
-    $utilpath/gen -c $size $temp $temp $th || exit 1
+
+    $utilpath/gen -c $size $temp $temp $th $progf & curwork=$!
+    progLoop $curwork $progf & curloop=$!
+    wait -n $curwork || exit 1
+    kill $curloop
+
     size=$(($size + 1))
 done
 
 # Weed out any remaining nullifiable sets
 echo >&2
 echo "================ Testing Remaining Sets" >&2
-$utilpath/weed $tsize $temp $th || exit 1
+
+$utilpath/weed $tsize $temp $th $progf & curwork=$!
+progLoop $curwork $progf & curloop=$!
+wait -n $curwork || exit 1
+kill $curloop
 
 # Print out the resulting innullifiable sets
 echo >&2
@@ -66,5 +111,8 @@ then
 else
     rm $temp
 fi
+
+# Delete Named Pipe
+rm $progf
 
 exit 0
