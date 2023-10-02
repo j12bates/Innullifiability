@@ -25,26 +25,18 @@ usage1="All but <output> are positive integers"
 # Read in binary numbers from the named pipe, output them in progress
 # form
 progRead () {
-python << END
-import sys
-def next(p):
-    return int.from_bytes(p.read(8), sys.byteorder)
-
-p = open("$1", 'rb')
-current = next(p)
-total = next(p)
-p.close()
-
-print(f"{current} / {total}")
-END
+    decnums=$(od -A n -t d8 -N 16 $1)
+    read current total rest <<< "$decnums"
+    [ -z "$current" ] || [ -z "$total" ] || \
+    echo "$current / $total ($((current * 100 / total))%)"
 }
 
 # Send the signal to the program and print the progress data each second
 progLoop () {
 while true
 do
-    sleep 1
-    progRead $2 >&2 &
+    sleep 0.2
+    echo -ne "$(progRead $2)\r" >&2 &
     kill -s USR1 $1 || return
 done
 }
