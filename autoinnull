@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 # Store intermediary records in a shared memory tmpfile
-temp=$(mktemp /dev/shm/rec.XXXXXX)
+tempf=$(mktemp /dev/shm/rec.XXXXXX)
 
 # Make a named pipe for progress updates
 progf=$(mktemp -u /tmp/prog.XXXXXX)
@@ -41,6 +41,9 @@ do
 done
 }
 
+# Clean up backgrounded processes and files on exit
+trap 'kill -s TERM $(jobs -pr) 2> /dev/null; '"rm -f $progf $tempf" EXIT
+
 # Validate command-line arguments
 num='^[0-9]+$'
 invalid=0
@@ -61,8 +64,8 @@ echo "N = $tsize, M <= $tmaxm" >&2
 echo >&2
 echo "================ Finding Base Sets" >&2
 
-$utilpath/create 3 0 $tmaxm $temp || exit 1
-$utilpath/weed 3 $temp $th $progf & curwork=$!
+$utilpath/create 3 0 $tmaxm $tempf || exit 1
+$utilpath/weed 3 $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
 wait -n $curwork || exit 1
 kill $curloop
@@ -74,7 +77,7 @@ do
     echo >&2
     echo "================ Expanding Size $size" >&2
 
-    $utilpath/gen -c $size $temp $temp $th $progf & curwork=$!
+    $utilpath/gen -c $size $tempf $tempf $th $progf & curwork=$!
     progLoop $curwork $progf & curloop=$!
     wait -n $curwork || exit 1
     kill $curloop
@@ -86,7 +89,7 @@ done
 echo >&2
 echo "================ Testing Remaining Sets" >&2
 
-$utilpath/weed $tsize $temp $th $progf & curwork=$!
+$utilpath/weed $tsize $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
 wait -n $curwork || exit 1
 kill $curloop
@@ -94,17 +97,12 @@ kill $curloop
 # Print out the resulting innullifiable sets
 echo >&2
 echo "================ Result" >&2
-$utilpath/eval $tsize $temp || exit 1
+$utilpath/eval $tsize $tempf || exit 1
 
 # Copy output
 if ! [ -z "$output" ]
 then
-    mv $temp $output || exit 1
-else
-    rm $temp
+    mv $tempf $output || exit 1
 fi
-
-# Delete Named Pipe
-rm $progf
 
 exit 0
