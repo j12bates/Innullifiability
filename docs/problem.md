@@ -1,3 +1,5 @@
+# Problem Explanation
+
 You know the "four 4's" puzzle? This is a game where you're supposed to
 find a way to compute as many whole numbers as possible, each using only
 arithmetic operations and four instances of the number 4. Here are some
@@ -35,7 +37,7 @@ required that a solution uses every value, unlike the four 4's problem
 which requires all four values be used, even if it makes obtaining a
 solution harder. <<maybe footnote this?>>
 
-Anyways, here's an example 'countdown problem':
+Anyways, here's an example 'Countdown problem':
 $$
 S: [1, 3, 7, 10, 25, 50]
 T: 765
@@ -55,7 +57,51 @@ our possible input values into one, reducing our total set of input
 values by one each time, until the value we want appears. We can apply
 this metaphor to the four 4's problem as well, so that instead of
 constructing an expression, we're incrementally merging values, and a
-solution would mean we've reduced it down to a single value, which is
-the target whole number.
+solution would mean we've reduced it down to a single value that is the
+target whole number. We can also apply the metaphor of arithmetic
+expressions to this, so that a solution would be an expression that uses
+each given value up to once, evaluating to the target.
 
+So far, we've looked at two different puzzle-type games, both with this
+idea of having a source set of numbers and a target result, where the
+player must find a way to arithmetically bring them together. We've seen
+that this can be phrased in terms of constructing an arithmetic
+expression evaluating to the target, or by doing operations one at a
+time to reduce the input until the target appears. Now I will introduce
+'Nullifiability,' the actual subject of my research, which I like to
+think of as a generalized version of these.
 
+Let's imagine that 'Countdown' puzzles didn't have the notion of big and
+small numbers, and that you get an arbitrary set of N whole numbers and
+a whole number target. We can also put in place the requirement from
+four 4's that all numbers must be used once and only once. Obviously,
+some puzzles will be naturally unsolvable, and this can depend a lot on
+the target value. If it's something like a high prime number, it's less
+likely an arbitrary set can be solved for it. So then, what would be the
+most solvable target?
+
+The answer is, trivially, zero. I'm pretty sure, at least. I did a bit
+of number crunching for one particular case, but I feel like this is
+probably general. To me at least, this makes intuitive sense. I'll try
+and explain how this works at some point, when I've thought through it
+more.
+
+The interesting thing is that solving to get zero will always follow one
+particular pattern: if there's no zero initially, there'll be a way to
+get two of the same value, then those are subtracted to get zero, and
+the zero is multiplied by all the remaining values to end off with zero.
+The only way to get zero through arithmetic is to subtract a number from
+itself: there's no way to add or multiply positive numbers to get zero,
+and for a quotient to be zero the dividend must be zero to start with.
+Because of the ability to multiply any remaining values by zero once
+zero is initially reached, there is no distinction made by the 'once and
+only once' rule when dealing with a target of zero.
+
+So, this is Nullifiability: find a way to take a given input set and
+arithmetically get it to zero. This can be done either by constructing
+an arithmetic expression or by combining and reducing, and it needn't be
+specified whether or not to require all values be used explicitly.
+Nullifiability is a common property with sets: anything with two of the
+same number is trivially nullifiable, and often there's a way to get two
+of the same number anyways. So, what I'm particularly interested in are
+sets which don't have this property, the *unusual* ones, in a sense.
