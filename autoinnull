@@ -26,7 +26,9 @@ usage1="All but <output> are positive integers"
 # form
 progRead () {
     decnums=$(od -A n -t d8 -N 16 $1)
-    read current total rest <<< "$decnums"
+    read -r current total rest << END
+$decnums
+END
     [ -z "$current" ] || [ -z "$total" ] || \
     echo "$current / $total ($((current * 100 / total))%)"
 }
@@ -36,20 +38,21 @@ progLoop () {
 while true
 do
     sleep 0.2
-    echo -ne "$(progRead $2)\r" >&2 &
+    printf "%s\r" "$(progRead $2)" >&2 &
     kill -s USR1 $1 || return
 done
 }
 
 # Clean up backgrounded processes and files on exit
-trap 'kill -s TERM $(jobs -pr) 2> /dev/null; '"rm -f $progf $tempf" EXIT
+trap 'kill -s TERM "$(jobs -p)" 2> /dev/null; '"rm -f $progf $tempf" \
+    EXIT HUP INT TERM
 
 # Validate command-line arguments
 num='^[0-9]+$'
 invalid=0
-grep -Pq $num <<< "$tsize" || invalid=1
-grep -Pq $num <<< "$tmaxm" || invalid=1
-[ -z "$th" ] || grep -Pq $num <<< "$th" || invalid=1
+echo $tsize | grep -Pq $num || invalid=1
+echo $tmaxm | grep -Pq $num || invalid=1
+[ -z "$th" ] || echo $th | grep -Pq $num || invalid=1
 [ -z "$th" ] && th=1
 if [ $invalid -ne 0 ]
 then
@@ -67,7 +70,7 @@ echo "================ Finding Base Sets" >&2
 $utilpath/create 3 0 $tmaxm $tempf || exit 1
 $utilpath/weed 3 $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
-wait -n $curwork || exit 1
+wait $curwork || exit 1
 kill $curloop
 
 # Iteratively make generations, going up in size
@@ -79,10 +82,10 @@ do
 
     $utilpath/gen -c $size $tempf $tempf $th $progf & curwork=$!
     progLoop $curwork $progf & curloop=$!
-    wait -n $curwork || exit 1
+    wait $curwork || exit 1
     kill $curloop
 
-    size=$(($size + 1))
+    size=$((size + 1))
 done
 
 # Weed out any remaining nullifiable sets
@@ -91,7 +94,7 @@ echo "================ Testing Remaining Sets" >&2
 
 $utilpath/weed $tsize $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
-wait -n $curwork || exit 1
+wait $curwork || exit 1
 kill $curloop
 
 # Print out the resulting innullifiable sets
@@ -100,7 +103,7 @@ echo "================ Result" >&2
 $utilpath/eval $tsize $tempf || exit 1
 
 # Copy output
-if ! [ -z "$output" ]
+if [ -n "$output" ]
 then
     mv $tempf $output || exit 1
 fi
