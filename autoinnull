@@ -29,7 +29,7 @@ progRead () {
     read -r current total rest << END
 $decnums
 END
-    [ -z "$current" ] || [ -z "$total" ] || \
+    [ -z $current ] || [ -z $total ] || \
     echo "$current / $total ($((current * 100 / total))%)"
 }
 
@@ -47,7 +47,8 @@ done
 trap 'kill -s TERM "$(jobs -p)" 2> /dev/null; '"rm -f $progf $tempf" \
     EXIT HUP INT TERM
 
-# Validate command-line arguments
+# Validate command-line arguments -- after this we know they're valid
+# numbers, no need for quotes
 num='^[0-9]+$'
 invalid=0
 echo $tsize | grep -Pq $num || invalid=1
@@ -63,11 +64,16 @@ fi
 
 echo "N = $tsize, M <= $tmaxm" >&2
 
+# Whenever we run a work job, we'll background it, keep its PID, then
+# launch a loop for progress updates and background that as well. We'll
+# wait for the work program to end, then kill the loop.
+
 # Get the base nullifiable sets (size-3)
 echo >&2
 echo "================ Finding Base Sets" >&2
 
 $utilpath/create 3 0 $tmaxm $tempf || exit 1
+
 $utilpath/weed 3 $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
 wait $curwork || exit 1
@@ -105,7 +111,7 @@ $utilpath/eval $tsize $tempf || exit 1
 # Copy output
 if [ -n "$output" ]
 then
-    mv $tempf $output || exit 1
+    mv $tempf "$output" || exit 1
 fi
 
 exit 0
