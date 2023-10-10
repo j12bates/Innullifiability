@@ -28,29 +28,26 @@ as the order for specific operations is specified. So, in a pure sense,
 bracketing doesn't really exist.
 
 Similar to this is the 'numbers puzzle' from the British game show
-'Countdown,' in which contestants are given a set of six numbers, some
-large, some small, as well as a 'target value.' Their goal is similar to
-the four 4's problem, in that they're attempting to use arithmetic to
-get their six numbers equal to the target value, using each value only
-once. There's one important difference though, namely that it's not
-required that a solution uses every value, unlike the four 4's problem
-which requires all four values be used, even if it makes obtaining a
-solution harder. <<maybe footnote this?>>
+'Countdown,' in which contestants are given a set of six values, as well
+as a 'target value.' Their goal is similar to the four 4's problem, in
+that they're attempting to use arithmetic to get their six numbers equal
+to the target value, using each value only once. There's one important
+difference though, namely that it's not required that a solution uses
+every value, unlike the four 4's problem which requires all four values
+be used, even if it makes obtaining a solution harder.[^2]
 
-Anyways, here's an example 'Countdown problem':
-$$
-S: [1, 3, 7, 10, 25, 50]
-T: 765
-$$
+[^2]: There are some details... blah blah blah
+
+Here's an example 'Countdown problem':
+- $`S: [1, 3, 7, 10, 25, 50]`$
+- $`T: 765`$
 
 Typically, a solution would be given as a series of binary operations,
 each operand being an unused value from either the set or the result of
 a previous operation, like this:
-$$
-25 - 10 = 15
-1 + 50 = 51
-15 * 51 = 765
-$$
+1. $`25 - 10 = 15`$
+2. $`1 + 50 = 51`$
+3. $`15 * 51 = 765`$
 
 Notice that as we perform these operations, one by one, we merge two of
 our possible input values into one, reducing our total set of input
@@ -65,11 +62,34 @@ each given value up to once, evaluating to the target.
 So far, we've looked at two different puzzle-type games, both with this
 idea of having a source set of numbers and a target result, where the
 player must find a way to arithmetically bring them together. We've seen
-that this can be phrased in terms of constructing an arithmetic
+that they can be phrased in terms of constructing an arithmetic
 expression evaluating to the target, or by doing operations one at a
-time to reduce the input until the target appears. Now I will introduce
-'Nullifiability,' the actual subject of my research, which I like to
-think of as a generalized version of these.
+time to reduce the input until the target appears. Let's look at a more
+general version of these puzzles, to see that these work the same:
+
+$`[2, 6, 9, 13, 16]`$\
+Target: $`21`$
+
+Using the 'merge and reduce' method:
+
+$`2 * 9 = 18`$\
+$`\Rightarrow [6, 13, 16, 18]`$
+
+$`16 - 13 = 3`$\
+$`\Rightarrow [3, 6, 18]`$
+
+$`3 + 18 = 21`$
+
+Rewriting as an arithmetic expression:
+
+$`(2 * 9) + (16 - 13) = 21`$\
+($`6`$ unused)
+
+Now I will introduce 'Nullifiability,' the actual subject of my
+research, which I like to think of as a generalized version of these.
+
+here: do the 'generalization' first with the 'once and only once' rule,
+do the example, then introduce nullifiability afterwards
 
 Let's imagine that 'Countdown' puzzles didn't have the notion of big and
 small numbers, and that you get an arbitrary set of N whole numbers and
@@ -97,11 +117,30 @@ Because of the ability to multiply any remaining values by zero once
 zero is initially reached, there is no distinction made by the 'once and
 only once' rule when dealing with a target of zero.
 
-So, this is Nullifiability: find a way to take a given input set and
-arithmetically get it to zero. This can be done either by constructing
-an arithmetic expression or by combining and reducing, and it needn't be
-specified whether or not to require all values be used explicitly.
-Nullifiability is a common property with sets: anything with two of the
-same number is trivially nullifiable, and often there's a way to get two
-of the same number anyways. So, what I'm particularly interested in are
-sets which don't have this property, the *unusual* ones, in a sense.
+Here are some examples:
+- $`[2, 6, 7, 8]: (8 - 2 - 6) * 7 = 0`$
+- $`[4, 7, 12, 15]: (7 - 4) - (15 - 12) = 0`$
+- $`[5, 9, 15, 17, 18]: (15 - 5) - (9 + 18 - 17) = 0`$
+
+So, this is 'Arithmetic Nullification': find a way to take a given input
+set and arithmetically get it to zero. This can be done either by
+constructing an arithmetic expression or by combining and reducing, and
+it needn't be specified whether or not to require all values be used
+explicitly. A set with which this can be done will have the property of
+being 'Nullifiable.'
+
+Nullifiability is a common property with sets. In fact, every set with a
+repeated value is trivially nullifiable. So, what I'm particularly
+interested in are sets which don't have this property, the *unusual*
+ones, in a sense. For these sets, the *Innullifiable* sets, there is
+absolutely *no way* to get zero. This means there's also no way to get
+the same value two different ways.
+
+Trying to nullify an innullifiable set can feel sorta 'almost-y,' in
+that trying different operations will produce results very close to each
+other, but never quite equal. Here are some examples of innullifiable
+sets, and I encourage the reader to try to find a way to get zero:
+- $`[1, 4, 6, 8]`$
+- $`[8, 10, 13, 16, 17]`$
+- $`[3, 7, 8, 16, 22]`$
+- $`[12, 19, 23, 27, 32, 33]`$
