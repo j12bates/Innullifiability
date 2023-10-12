@@ -36,15 +36,19 @@ difference though, namely that it's not required that a solution uses
 every value, unlike the four 4's problem which requires all four values
 be used, even if it makes obtaining a solution harder.[^2]
 
-[^2]: There are some details... blah blah blah
+[^2]: There are some additional details about this game, like that the
+target number is always three-digits and there's a distinction between
+'big' and 'small' numbers in the source set, but we can ignore that
+here.
 
 Here's an example 'Countdown problem':
 - $`S: [1, 3, 7, 10, 25, 50]`$
 - $`T: 765`$
 
-Typically, a solution would be given as a series of binary operations,
-each operand being an unused value from either the set or the result of
-a previous operation, like this:
+Typically, a solution would be given as a series of operations,
+performed on two unused values, each of which may be from either the set
+or the result of a previous operation, until the target number is
+reached, like this:
 1. $`25 - 10 = 15`$
 2. $`1 + 50 = 51`$
 3. $`15 * 51 = 765`$
@@ -64,47 +68,43 @@ idea of having a source set of numbers and a target result, where the
 player must find a way to arithmetically bring them together. We've seen
 that they can be phrased in terms of constructing an arithmetic
 expression evaluating to the target, or by doing operations one at a
-time to reduce the input until the target appears. Let's look at a more
-general version of these puzzles, to see that these work the same:
+time to reduce the input until the target appears. Just to show that
+these metaphors are identical, let's look at a more general version of
+these puzzles, where there is an arbitrary set of N whole numbers and a
+whole number target, and we'll also add the requirement from four 4's
+that all values be used once and only once:
 
-$`[2, 6, 9, 13, 16]`$\
+$`[2, 9, 13, 16]`$\
 Target: $`21`$
 
 Using the 'merge and reduce' method:
 
 $`2 * 9 = 18`$\
-$`\Rightarrow [6, 13, 16, 18]`$
+$`\Rightarrow [13, 16, 18]`$
 
 $`16 - 13 = 3`$\
-$`\Rightarrow [3, 6, 18]`$
+$`\Rightarrow [3, 18]`$
 
-$`3 + 18 = 21`$
+$`3 + 18 = 21`$\
+$`\Rightarrow [21]`$\
+singleton member is target, solved
 
 Rewriting as an arithmetic expression:
 
-$`(2 * 9) + (16 - 13) = 21`$\
-($`6`$ unused)
+$`(2 * 9) + (16 - 13) = 21`$
 
 Now I will introduce 'Nullifiability,' the actual subject of my
-research, which I like to think of as a generalized version of these.
+research, which I like to think of as a trivial case to this generalized
+puzzle.
 
-here: do the 'generalization' first with the 'once and only once' rule,
-do the example, then introduce nullifiability afterwards
-
-Let's imagine that 'Countdown' puzzles didn't have the notion of big and
-small numbers, and that you get an arbitrary set of N whole numbers and
-a whole number target. We can also put in place the requirement from
-four 4's that all numbers must be used once and only once. Obviously,
-some puzzles will be naturally unsolvable, and this can depend a lot on
-the target value. If it's something like a high prime number, it's less
-likely an arbitrary set can be solved for it. So then, what would be the
-most solvable target?
-
-The answer is, trivially, zero. I'm pretty sure, at least. I did a bit
-of number crunching for one particular case, but I feel like this is
-probably general. To me at least, this makes intuitive sense. I'll try
-and explain how this works at some point, when I've thought through it
-more.
+Obviously, some puzzles will be naturally unsolvable, and this can
+depend a lot on the target value. If it's something like a high prime
+number, it's less likely an arbitrary set can be solved for it. So then,
+what would be the most solvable target? The answer is, trivially, zero.
+I'm pretty sure, at least. I did a bit of number crunching for one
+particular case, but I feel like this is probably general. To me at
+least, this makes intuitive sense, and I'll explain a bit of why I think
+so.
 
 The interesting thing is that solving to get zero will always follow one
 particular pattern: if there's no zero initially, there'll be a way to
@@ -123,7 +123,7 @@ Here are some examples:
 - $`[5, 9, 15, 17, 18]: (15 - 5) - (9 + 18 - 17) = 0`$
 
 So, this is 'Arithmetic Nullification': find a way to take a given input
-set and arithmetically get it to zero. This can be done either by
+set and arithmetically get it to zero. This can be expressed either by
 constructing an arithmetic expression or by combining and reducing, and
 it needn't be specified whether or not to require all values be used
 explicitly. A set with which this can be done will have the property of
@@ -133,8 +133,9 @@ Nullifiability is a common property with sets. In fact, every set with a
 repeated value is trivially nullifiable. So, what I'm particularly
 interested in are sets which don't have this property, the *unusual*
 ones, in a sense. For these sets, the *Innullifiable* sets, there is
-absolutely *no way* to get zero. This means there's also no way to get
-the same value two different ways.
+absolutely *no way* to get zero. Since getting zero requires getting two
+of the same value, this also means there's no way to get the same value
+two different ways.
 
 Trying to nullify an innullifiable set can feel sorta 'almost-y,' in
 that trying different operations will produce results very close to each
@@ -144,3 +145,10 @@ sets, and I encourage the reader to try to find a way to get zero:
 - $`[8, 10, 13, 16, 17]`$
 - $`[3, 7, 8, 16, 22]`$
 - $`[12, 19, 23, 27, 32, 33]`$
+
+So to summarize, Nullifiability is when a set can be rearranged to get
+zero, specifically when a null-evaluating (equal to zero) arithmetic
+expression can be constructed, or when values can be merged together
+using those operations to get zero. Since this is a rather common
+property, I'm interested in the sets that don't follow this, or are
+Innullifiable.
