@@ -63,13 +63,11 @@ int supers(const unsigned long *set, size_t size, unsigned long max,
         super[pos] = i;
 
         // If we've reached the next value, skip and advance
-        if (pos < size) if (super[pos + 1] == i) {
-            pos++;
-            continue;
-        }
+        bool skip = false;
+        if (pos < size) if (super[pos + 1] == i) pos++, skip = true;
 
         // Otherwise, we have a superset to output
-        if (out != NULL) out(super, size + 1);
+        if (out != NULL && !skip) out(super, size + 1);
     }
 
     free(super);
@@ -93,22 +91,30 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
         for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
         mutateOpSum(eSet, size + 1, mutPt, max, out);
 
-        // do something similar for difference
+        // Same (Difference)
+        for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
+        mutateOpDiff(eSet, size + 1, mutPt, max, out);
     }
 
     return 0;
 }
 
-// This takes in a set with an unused spot at the beginning, as well as
+// These take in a set with an unused spot at the beginning, as well as
 // an index in that set whose value to mutate, and it inserts all the
-// equivalent pairs it can using addition, outputting all of these
-// expanded sets.
+// equivalent pairs it can using additive operations, outputting all of
+// these expanded sets.
 
-// This works kinda like the superset expansion function, except it has
-// two insertions, a main and a follower. The main value is always
-// ahead, starting out at the value we're actually mutating, and the
-// main plus the follower is always that value. And similarly the
-// indices of insertion will shift whenever the values collide.
+// They work kinda like the superset expansion function, except with two
+// insertions, a main and a follower, where the operation will produce
+// the value being mutated, creating an 'Equivalent Pair.' The main
+// value is always ahead, starting out at the value we're mutating, so
+// for addition it'll decrement each time until meeting up with the
+// follower, and for subtraction it'll increment until reaching the max
+// value; in either case the follower starts at 1 and keeps on
+// incrementing. And to keep the sets in order, the insertion indices
+// will shift whenever values collide.
+
+// Addition
 void mutateOpSum(unsigned long *eSet, size_t eSize,
         size_t mutPt, unsigned long max,
         void (*out)(const unsigned long *, size_t))
@@ -139,6 +145,38 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
             insPtFollower++, skip = true;
 
         // Otherwise, we have an expanded set to output
+        if (out != NULL && !skip) out(eSet, eSize);
+    }
+
+    return;
+}
+
+// Subtraction
+void mutateOpDiff(unsigned long *eSet, size_t eSize,
+        size_t mutPt, unsigned long max,
+        void (*out)(const unsigned long *, size_t))
+{
+    unsigned long mutVal = eSet[mutPt];
+
+    // Iterate through main insertion values
+    size_t insPtMain = mutPt, insPtFollower = 0;
+    for (unsigned long insValMain = mutVal + 1;
+            insValMain <= max; insValMain++)
+    {
+        unsigned long insValFollower = insValMain - mutVal;
+
+        // Insert
+        eSet[insPtMain] = insValMain;
+        eSet[insPtFollower] = insValFollower;
+
+        // Y'know, advance and skip
+        bool skip = false;
+        if (eSet[insPtMain + 1] == insValMain)
+            insPtMain++, skip = true;
+        if (eSet[insPtFollower + 1] == insValFollower)
+            insPtFollower++, skip = true;
+
+        // Output
         if (out != NULL && !skip) out(eSet, eSize);
     }
 
