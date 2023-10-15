@@ -19,7 +19,15 @@ int supers(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 int mutateAdd(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
+int mutateMul(const unsigned long *, size_t, unsigned long,
+        void (*)(const unsigned long *, size_t));
+
 void mutateOpSum(unsigned long *, size_t, size_t, unsigned long,
+        void (*)(const unsigned long *, size_t));
+void mutateOpDiff(unsigned long *, size_t, size_t, unsigned long,
+        void (*)(const unsigned long *, size_t));
+void insertEqPair(unsigned long *, size_t, size_t,
+        const unsigned long *, unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
 
 // Produce All Set Expansions
@@ -121,8 +129,7 @@ int mutateMul(const unsigned long *set, size_t size, unsigned long max,
         {
             if (mutVal % minor != 0) continue;
             unsigned long major = mutVal / minor;
-
-            // insert, output
+            insertEqPair(eSet, size + 1, mutPt, set, minor, major, out);
         }
 
         // Quotient Equivalent Pairs: iterate over divisors
@@ -130,8 +137,8 @@ int mutateMul(const unsigned long *set, size_t size, unsigned long max,
                 divisor++)
         {
             unsigned long dividend = mutVal * divisor;
-
-            // insert, output
+            insertEqPair(eSet, size + 1, mutPt, set,
+                    divisor, dividend, out);
         }
     }
 
@@ -218,6 +225,34 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
         // Output
         if (out != NULL && !skip) out(eSet, eSize);
     }
+
+    return;
+}
+
+// Insert Equivalent Pair into Set, Output
+void insertEqPair(unsigned long *eSet, size_t eSize, size_t mutPt,
+        const unsigned long *set, unsigned long minor,
+        unsigned long major, void (*out)(const unsigned long *, size_t))
+{
+    // Iterate through output set indices, keeping track of source set
+    // index
+    size_t index = 0;
+    for (size_t eIndex = 0; eIndex < eSize; eIndex++)
+    {
+        // If the next new value fits here, insert it, and change up the
+        // variables for next time
+        if (minor < set[index] && minor != 0) {
+            eSet[eIndex] = minor;
+            minor = major;
+            major = 0;
+        }
+
+        // Otherwise, copy the next set value over
+        else eSet[eIndex] = set[index++];
+    }
+
+    // Output Set
+    if (out != NULL) out(eSet, eSize);
 
     return;
 }
