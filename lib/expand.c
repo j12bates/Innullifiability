@@ -14,6 +14,8 @@
 
 #include <errno.h>
 
+#include "expand.h"
+
 // Helper Function Declarations
 int supers(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
@@ -46,6 +48,18 @@ int expand(const unsigned long *set, size_t size,
     errno = 0;
 #endif
 
+    // If no output, skip all this work
+    if (out == NULL) return 0;
+
+    // Supersets
+    if (mode & EXPAND_SUPERS) supers(set, size, max, out);
+
+    // Additive Mutations
+    if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, max, out);
+
+    // Multiplicative Mutations
+    if (mode & EXPAND_MUT_MUL) mutateMul(set, size, max, out);
+
     return 0;
 }
 
@@ -75,7 +89,7 @@ int supers(const unsigned long *set, size_t size, unsigned long max,
         if (pos < size) if (super[pos + 1] == i) pos++, skip = true;
 
         // Otherwise, we have a superset to output
-        if (out != NULL && !skip) out(super, size + 1);
+        if (!skip) out(super, size + 1);
     }
 
     free(super);
@@ -191,7 +205,7 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
             insPtFollower--, skip = true;
 
         // Otherwise, we have an expanded set to output
-        if (out != NULL && !skip) out(eSet, eSize);
+        if (!skip) out(eSet, eSize);
     }
 
     return;
@@ -223,7 +237,7 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
             insPtFollower++, skip = true;
 
         // Output
-        if (out != NULL && !skip) out(eSet, eSize);
+        if (!skip) out(eSet, eSize);
     }
 
     return;
@@ -252,7 +266,7 @@ void insertEqPair(unsigned long *eSet, size_t eSize, size_t mutPt,
     }
 
     // Output Set
-    if (out != NULL) out(eSet, eSize);
+    out(eSet, eSize);
 
     return;
 }
