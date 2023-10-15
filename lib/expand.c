@@ -96,6 +96,8 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
         mutateOpDiff(eSet, size + 1, mutPt, max, out);
     }
 
+    free(eSet);
+
     return 0;
 }
 
@@ -107,12 +109,12 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
 // They work kinda like the superset expansion function, except with two
 // insertions, a main and a follower, where the operation will produce
 // the value being mutated, creating an 'Equivalent Pair.' The main
-// value is always ahead, starting out at the value we're mutating, so
-// for addition it'll decrement each time until meeting up with the
-// follower, and for subtraction it'll increment until reaching the max
-// value; in either case the follower starts at 1 and keeps on
-// incrementing. And to keep the sets in order, the insertion indices
-// will shift whenever values collide.
+// value is always smaller, starting out at 1 and incrementing each
+// time. The follower value is then the balance, so for addition it'll
+// decrement each time until meeting up with the main, and for
+// subtraction it'll increment until reaching the max value. And to keep
+// the sets in order, the insertion indices will shift whenever values
+// collide.
 
 // Addition
 void mutateOpSum(unsigned long *eSet, size_t eSize,
@@ -124,9 +126,9 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
 
     // Iterate through all the main values we could insert, keeping
     // track of the indices we're inserting at
-    size_t insPtMain = mutPt, insPtFollower = 0;
-    for (unsigned long insValMain = mutVal - 1;
-            insValMain > mutVal / 2; insValMain--)
+    size_t insPtMain = 0, insPtFollower = mutPt;
+    for (unsigned long insValMain = 1;
+            insValMain <= (mutVal - 1) / 2; insValMain++)
     {
         // Follower insertion value
         unsigned long insValFollower = mutVal - insValMain;
@@ -139,10 +141,10 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
         // it, advance its index, and skip to the next equivalent pair
         // since this has a double value
         bool skip = false;
-        if (eSet[insPtMain - 1] == insValMain)
-            insPtMain--, skip = true;
-        if (eSet[insPtFollower + 1] == insValFollower)
-            insPtFollower++, skip = true;
+        if (eSet[insPtMain + 1] == insValMain)
+            insPtMain++, skip = true;
+        if (eSet[insPtFollower - 1] == insValFollower)
+            insPtFollower--, skip = true;
 
         // Otherwise, we have an expanded set to output
         if (out != NULL && !skip) out(eSet, eSize);
@@ -159,11 +161,11 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
     unsigned long mutVal = eSet[mutPt];
 
     // Iterate through main insertion values
-    size_t insPtMain = mutPt, insPtFollower = 0;
-    for (unsigned long insValMain = mutVal + 1;
-            insValMain <= max; insValMain++)
+    size_t insPtMain = 0, insPtFollower = mutPt;
+    for (unsigned long insValMain = 1;
+            insValMain <= max - mutVal; insValMain++)
     {
-        unsigned long insValFollower = insValMain - mutVal;
+        unsigned long insValFollower = mutVal + insValMain;
 
         // Insert
         eSet[insPtMain] = insValMain;
