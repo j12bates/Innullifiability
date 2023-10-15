@@ -17,18 +17,18 @@
 #include "expand.h"
 
 // Helper Function Declarations
-int supers(const unsigned long *, size_t, unsigned long,
+static int supers(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
-int mutateAdd(const unsigned long *, size_t, unsigned long,
+static int mutateAdd(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
-int mutateMul(const unsigned long *, size_t, unsigned long,
+static int mutateMul(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 
-void mutateOpSum(unsigned long *, size_t, size_t, unsigned long,
+static void mutateOpSum(unsigned long *, size_t, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
-void mutateOpDiff(unsigned long *, size_t, size_t, unsigned long,
+static void mutateOpDiff(unsigned long *, size_t, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
-void insertEqPair(unsigned long *, size_t, size_t,
+static void insertEqPair(unsigned long *, size_t, size_t,
         const unsigned long *, unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
 
@@ -111,11 +111,11 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
     {
         // Initialize output and call helper function (Sum)
         for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpSum(eSet, size + 1, mutPt, max, out);
+        mutateOpSum(eSet, size + 1, mutPt + 1, max, out);
 
         // Same (Difference)
         for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpDiff(eSet, size + 1, mutPt, max, out);
+        mutateOpDiff(eSet, size + 1, mutPt + 1, max, out);
     }
 
     free(eSet);
@@ -136,7 +136,8 @@ int mutateMul(const unsigned long *set, size_t size, unsigned long max,
     for (size_t mutPt = 0; mutPt < size; mutPt++)
     {
         // Value we're mutating
-        unsigned long mutVal = eSet[mutPt];
+        unsigned long mutVal = set[mutPt];
+        if (mutVal == 1) continue;
 
         // Product Equivalent Pairs: iterate over smaller (minor) factors
         for (unsigned long minor = 2; minor < mutVal / minor; minor++)
@@ -236,6 +237,9 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
         if (eSet[insPtFollower + 1] == insValFollower)
             insPtFollower++, skip = true;
 
+        // Also skip if this is the superset case
+        if (insValMain == mutVal) skip = true;
+
         // Output
         if (!skip) out(eSet, eSize);
     }
@@ -250,20 +254,28 @@ void insertEqPair(unsigned long *eSet, size_t eSize, size_t mutPt,
 {
     // Iterate through output set indices, keeping track of source set
     // index
-    size_t index = 0;
-    for (size_t eIndex = 0; eIndex < eSize; eIndex++)
+    size_t eIndex = 0;
+    for (size_t index = 0; index < eSize - 1; index++)
     {
-        // If the next new value fits here, insert it, and change up the
-        // variables for next time
-        if (minor < set[index] && minor != 0) {
-            eSet[eIndex] = minor;
+        // Insert new value(s) if in order, value of zero means nothing
+        // to insert
+        while (minor < set[index] && minor != 0) {
+            eSet[eIndex++] = minor;
             minor = major;
             major = 0;
         }
 
-        // Otherwise, copy the next set value over
-        else eSet[eIndex] = set[index++];
+        // Skip if the next new value causes a repetition or is the same
+        // as what's being replaced
+        if (minor == set[index]) return;
+
+        // Copy the next set value unless it's being replaced
+        if (index != mutPt) eSet[eIndex++] = set[index];
     }
+
+    // Insert the new value(s) if we haven't already
+    if (minor != 0) eSet[eIndex++] = minor;
+    if (major != 0) eSet[eIndex++] = major;
 
     // Output Set
     out(eSet, eSize);

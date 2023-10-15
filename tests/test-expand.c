@@ -6,7 +6,7 @@
 void expandPrint(const unsigned long *, size_t);
 void printSet(const unsigned long *, size_t);
 
-const unsigned long max = 9;
+const unsigned long max = 15;
 
 int main(int argc, char **argv)
 {
@@ -22,17 +22,22 @@ int main(int argc, char **argv)
 
 void expandPrint(const unsigned long *set, size_t size)
 {
+    int res;
+
     printf("Supersets: ");
-    expand(set, size, max, EXPAND_SUPERS, &printSet);
+    res = expand(set, size, max, EXPAND_SUPERS, &printSet);
     printf("\n");
+    if (res) perror("Thing");
 
     printf("Additive Mutations: ");
-    expand(set, size, max, EXPAND_MUT_ADD, &printSet);
+    res = expand(set, size, max, EXPAND_MUT_ADD, &printSet);
     printf("\n");
+    if (res) perror("Thing");
 
     printf("Multiplicative Mutations: ");
-    expand(set, size, max, EXPAND_MUT_MUL, &printSet);
+    res = expand(set, size, max, EXPAND_MUT_MUL, &printSet);
     printf("\n");
+    if (res) perror("Thing");
 
     return;
 }
