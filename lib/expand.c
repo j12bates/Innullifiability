@@ -101,6 +101,43 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
     return 0;
 }
 
+// Enumerate Multiplicatively Mutated Sets
+// Returns 0 on success, -1 on error (check errno)
+int mutateMul(const unsigned long *set, size_t size, unsigned long max,
+        void (*out)(const unsigned long *, size_t))
+{
+    // Set Representation for Expanded Set
+    unsigned long *eSet = calloc(size + 1, sizeof(unsigned long));
+    if (eSet == NULL) return -1;
+
+    // Iterate through all the different elements we could mutate
+    for (size_t mutPt = 0; mutPt < size; mutPt++)
+    {
+        // Value we're mutating
+        unsigned long mutVal = eSet[mutPt];
+
+        // Product Equivalent Pairs: iterate over smaller (minor) factors
+        for (unsigned long minor = 2; minor < mutVal / minor; minor++)
+        {
+            if (mutVal % minor != 0) continue;
+            unsigned long major = mutVal / minor;
+
+            // insert, output
+        }
+
+        // Quotient Equivalent Pairs: iterate over divisors
+        for (unsigned long divisor = 2; divisor <= max / mutVal;
+                divisor++)
+        {
+            unsigned long dividend = mutVal * divisor;
+
+            // insert, output
+        }
+    }
+
+    return 0;
+}
+
 // These take in a set with an unused spot at the beginning, as well as
 // an index in that set whose value to mutate, and it inserts all the
 // equivalent pairs it can using additive operations, outputting all of
