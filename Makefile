@@ -12,8 +12,7 @@ LIB		:= lib
 
 OBJ_IFACE	:= $(OBJ)/iface.o
 OBJ_SETREC	:= $(OBJ)/setRec.o
-OBJ_EX_SUP	:= $(OBJ)/supers.o
-OBJ_EX_MUT	:= $(OBJ)/mutate.o
+OBJ_EXPAND	:= $(OBJ)/expand.o
 OBJ_NULTEST	:= $(OBJ)/nulTest.o
 
 SRC_GEN		:= $(SRC)/generation.c
@@ -22,7 +21,7 @@ SRC_EVAL	:= $(SRC)/evaluate.c
 SRC_CREATE	:= $(SRC)/create.c
 
 DEP_UTIL	:= $(OBJ_IFACE) $(OBJ_SETREC)
-DEP_GEN		:= $(OBJ_EX_SUP) $(OBJ_EX_MUT)
+DEP_GEN		:= $(OBJ_EXPAND)
 DEP_WEED	:= $(OBJ_NULTEST)
 DEP_EVAL	:=
 DEP_CREATE	:=

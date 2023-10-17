@@ -22,8 +22,7 @@
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
-#include "../lib/mutate.h"
-#include "../lib/supers.h"
+#include "../lib/expand.h"
 
 // Toggles for each Expansion Phase
 bool expandSupers;
@@ -47,11 +46,6 @@ unsigned long max;
 size_t threads = 1;
 
 // Progress
-typedef struct Prog Prog;
-struct Prog {
-    size_t sup;
-    size_t mut;
-};
 volatile size_t *progv = NULL;
 char *progFname = NULL;
 sigset_t progmask;
@@ -153,10 +147,6 @@ int main(int argc, char **argv)
         }
     }
 
-    // Set Up Expansion Programs
-    supersInit(max);
-    mutateInit(max);
-
     // Use threads to do all the computing
     {
         void *threadOp(void *);
@@ -164,7 +154,7 @@ int main(int argc, char **argv)
 
         // Arrays for Threads and Args
         pthread_t th[threads];
-        progv = calloc(threads, sizeof(Prog));
+        progv = calloc(threads, sizeof(size_t));
         CK_PTR(progv);
 
         // Iteratively Create Threads
@@ -193,9 +183,6 @@ int main(int argc, char **argv)
         progv = NULL;
     }
 
-    // Clean Up
-    mutateInit(0);
-
     // ============ Export and Cleanup
 
     // Export Destination
@@ -211,7 +198,7 @@ int main(int argc, char **argv)
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
-    void expand(const unsigned long *, size_t, char);
+    void handleExpand(const unsigned long *, size_t, char);
 
     // Argument is a Reference for Progress Output
     size_t *prog = (size_t *) arg;
@@ -221,7 +208,7 @@ void *threadOp(void *arg)
 
     // Perform expansion phases on every nullifiable set
     ssize_t res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, prog, &expand);
+            threads, mod, prog, &handleExpand);
     CK_RES(res);
 
     return NULL;
@@ -255,7 +242,7 @@ void progHandler(int signo)
 
 // Set Expansion Function
 
-void expand(const unsigned long *set, size_t setc, char bits)
+void handleExpand(const unsigned long *set, size_t setc, char bits)
 {
     void elim_onlySup(const unsigned long *, size_t);
     void elim_nul(const unsigned long *, size_t);
@@ -263,12 +250,13 @@ void expand(const unsigned long *set, size_t setc, char bits)
     // Either way, a nullifiable set's supersets should be marked;
     // further mutations are accounted for
     if (expandSupers)
-        supers(set, setc, &elim_onlySup);
+        expand(set, setc, max, EXPAND_SUPERS, &elim_onlySup);
 
     // Introduce Mutations, but only if not touched by supersets; don't
     // rule out further mutations
-    if (expandMutate)
-        if (!(bits & ONLY_SUP)) mutate(set, setc, &elim_nul);
+    if (expandMutate) if (!(bits & ONLY_SUP))
+        expand(set, setc, max, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
+                &elim_nul);
 
     return;
 }
