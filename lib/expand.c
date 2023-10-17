@@ -200,10 +200,12 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
         // it, advance its index, and skip to the next equivalent pair
         // since this has a double value
         bool skip = false;
-        if (eSet[insPtMain + 1] == insValMain)
-            insPtMain++, skip = true;
-        if (eSet[insPtFollower - 1] == insValFollower)
-            insPtFollower--, skip = true;
+        if (insPtMain < eSize - 1)
+            if (eSet[insPtMain + 1] == insValMain)
+                insPtMain++, skip = true;
+        if (insPtFollower > 0)
+            if (eSet[insPtFollower - 1] == insValFollower)
+                insPtFollower--, skip = true;
 
         // Otherwise, we have an expanded set to output
         if (!skip) out(eSet, eSize);
@@ -232,10 +234,12 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
 
         // Y'know, advance and skip
         bool skip = false;
-        if (eSet[insPtMain + 1] == insValMain)
-            insPtMain++, skip = true;
-        if (eSet[insPtFollower + 1] == insValFollower)
-            insPtFollower++, skip = true;
+        if (insPtMain < eSize - 1)
+            if (eSet[insPtMain + 1] == insValMain)
+                insPtMain++, skip = true;
+        if (insPtFollower < eSize - 1)
+            if (eSet[insPtFollower + 1] == insValFollower)
+                insPtFollower++, skip = true;
 
         // Also skip if this is the superset case
         if (insValMain == mutVal) skip = true;
