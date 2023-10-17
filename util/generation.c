@@ -242,7 +242,7 @@ void progHandler(int signo)
 
 // Set Expansion Function
 
-void handleExpand(const unsigned long *set, size_t setc, char bits)
+void handleExpand(const unsigned long *set, size_t size, char bits)
 {
     void elim_onlySup(const unsigned long *, size_t);
     void elim_nul(const unsigned long *, size_t);
@@ -250,12 +250,12 @@ void handleExpand(const unsigned long *set, size_t setc, char bits)
     // Either way, a nullifiable set's supersets should be marked;
     // further mutations are accounted for
     if (expandSupers)
-        expand(set, setc, max, EXPAND_SUPERS, &elim_onlySup);
+        expand(set, size, max, EXPAND_SUPERS, &elim_onlySup);
 
     // Introduce Mutations, but only if not touched by supersets; don't
     // rule out further mutations
     if (expandMutate) if (!(bits & ONLY_SUP))
-        expand(set, setc, max, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
+        expand(set, size, max, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
                 &elim_nul);
 
     return;
@@ -263,19 +263,19 @@ void handleExpand(const unsigned long *set, size_t setc, char bits)
 
 // Individual Set Elimination Functions
 
-void elim_onlySup(const unsigned long *set, size_t setc)
+void elim_onlySup(const unsigned long *set, size_t size)
 {
     // Mark this set as Nullifiable/Superset
-    int res = sr_mark(dest, set, setc, NULLIF | ONLY_SUP);
+    int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP);
     CK_RES(res);
 
     return;
 }
 
-void elim_nul(const unsigned long *set, size_t setc)
+void elim_nul(const unsigned long *set, size_t size)
 {
     // Mark this set as Nullifiable only
-    int res = sr_mark(dest, set, setc, NULLIF);
+    int res = sr_mark(dest, set, size, NULLIF);
     CK_RES(res);
 
     return;

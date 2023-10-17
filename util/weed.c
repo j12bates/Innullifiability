@@ -158,17 +158,17 @@ void *threadOp(void *arg)
 }
 
 // Individual Set Testing/Elimination
-void testElim(const unsigned long *set, size_t setc, char bits)
+void testElim(const unsigned long *set, size_t size, char bits)
 {
     int res;
 
     // Run the Test
-    res = nulTest(set, setc);
+    res = nulTest(set, size);
     CK_RES(res);
 
     // Eliminate if Nullifiable
     if (res == 0) {
-        res = sr_mark(rec, set, setc, NULLIF);
+        res = sr_mark(rec, set, size, NULLIF);
         CK_RES(res);
     }
 

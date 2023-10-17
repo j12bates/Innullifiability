@@ -69,9 +69,9 @@ int main(int argc, char **argv)
 }
 
 // Print a Set to the Standard Output
-void printSet(const unsigned long *set, size_t setc, char bits)
+void printSet(const unsigned long *set, size_t size, char bits)
 {
-    for (size_t i = 0; i < setc; i++)
+    for (size_t i = 0; i < size; i++)
         printf("%4lu", set[i]);
     printf("\n");
 
