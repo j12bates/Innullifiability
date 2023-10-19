@@ -17,7 +17,8 @@
 #include "expand.h"
 
 // Helper Function Declarations
-static int supers(const unsigned long *, size_t, unsigned long,
+static int supers(const unsigned long *, size_t,
+        unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
 static int mutateAdd(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
@@ -54,7 +55,7 @@ int expand(const unsigned long *set, size_t size,
     if (out == NULL) return 0;
 
     // Supersets
-    if (mode & EXPAND_SUPERS) supers(set, size, max, out);
+    if (mode & EXPAND_SUPERS) supers(set, size, 1, max, out);
 
     // Additive Mutations
     if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, max, out);
@@ -69,9 +70,15 @@ int expand(const unsigned long *set, size_t size,
 
 // Enumerate Supersets
 // Returns 0 on success, -1 on error (check errno)
-int supers(const unsigned long *set, size_t size, unsigned long max,
+int supers(const unsigned long *set, size_t size,
+        unsigned long minM, unsigned long maxM,
         void (*out)(const unsigned long *, size_t))
 {
+    // Check set relation to M-Range; if we're above, nothing to do
+    unsigned long mval = set[size - 1];
+    bool belowMRange = mval < minM;
+    if (mval > maxM) return 0;
+
     // Set Representation
     unsigned long *super = calloc(size + 1, sizeof(unsigned long));
     if (super == NULL) return -1;
@@ -81,7 +88,7 @@ int supers(const unsigned long *set, size_t size, unsigned long max,
 
     // Iterate over values to insert, keeping track of index
     size_t pos = 0;
-    for (unsigned long i = 1; i <= max; i++)
+    for (unsigned long i = 1; i <= maxM; i++)
     {
         // Insert Value
         super[pos] = i;
@@ -89,6 +96,9 @@ int supers(const unsigned long *set, size_t size, unsigned long max,
         // If we've reached the next value, skip and advance
         bool skip = false;
         if (pos < size) if (super[pos + 1] == i) pos++, skip = true;
+
+        // Skip if this won't get it in the M-range
+        if (belowMRange && i < minM) skip = true;
 
         // Otherwise, we have a superset to output
         if (!skip) out(super, size + 1);
