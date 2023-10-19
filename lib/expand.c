@@ -24,9 +24,11 @@ static int mutateAdd(const unsigned long *, size_t, unsigned long,
 static int mutateMul(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 
-static void mutateOpSum(unsigned long *, size_t, size_t, unsigned long,
+static void mutateOpSum(unsigned long *, size_t, size_t,
+        unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
-static void mutateOpDiff(unsigned long *, size_t, size_t, unsigned long,
+static void mutateOpDiff(unsigned long *, size_t, size_t,
+        unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
 static void insertEqPair(unsigned long *, size_t, size_t,
         const unsigned long *, unsigned long, unsigned long,
@@ -111,11 +113,11 @@ int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
     {
         // Initialize output and call helper function (Sum)
         for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpSum(eSet, size + 1, mutPt + 1, max, out);
+        mutateOpSum(eSet, size + 1, mutPt + 1, 1, max, out);
 
         // Same (Difference)
         for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpDiff(eSet, size + 1, mutPt + 1, max, out);
+        mutateOpDiff(eSet, size + 1, mutPt + 1, 1, max, out);
     }
 
     free(eSet);
@@ -140,7 +142,7 @@ int mutateMul(const unsigned long *set, size_t size, unsigned long max,
         if (mutVal == 1) continue;
 
         // Product Equivalent Pairs: iterate over smaller (minor) factors
-        for (unsigned long minor = 2; minor < mutVal / minor; minor++)
+        for (unsigned long minor = 1; minor < mutVal / minor; minor++)
         {
             if (mutVal % minor != 0) continue;
             unsigned long major = mutVal / minor;
@@ -176,8 +178,8 @@ int mutateMul(const unsigned long *set, size_t size, unsigned long max,
 // collide.
 
 // Addition
-void mutateOpSum(unsigned long *eSet, size_t eSize,
-        size_t mutPt, unsigned long max,
+void mutateOpSum(unsigned long *eSet, size_t eSize, size_t mutPt,
+        unsigned long minMajor, unsigned long maxMajor,
         void (*out)(const unsigned long *, size_t))
 {
     // Value we're mutating
@@ -207,6 +209,10 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
             if (eSet[insPtFollower - 1] == insValFollower)
                 insPtFollower--, skip = true;
 
+        // Skip/Exit if major not in range
+        if (insValFollower > maxMajor) skip = true;
+        else if (insValFollower < minMajor) break;
+
         // Otherwise, we have an expanded set to output
         if (!skip) out(eSet, eSize);
     }
@@ -215,8 +221,8 @@ void mutateOpSum(unsigned long *eSet, size_t eSize,
 }
 
 // Subtraction
-void mutateOpDiff(unsigned long *eSet, size_t eSize,
-        size_t mutPt, unsigned long max,
+void mutateOpDiff(unsigned long *eSet, size_t eSize, size_t mutPt,
+        unsigned long minMinu, unsigned long maxMinu,
         void (*out)(const unsigned long *, size_t))
 {
     unsigned long mutVal = eSet[mutPt];
@@ -224,7 +230,7 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
     // Iterate through main insertion values
     size_t insPtMain = 0, insPtFollower = mutPt;
     for (unsigned long insValMain = 1;
-            insValMain <= max - mutVal; insValMain++)
+            insValMain <= maxMinu - mutVal; insValMain++)
     {
         unsigned long insValFollower = mutVal + insValMain;
 
@@ -241,8 +247,8 @@ void mutateOpDiff(unsigned long *eSet, size_t eSize,
             if (eSet[insPtFollower + 1] == insValFollower)
                 insPtFollower++, skip = true;
 
-        // Also skip if this is the superset case
-        if (insValMain == mutVal) skip = true;
+        // Skip if minuend not in range
+        if (insValFollower < minMinu) skip = true;
 
         // Output
         if (!skip) out(eSet, eSize);
