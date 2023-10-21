@@ -54,14 +54,21 @@ int expand(const unsigned long *set, size_t size,
     // If no output, skip all this work
     if (out == NULL) return 0;
 
-    // Supersets
-    if (mode & EXPAND_SUPERS) supers(set, size, 1, max, out);
+    // We can't remove values, so if there are two values specifically
+    // above the M-range, mutation won't work
+    if (size >= 2) if (set[size - 2] > max) return 0;
 
     // Additive Mutations
     if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, max, out);
 
     // Multiplicative Mutations
     if (mode & EXPAND_MUT_MUL) mutateMul(set, size, max, out);
+
+    // And if there's even one such value, supersets won't work
+    if (size >= 1) if (set[size - 1] > max) return 0;
+
+    // Supersets
+    if (mode & EXPAND_SUPERS) supers(set, size, 1, max, out);
 
     return 0;
 }
@@ -74,21 +81,23 @@ int supers(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM,
         void (*out)(const unsigned long *, size_t))
 {
-    // Check set relation to M-Range; if we're above, nothing to do
-    unsigned long mval = set[size - 1];
-    bool belowMRange = mval < minM;
-    if (mval > maxM) return 0;
-
     // Set Representation
     unsigned long *super = calloc(size + 1, sizeof(unsigned long));
     if (super == NULL) return -1;
 
-    // Initialize with the input, leaving a spot for insertion
-    for (size_t i = 0; i < size; i++) super[i + 1] = set[i];
+    // Check relation to M-range
+    bool belowMRange = set[size - 1] < minM;
+
+    // Initialize with the input, leaving a spot for insertion: front if
+    // we're inserting everything, back if we're just inserting in-range
+    // M-values
+    for (size_t i = 0; i < size; i++)
+        if (!belowMRange) super[i + 1] = set[i];
+        else super[i] = set[i];
 
     // Iterate over values to insert, keeping track of index
-    size_t pos = 0;
-    for (unsigned long i = 1; i <= maxM; i++)
+    size_t pos = !belowMRange ? 0 : size;
+    for (unsigned long i = !belowMRange ? 1 : minM; i <= maxM; i++)
     {
         // Insert Value
         super[pos] = i;
@@ -96,9 +105,6 @@ int supers(const unsigned long *set, size_t size,
         // If we've reached the next value, skip and advance
         bool skip = false;
         if (pos < size) if (super[pos + 1] == i) pos++, skip = true;
-
-        // Skip if this won't get it in the M-range
-        if (belowMRange && i < minM) skip = true;
 
         // Otherwise, we have a superset to output
         if (!skip) out(super, size + 1);
