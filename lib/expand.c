@@ -20,10 +20,8 @@
 static int supers(const unsigned long *, size_t,
         unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
-static int mutateAdd(const unsigned long *, size_t,
-        unsigned long, unsigned long,
-        void (*)(const unsigned long *, size_t));
-static int mutateMul(const unsigned long *, size_t, unsigned long,
+static int mutate(const unsigned long *, size_t,
+        unsigned long, unsigned long, bool, bool,
         void (*)(const unsigned long *, size_t));
 
 static void mutateOpSum(unsigned long *, size_t, size_t,
@@ -59,11 +57,9 @@ int expand(const unsigned long *set, size_t size,
     // above the M-range, mutation won't work
     if (size >= 2) if (set[size - 2] > max) return 0;
 
-    // Additive Mutations
-    if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, 1, max, out);
-
-    // Multiplicative Mutations
-    if (mode & EXPAND_MUT_MUL) mutateMul(set, size, max, out);
+    // Mutations
+    mutate(set, size, 1, max,
+            mode & EXPAND_MUT_ADD, mode & EXPAND_MUT_MUL, out);
 
     // And if there's even one such value, supersets won't work
     if (size >= 1) if (set[size - 1] > max) return 0;
@@ -119,14 +115,15 @@ int supers(const unsigned long *set, size_t size,
     return 0;
 }
 
-// Enumerate Additively Mutated Sets
+// Enumerate Set Mutations
 // Returns 0 on success, -1 on error (check errno)
 
 // Accepts a set that's not above the M-range, or which has only one
-// value 'poking out', and outputs all additive supersets within the
-// M-range.
-int mutateAdd(const unsigned long *set, size_t size,
-        unsigned long minM, unsigned long maxM,
+// value 'poking out', and outputs all mutations within the M-range. It
+// can be specified which mutation modes to use (additive,
+// multiplicative).
+int mutate(const unsigned long *set, size_t size,
+        unsigned long minM, unsigned long maxM, bool add, bool mul,
         void (*out)(const unsigned long *, size_t))
 {
     // Set Representation for Expanded Set
@@ -158,12 +155,13 @@ int mutateAdd(const unsigned long *set, size_t size,
             if (size >= 2) if (set[size - 2] >= minM) minMajor = 1;
         }
 
-        // Insert sum pairs if they'll either keep the set in range or
-        // if they'll break up a value poking out so it is in range
+        // Sum and product pairs will break a value up into two smaller
+        // ones, so we can use them when the set will remain in range,
+        // but also to break up the M-value if it's above the range
         if (inMRange || (aboveMRange && mutPt == size - 1))
         {
             // Sum Equivalent Pairs: iterate over larger addends
-            for (unsigned long major = mutVal - 1;
+            if (add) for (unsigned long major = mutVal - 1;
                     major > mutVal / 2; major--)
             {
                 if (major < minMajor) continue;
@@ -171,14 +169,26 @@ int mutateAdd(const unsigned long *set, size_t size,
                 insertEqPair(eSet, size + 1, mutPt, set,
                         minor, major, out);
             }
+
+            // Product Equivalent Pairs: iterate over smaller factors
+            if (mul) for (unsigned long minor = 1;
+                    minor < mutVal / minor; minor++)
+            {
+                if (mutVal % minor != 0) continue;
+                unsigned long major = mutVal / minor;
+                if (major < minMajor) continue;
+                insertEqPair(eSet, size + 1, mutPt, set,
+                        minor, major, out);
+            }
         }
 
-        // Insert difference pairs if we don't have any values poking
-        // out to screw us up
+        // Difference and quotient pairs will always result in an
+        // increase in value, so we can insert them so long as there's
+        // nothing poking out above the range
         if (inMRange || belowMRange)
         {
             // Difference Equivalent Pairs: iterate over minuends
-            for (unsigned long minuend = mutVal + 1;
+            if (add) for (unsigned long minuend = mutVal + 1;
                     minuend <= maxM; minuend++)
             {
                 if (minuend < minMajor) continue;
@@ -186,47 +196,20 @@ int mutateAdd(const unsigned long *set, size_t size,
                 insertEqPair(eSet, size + 1, mutPt, set,
                         subtrahend, minuend, out);
             }
+
+            // Quotient Equivalent Pairs: iterate over divisors
+            if (mul) for (unsigned long divisor = 1;
+                    divisor <= maxM / mutVal; divisor++)
+            {
+                unsigned long dividend = mutVal * divisor;
+                if (dividend < minMajor) continue;
+                insertEqPair(eSet, size + 1, mutPt, set,
+                        divisor, dividend, out);
+            }
         }
     }
 
     free(eSet);
-
-    return 0;
-}
-
-// Enumerate Multiplicatively Mutated Sets
-// Returns 0 on success, -1 on error (check errno)
-int mutateMul(const unsigned long *set, size_t size, unsigned long max,
-        void (*out)(const unsigned long *, size_t))
-{
-    // Set Representation for Expanded Set
-    unsigned long *eSet = calloc(size + 1, sizeof(unsigned long));
-    if (eSet == NULL) return -1;
-
-    // Iterate through all the different elements we could mutate
-    for (size_t mutPt = 0; mutPt < size; mutPt++)
-    {
-        // Value we're mutating
-        unsigned long mutVal = set[mutPt];
-        if (mutVal == 1) continue;
-
-        // Product Equivalent Pairs: iterate over smaller (minor) factors
-        for (unsigned long minor = 1; minor < mutVal / minor; minor++)
-        {
-            if (mutVal % minor != 0) continue;
-            unsigned long major = mutVal / minor;
-            insertEqPair(eSet, size + 1, mutPt, set, minor, major, out);
-        }
-
-        // Quotient Equivalent Pairs: iterate over divisors
-        for (unsigned long divisor = 2; divisor <= max / mutVal;
-                divisor++)
-        {
-            unsigned long dividend = mutVal * divisor;
-            insertEqPair(eSet, size + 1, mutPt, set,
-                    divisor, dividend, out);
-        }
-    }
 
     return 0;
 }
@@ -331,6 +314,9 @@ void insertEqPair(unsigned long *eSet, size_t eSize, size_t mutPt,
         const unsigned long *set, unsigned long minor,
         unsigned long major, void (*out)(const unsigned long *, size_t))
 {
+    // Can't create a double value
+    if (minor == major) return;
+
     // Iterate through output set indices, keeping track of source set
     // index
     size_t eIndex = 0;
