@@ -325,12 +325,12 @@ void insertEqPair(unsigned long *eSet, size_t eSize, size_t mutPt,
             major = 0;
         }
 
-        // Skip if the next new value causes a repetition or is the same
-        // as what's being replaced
-        if (minor == set[index]) return;
-
-        // Copy the next set value unless it's being replaced
-        if (index != mutPt) eSet[eIndex++] = set[index];
+        // Copy the next set value unless it's being replaced; exit if
+        // that'll create a double value
+        if (index != mutPt) {
+            if (minor == set[index]) return;
+            eSet[eIndex++] = set[index];
+        }
     }
 
     // Insert the new value(s) if we haven't already
