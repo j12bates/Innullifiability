@@ -147,6 +147,9 @@ int mutateAdd(const unsigned long *set, size_t size,
     // Iterate through all the different elements we could mutate
     for (size_t mutPt = 0; mutPt < size; mutPt++)
     {
+        // Value we're Mutating
+        unsigned long mutVal = set[mutPt];
+
         // At the M-value, we have to make sure to not erase it without
         // the new M-value being in-range, unless a previous value can
         // be the new M-value
@@ -157,16 +160,32 @@ int mutateAdd(const unsigned long *set, size_t size,
 
         // Insert sum pairs if they'll either keep the set in range or
         // if they'll break up a value poking out so it is in range
-        if (inMRange || (aboveMRange && mutPt == size - 1)) {
-            for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-            mutateOpSum(eSet, size + 1, mutPt + 1, minMajor, maxM, out);
+        if (inMRange || (aboveMRange && mutPt == size - 1))
+        {
+            // Sum Equivalent Pairs: iterate over larger addends
+            for (unsigned long major = mutVal - 1;
+                    major > mutVal / 2; major--)
+            {
+                if (major < minMajor) continue;
+                unsigned long minor = mutVal - major;
+                insertEqPair(eSet, size + 1, mutPt, set,
+                        minor, major, out);
+            }
         }
 
         // Insert difference pairs if we don't have any values poking
         // out to screw us up
-        if (inMRange || belowMRange) {
-            for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-            mutateOpDiff(eSet, size + 1, mutPt + 1, minMajor, maxM, out);
+        if (inMRange || belowMRange)
+        {
+            // Difference Equivalent Pairs: iterate over minuends
+            for (unsigned long minuend = mutVal + 1;
+                    minuend <= maxM; minuend++)
+            {
+                if (minuend < minMajor) continue;
+                unsigned long subtrahend = minuend - mutVal;
+                insertEqPair(eSet, size + 1, mutPt, set,
+                        subtrahend, minuend, out);
+            }
         }
     }
 
