@@ -20,7 +20,8 @@
 static int supers(const unsigned long *, size_t,
         unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
-static int mutateAdd(const unsigned long *, size_t, unsigned long,
+static int mutateAdd(const unsigned long *, size_t,
+        unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
 static int mutateMul(const unsigned long *, size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
@@ -59,7 +60,7 @@ int expand(const unsigned long *set, size_t size,
     if (size >= 2) if (set[size - 2] > max) return 0;
 
     // Additive Mutations
-    if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, max, out);
+    if (mode & EXPAND_MUT_ADD) mutateAdd(set, size, 1, max, out);
 
     // Multiplicative Mutations
     if (mode & EXPAND_MUT_MUL) mutateMul(set, size, max, out);
@@ -77,6 +78,9 @@ int expand(const unsigned long *set, size_t size,
 
 // Enumerate Supersets
 // Returns 0 on success, -1 on error (check errno)
+
+// Accepts a set that's not above the M-range, and outputs all supersets
+// within the M-range.
 int supers(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM,
         void (*out)(const unsigned long *, size_t))
@@ -117,23 +121,53 @@ int supers(const unsigned long *set, size_t size,
 
 // Enumerate Additively Mutated Sets
 // Returns 0 on success, -1 on error (check errno)
-int mutateAdd(const unsigned long *set, size_t size, unsigned long max,
+
+// Accepts a set that's not above the M-range, or which has only one
+// value 'poking out', and outputs all additive supersets within the
+// M-range.
+int mutateAdd(const unsigned long *set, size_t size,
+        unsigned long minM, unsigned long maxM,
         void (*out)(const unsigned long *, size_t))
 {
     // Set Representation for Expanded Set
     unsigned long *eSet = calloc(size + 1, sizeof(unsigned long));
     if (eSet == NULL) return -1;
 
+    // Check relation to M-range
+    unsigned long mval = set[size - 1];
+    bool belowMRange = mval < minM;
+    bool aboveMRange = mval > maxM;
+    bool inMRange = !belowMRange && !aboveMRange;
+
+    // We can insert any value, unless we have to get the set back into
+    // the M-range, in which case we must insert something in that range
+    unsigned long minMajor = 1;
+    if (!inMRange) minMajor = minM;
+
     // Iterate through all the different elements we could mutate
     for (size_t mutPt = 0; mutPt < size; mutPt++)
     {
-        // Initialize output and call helper function (Sum)
-        for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpSum(eSet, size + 1, mutPt + 1, 1, max, out);
+        // At the M-value, we have to make sure to not erase it without
+        // the new M-value being in-range, unless a previous value can
+        // be the new M-value
+        if (mutPt == size - 1) {
+            minMajor = minM;
+            if (size >= 2) if (set[size - 2] >= minM) minMajor = 1;
+        }
 
-        // Same (Difference)
-        for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
-        mutateOpDiff(eSet, size + 1, mutPt + 1, 1, max, out);
+        // Insert sum pairs if they'll either keep the set in range or
+        // if they'll break up a value poking out so it is in range
+        if (inMRange || (aboveMRange && mutPt == size - 1)) {
+            for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
+            mutateOpSum(eSet, size + 1, mutPt + 1, minMajor, maxM, out);
+        }
+
+        // Insert difference pairs if we don't have any values poking
+        // out to screw us up
+        if (inMRange || belowMRange) {
+            for (size_t i = 0; i < size; i++) eSet[i + 1] = set[i];
+            mutateOpDiff(eSet, size + 1, mutPt + 1, minMajor, maxM, out);
+        }
     }
 
     free(eSet);
