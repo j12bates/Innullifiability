@@ -24,12 +24,6 @@ static int mutate(const unsigned long *, size_t,
         unsigned long, unsigned long, bool, bool,
         void (*)(const unsigned long *, size_t));
 
-static void mutateOpSum(unsigned long *, size_t, size_t,
-        unsigned long, unsigned long,
-        void (*)(const unsigned long *, size_t));
-static void mutateOpDiff(unsigned long *, size_t, size_t,
-        unsigned long, unsigned long,
-        void (*)(const unsigned long *, size_t));
 static void insertEqPair(unsigned long *, size_t, size_t,
         const unsigned long *, unsigned long, unsigned long,
         void (*)(const unsigned long *, size_t));
@@ -212,101 +206,6 @@ int mutate(const unsigned long *set, size_t size,
     free(eSet);
 
     return 0;
-}
-
-// These take in a set with an unused spot at the beginning, as well as
-// an index in that set whose value to mutate, and it inserts all the
-// equivalent pairs it can using additive operations, outputting all of
-// these expanded sets.
-
-// They work kinda like the superset expansion function, except with two
-// insertions, a main and a follower, where the operation will produce
-// the value being mutated, creating an 'Equivalent Pair.' The main
-// value is always smaller, starting out at 1 and incrementing each
-// time. The follower value is then the balance, so for addition it'll
-// decrement each time until meeting up with the main, and for
-// subtraction it'll increment until reaching the max value. And to keep
-// the sets in order, the insertion indices will shift whenever values
-// collide.
-
-// Addition
-void mutateOpSum(unsigned long *eSet, size_t eSize, size_t mutPt,
-        unsigned long minMajor, unsigned long maxMajor,
-        void (*out)(const unsigned long *, size_t))
-{
-    // Value we're mutating
-    unsigned long mutVal = eSet[mutPt];
-
-    // Iterate through all the main values we could insert, keeping
-    // track of the indices we're inserting at
-    size_t insPtMain = 0, insPtFollower = mutPt;
-    for (unsigned long insValMain = 1;
-            insValMain <= (mutVal - 1) / 2; insValMain++)
-    {
-        // Follower insertion value
-        unsigned long insValFollower = mutVal - insValMain;
-
-        // Insert Values
-        eSet[insPtMain] = insValMain;
-        eSet[insPtFollower] = insValFollower;
-
-        // If either of these insertions have reached the value ahead of
-        // it, advance its index, and skip to the next equivalent pair
-        // since this has a double value
-        bool skip = false;
-        if (insPtMain < eSize - 1)
-            if (eSet[insPtMain + 1] == insValMain)
-                insPtMain++, skip = true;
-        if (insPtFollower > 0)
-            if (eSet[insPtFollower - 1] == insValFollower)
-                insPtFollower--, skip = true;
-
-        // Skip/Exit if major not in range
-        if (insValFollower > maxMajor) skip = true;
-        else if (insValFollower < minMajor) break;
-
-        // Otherwise, we have an expanded set to output
-        if (!skip) out(eSet, eSize);
-    }
-
-    return;
-}
-
-// Subtraction
-void mutateOpDiff(unsigned long *eSet, size_t eSize, size_t mutPt,
-        unsigned long minMinu, unsigned long maxMinu,
-        void (*out)(const unsigned long *, size_t))
-{
-    unsigned long mutVal = eSet[mutPt];
-
-    // Iterate through main insertion values
-    size_t insPtMain = 0, insPtFollower = mutPt;
-    for (unsigned long insValMain = 1;
-            insValMain <= maxMinu - mutVal; insValMain++)
-    {
-        unsigned long insValFollower = mutVal + insValMain;
-
-        // Insert
-        eSet[insPtMain] = insValMain;
-        eSet[insPtFollower] = insValFollower;
-
-        // Y'know, advance and skip
-        bool skip = false;
-        if (insPtMain < eSize - 1)
-            if (eSet[insPtMain + 1] == insValMain)
-                insPtMain++, skip = true;
-        if (insPtFollower < eSize - 1)
-            if (eSet[insPtFollower + 1] == insValFollower)
-                insPtFollower++, skip = true;
-
-        // Skip if minuend not in range
-        if (insValFollower < minMinu) skip = true;
-
-        // Output
-        if (!skip) out(eSet, eSize);
-    }
-
-    return;
 }
 
 // Insert Equivalent Pair into Set, Output
