@@ -31,16 +31,15 @@ static void insertEqPair(unsigned long *, size_t, size_t,
 // Produce All Set Expansions
 // Returns 0 on success, -1 on error (check errno)
 int expand(const unsigned long *set, size_t size,
-        unsigned long max, int mode,
+        unsigned long minM, unsigned long maxM, int mode,
         void (*out)(const unsigned long *, size_t))
 {
 #ifndef NO_VALIDATE
-    // Validate Input Set: values are ascending and in-range
+    // Validate Input Set: values are positive and ascending
     errno = EINVAL;
     if (set[0] < 1) return -1;
     for (size_t i = 1; i < size; i++)
         if (set[i] <= set[i - 1]) return -1;
-    if (set[size - 1] > max) return -1;
     errno = 0;
 #endif
 
@@ -49,17 +48,17 @@ int expand(const unsigned long *set, size_t size,
 
     // We can't remove values, so if there are two values specifically
     // above the M-range, mutation won't work
-    if (size >= 2) if (set[size - 2] > max) return 0;
+    if (size >= 2) if (set[size - 2] > maxM) return 0;
 
     // Mutations
-    mutate(set, size, 1, max,
+    mutate(set, size, minM, maxM,
             mode & EXPAND_MUT_ADD, mode & EXPAND_MUT_MUL, out);
 
     // And if there's even one such value, supersets won't work
-    if (size >= 1) if (set[size - 1] > max) return 0;
+    if (size >= 1) if (set[size - 1] > maxM) return 0;
 
     // Supersets
-    if (mode & EXPAND_SUPERS) supers(set, size, 1, max, out);
+    if (mode & EXPAND_SUPERS) supers(set, size, minM, maxM, out);
 
     return 0;
 }
@@ -120,6 +119,9 @@ int mutate(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool add, bool mul,
         void (*out)(const unsigned long *, size_t))
 {
+    // No mutations of null set
+    if (size < 1) return 0;
+
     // Set Representation for Expanded Set
     unsigned long *eSet = calloc(size + 1, sizeof(unsigned long));
     if (eSet == NULL) return -1;

@@ -39,8 +39,9 @@ size_t srcSize;
 char *srcFname, *destFname;
 size_t srcTotal;
 
-// Overall Maximum Value
-unsigned long max;
+// M-range
+unsigned long minM;
+unsigned long maxM;
 
 // Number of Threads
 size_t threads = 1;
@@ -123,28 +124,23 @@ int main(int argc, char **argv)
         CK_RES(res);
     }
 
+    // Store M-range
+    minM = sr_getMinM(dest);
+    maxM = sr_getMaxM(dest);
+
     // ============ Perform Expansions in Threads
 
     // Print Information about Execution
-    {
-        // Max M-Values
-        unsigned long srcMaxM = sr_getMaxM(src);
-        unsigned long destMaxM = sr_getMaxM(dest);
-        max = srcMaxM > destMaxM ? srcMaxM : destMaxM;
-
-        // Print Infos
-        if (verbose)
-        {
-            fprintf(stderr, "src  - Size: %2zu; M: %4lu to %4lu\n",
-                    sr_getSize(src), sr_getMinM(src), srcMaxM);
-            fprintf(stderr, "dest - Size: %2zu; M: %4lu to %4lu\n",
-                    sr_getSize(dest), sr_getMinM(dest), destMaxM);
-            fprintf(stderr, "Performing Generation with %zu Threads\n",
-                    threads);
-            fprintf(stderr, "Expanding by: %s%s\n",
-                    expandSupers ? "Supersets " : "",
-                    expandMutate ? "Mutations " : "");
-        }
+    if (verbose) {
+        fprintf(stderr, "src  - Size: %2zu; M: %4lu to %4lu\n",
+                sr_getSize(src), sr_getMinM(src), sr_getMaxM(src));
+        fprintf(stderr, "dest - Size: %2zu; M: %4lu to %4lu\n",
+                sr_getSize(dest), minM, maxM);
+        fprintf(stderr, "Performing Generation with %zu Threads\n",
+                threads);
+        fprintf(stderr, "Expanding by: %s%s\n",
+                expandSupers ? "Supersets " : "",
+                expandMutate ? "Mutations " : "");
     }
 
     // Use threads to do all the computing
@@ -250,12 +246,12 @@ void handleExpand(const unsigned long *set, size_t size, char bits)
     // Either way, a nullifiable set's supersets should be marked;
     // further mutations are accounted for
     if (expandSupers)
-        expand(set, size, max, EXPAND_SUPERS, &elim_onlySup);
+        expand(set, size, minM, maxM, EXPAND_SUPERS, &elim_onlySup);
 
     // Introduce Mutations, but only if not touched by supersets; don't
     // rule out further mutations
     if (expandMutate) if (!(bits & ONLY_SUP))
-        expand(set, size, max, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
+        expand(set, size, minM, maxM, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
                 &elim_nul);
 
     return;

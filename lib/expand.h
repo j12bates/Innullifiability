@@ -11,7 +11,7 @@
 
 // Produce All Set Expansions
 int expand(const unsigned long *, size_t,
-        unsigned long, int,
+        unsigned long, unsigned long, int,
         void (*)(const unsigned long *, size_t));
 
 #endif
