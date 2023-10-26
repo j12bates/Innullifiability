@@ -14,18 +14,18 @@
 
 // Test if a set is Nullifiable or Not
 // Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
-int nulTest(const unsigned long *set, size_t setc)
+int nulTest(const unsigned long *set, size_t size)
 {
     int recursiveTest(const unsigned long *, size_t);
 
     // Simple cases to not use recursion on
-    if (setc == 0) return 1;
-    if (setc == 1) return set[0] != 0;
-    if (setc == 2) return set[0] != set[1];
-    for (size_t i = 0; i < setc; i++) if (set[i] == 0) return 0;
+    if (size == 0) return 1;
+    if (size == 1) return set[0] != 0;
+    if (size == 2) return set[0] != set[1];
+    for (size_t i = 0; i < size; i++) if (set[i] == 0) return 0;
 
     // Use recursion
-    return recursiveTest(set, setc);
+    return recursiveTest(set, size);
 }
 
 // Test if a Length-3 Set is Nullifiable or Not
@@ -70,14 +70,14 @@ int nulTestTriplet(const unsigned long set[3])
 // A set is only innullifiable if the test always returns that result
 // after every operation. This function only works on sets that are
 // size-3 or larger, and positive integers only.
-int recursiveTest(const unsigned long *set, size_t setc)
+int recursiveTest(const unsigned long *set, size_t size)
 {
     // Base case
-    if (setc == 3) return nulTestTriplet(set);
+    if (size == 3) return nulTestTriplet(set);
 
     // Pass over every pair of values, checking for simple equality
-    for (size_t pairA = 0; pairA < setc; pairA++)
-        for (size_t pairB = pairA + 1; pairB < setc; pairB++)
+    for (size_t pairA = 0; pairA < size; pairA++)
+        for (size_t pairB = pairA + 1; pairB < size; pairB++)
             if (set[pairA] == set[pairB]) return 0;
 
     // If we can't prove nullifiability in this state, we're gonna have
@@ -87,59 +87,59 @@ int recursiveTest(const unsigned long *set, size_t setc)
     // any point, that carries on
 
     // Allocate Space for New Set
-    unsigned long *newSet = calloc(setc - 1, sizeof(unsigned long));
+    unsigned long *newSet = calloc(size - 1, sizeof(unsigned long));
     if (newSet == NULL) return -1;
 
     // Iterate through all the possible pairs of values
-    for (size_t pairA = 0; pairA < setc; pairA++)
-        for (size_t pairB = pairA + 1; pairB < setc; pairB++)
+    for (size_t pairA = 0; pairA < size; pairA++)
+        for (size_t pairB = pairA + 1; pairB < size; pairB++)
+    {
+        // Fill the new set with all the other values, leave the first
+        // position for the operation result
+        size_t index = 1;
+        for (size_t i = 0; i < size; i++) {
+            if (i == pairA || i == pairB) continue;
+            else newSet[index++] = set[i];
+        }
+
+        // Get the values of that pair
+        unsigned int a = set[pairA];
+        unsigned int b = set[pairB];
+
+        // List all the possible results obtained from performing
+        // arithmetic operations on them, or replacement values
+        unsigned long replacements[4];
+        replacements[0] = a + b;
+        replacements[1] = a * b;
+
+        // There is one difference (won't generate a zero as we've
+        // already scanned for equality)
+        if (a > b) replacements[2] = a - b;
+        else replacements[2] = b - a;
+
+        // Up to one quotient is possible
+        bool quotient = true;
+        if (a % b == 0) replacements[3] = a / b;
+        else if (b % a == 0) replacements[3] = b / a;
+        else quotient = false;
+
+        // Iterate through those replacement values
+        for (size_t i = 0; i < 3ul + quotient; i++)
         {
-            // Fill the new set with all the other values, leave the
-            // first position for the operation result
-            size_t index = 1;
-            for (size_t i = 0; i < setc; i++) {
-                if (i == pairA || i == pairB) continue;
-                else newSet[index++] = set[i];
-            }
+            // Place into the new set
+            newSet[0] = replacements[i];
 
-            // Get the values of that pair
-            unsigned int a = set[pairA];
-            unsigned int b = set[pairB];
+            // Recurse on this set
+            int res = recursiveTest(newSet, size - 1);
 
-            // List all the possible results obtained from performing
-            // arithmetic operations on them, or replacement values
-            unsigned long replacements[4];
-            replacements[0] = a + b;
-            replacements[1] = a * b;
-
-            // There is one difference (won't generate a zero as we've
-            // already scanned for equality)
-            if (a > b) replacements[2] = a - b;
-            else replacements[2] = b - a;
-
-            // Up to one quotient is possible
-            bool quotient = true;
-            if (a % b == 0) replacements[3] = a / b;
-            else if (b % a == 0) replacements[3] = b / a;
-            else quotient = false;
-
-            // Iterate through those replacement values
-            for (size_t i = 0; i < 3ul + quotient; i++)
-            {
-                // Place into the new set
-                newSet[0] = replacements[i];
-
-                // Recurse on this set
-                int ret = recursiveTest(newSet, setc - 1);
-
-                // If we get an error or if it's been nullified, carry
-                // that on
-                if (ret != 1) {
-                    free(newSet);
-                    return ret;
-                }
+            // If we get an error or if it's been nullified, carry that
+            // on
+            if (res != 1) {
+                free(newSet);
+                return res;
             }
         }
+    }
 
     // If we haven't shown nullifiability at any stage, the set is
     // innullifiable
