@@ -108,24 +108,25 @@ int recursiveTest(const unsigned long *set, size_t size)
 
         // List all the possible results obtained from performing
         // arithmetic operations on them, or replacement values
-        unsigned long replacements[4];
-        replacements[0] = a + b;
-        replacements[1] = a * b;
+        unsigned long replacements[4] = {0};
+        replacements[1] = a + b;
+        replacements[3] = a * b;
 
         // There is one difference (won't generate a zero as we've
         // already scanned for equality)
-        if (a > b) replacements[2] = a - b;
-        else replacements[2] = b - a;
+        if (a > b) replacements[0] = a - b;
+        else replacements[0] = b - a;
 
         // Up to one quotient is possible
-        bool quotient = true;
-        if (a % b == 0) replacements[3] = a / b;
-        else if (b % a == 0) replacements[3] = b / a;
-        else quotient = false;
+        if (a % b == 0) replacements[2] = a / b;
+        else if (b % a == 0) replacements[2] = b / a;
 
         // Iterate through those replacement values
-        for (size_t i = 0; i < 3ul + quotient; i++)
+        for (size_t i = 0; i < 4; i++)
         {
+            // If empty element, this means nothing
+            if (replacements[i] == 0) continue;
+
             // Place into the new set
             newSet[0] = replacements[i];
 
