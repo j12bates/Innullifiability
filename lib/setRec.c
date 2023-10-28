@@ -212,26 +212,26 @@ size_t sr_getTotal(const Base *base)
 // ORs on the given bits on the specified set in the record, thus
 // 'Marking' that set. The input must be a valid set, in increasing
 // order, within the record's allocated M-Value Range.
-int sr_mark(const Base *base, const unsigned long *set, size_t setc,
+int sr_mark(const Base *base, const unsigned long *set, size_t size,
         char mask)
 {
 #ifndef NO_VALIDATE
     // Validate input set: values must be positive and ascending, and
     // size must be N
     errno = EINVAL;
-    if (setc != base->size) return -1;
+    if (size != base->size) return -1;
     if (set[0] < 1) return -1;
-    for (size_t i = 1; i < setc; i++)
+    for (size_t i = 1; i < size; i++)
         if (set[i] <= set[i - 1]) return -1;
     errno = 0;
 #endif
 
     // Skip if set is unallocated
-    if (set[setc - 1] > base->mval_max
-            || set[setc - 1] < base->mval_min) return 0;
+    if (set[size - 1] > base->mval_max
+            || set[size - 1] < base->mval_min) return 0;
 
     // Mark this set on the record
-    int res = mark(base->rec, base->mval_min, set, setc, mask);
+    int res = mark(base->rec, base->mval_min, set, size, mask);
 
     return res;
 }
