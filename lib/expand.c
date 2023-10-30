@@ -7,7 +7,26 @@
 // and reducing,' in order to find all the sets that could reduce
 // immediately to whatever set is input, based on the given rules. A set
 // is input, as well as some configuration, and the expansions are
-// output through a function pointer.
+// output through a function pointer. The input set could be anything,
+// of any size or M-value, so long as it's valid and in ascending order,
+// and the program guarantees that the output will be one size larger
+// and in the specified M-range, and that the output will cover
+// every possible such set that could be reduced to the input.
+
+// There are two ways a set could be expanded: Supersets, and Mutations.
+// Supersets are pretty simple: since adding an arbitrary value to a
+// nullifiable set won't change anything (the extra value can simply be
+// multiplied away after reaching zero), we can insert whatever
+// arbitrary values will get/keep the output set in the M-range.
+
+// Mutations are the more interesting bit. In essence, they try to
+// 'un-merge' a value, or replace it with two others that give the
+// original back when operated on, keeping the set nullifiable. For
+// example, an 'equivalent pair' of 2 is (3, 5), since 5 - 3 = 2, and
+// (4, 8), since 8 / 4 = 2. If we had a set like (2, 3, 5), which we
+// know is nullifiable, we can substitute the 2 with (4, 8) from before,
+// to get the set (3, 4, 5, 8), which we know must also be nullifiable
+// since that 4 and 8 can divide to get 2--and the original set--back.
 
 #include <stdlib.h>
 #include <stdbool.h>
