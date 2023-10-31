@@ -36,10 +36,13 @@ sigset_t progmask;
 
 // Options
 bool verbose;
+bool intSave;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-v] recSize rec.dat [threads [prog.out]]\n";
+        "Usage: %s [-vi] recSize rec.dat [threads [prog.out]]\n"
+        "   -v      Verbose: Display Progress Messages\n"
+        "   -i      Write State of Output Record on Interrupt\n";
 
 int main(int argc, char **argv)
 {
@@ -53,7 +56,8 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("v", true, usage, argc, argv, &verbose));
+        CK_IFACE_FN(optHandle("vi", true, usage, argc, argv,
+                &verbose, &intSave));
     }
 
     // Validate Thread Count
@@ -70,10 +74,19 @@ int main(int argc, char **argv)
     // Set up Handler for Progress
     {
         void progHandler(int);
-
         struct sigaction act = {0};
+
         act.sa_handler = &progHandler;
         sigaction(SIGUSR1, &act, NULL);
+    }
+
+    // Set up Handler for Interrupt
+    {
+        void intHandler(int);
+        struct sigaction act = {0};
+
+        act.sa_handler = &intHandler;
+        sigaction(SIGINT, &act, NULL);
     }
 
     // ============ Import Record
@@ -131,7 +144,9 @@ int main(int argc, char **argv)
     }
 
     // ============ Export and Cleanup
+    if (verbose) fprintf(stderr, "Writing Output Record...");
     CK_IFACE_FN(openExport(rec, fname));
+    if (verbose) fprintf(stderr, "Done\n");
 
     sr_release(rec);
 
@@ -197,6 +212,24 @@ void progHandler(int signo)
 
     // Push Progress Update
     if (pushProg(prog, total, progFname)) FAULT();
+
+    return;
+}
+
+// Interrupt Handler
+void intHandler(int signo)
+{
+    if (signo != SIGINT) return;
+
+    // Export Destination if Specified
+    if (intSave) {
+        if (verbose) fprintf(stderr, "Writing Output Record...");
+        CK_IFACE_FN(openExport(rec, fname));
+        if (verbose) fprintf(stderr, "Done\n");
+    }
+
+    // Exit the program
+    safeExit();
 
     return;
 }
