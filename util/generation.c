@@ -31,6 +31,7 @@ bool expandMutate;
 // Add'l Options
 bool omitImportDest;
 bool verbose;
+bool intSave;
 
 // Set Records
 SR_Base *src = NULL;
@@ -58,7 +59,8 @@ const char *usage =
         "   -s      Expansion Phase Toggle -- Supersets\n"
         "   -m      Expansion Phase Toggle -- Mutations\n"
         "   -c      Create/Overwrite Destination (Source M-values)\n"
-        "   -v      Verbose: Display Progress Messages\n";
+        "   -v      Verbose: Display Progress Messages\n"
+        "   -i      Write State of Output Record on Interrupt\n";
 
 int main(int argc, char **argv)
 {
@@ -72,9 +74,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("smcv", true, usage, argc, argv,
+        CK_IFACE_FN(optHandle("smcvi", true, usage, argc, argv,
                 &expandSupers, &expandMutate, &omitImportDest,
-                &verbose));
+                &verbose, &intSave));
     }
 
     // Default to all expansion phases
@@ -97,10 +99,19 @@ int main(int argc, char **argv)
     // Set up Handler for Progress
     {
         void progHandler(int);
-
         struct sigaction act = {0};
+
         act.sa_handler = &progHandler;
         sigaction(SIGUSR1, &act, NULL);
+    }
+
+    // Set up Handler for Interrupt
+    {
+        void intHandler(int);
+        struct sigaction act = {0};
+
+        act.sa_handler = &intHandler;
+        sigaction(SIGINT, &act, NULL);
     }
 
     // ============ Import Records
@@ -182,7 +193,9 @@ int main(int argc, char **argv)
     // ============ Export and Cleanup
 
     // Export Destination
+    if (verbose) fprintf(stderr, "Writing Output Record...");
     CK_IFACE_FN(openExport(dest, destFname));
+    if (verbose) fprintf(stderr, "Done\n");
 
     // Unlink Records
     sr_release(src);
@@ -232,6 +245,24 @@ void progHandler(int signo)
 
     // Push Progress Update
     if (pushProg(prog, srcTotal, progFname)) FAULT();
+
+    return;
+}
+
+// Interrupt Handler
+void intHandler(int signo)
+{
+    if (signo != SIGINT) return;
+
+    // Export Destination if Specified
+    if (intSave) {
+        if (verbose) fprintf(stderr, "Writing Output Record...");
+        CK_IFACE_FN(openExport(dest, destFname));
+        if (verbose) fprintf(stderr, "Done\n");
+    }
+
+    // Exit the program
+    safeExit();
 
     return;
 }
