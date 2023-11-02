@@ -75,12 +75,12 @@ int openExport(SR_Base *rec, char *fname)
 
 // Push Progress Update
 // Returns 0 on success, 1 on error
-int pushProg(size_t prog, size_t total, char *fname)
+int pushProg(size_t prog, size_t total, size_t output, char *fname)
 {
     int res;
 
     // Raw Number Buffers, Fixed Size
-    uint64_t buf[2] = {prog, total};
+    uint64_t buf[3] = {prog, total, output};
 
     // Open Progress File
     int fd = open(fname, O_WRONLY | O_TRUNC);

@@ -61,7 +61,7 @@ int openImport(SR_Base *, char *);
 int openExport(SR_Base *, char *);
 
 // Push Progress Update
-int pushProg(size_t, size_t, char *);
+int pushProg(size_t, size_t, size_t, char *);
 
 // Parse Command-Line Arguments
 int argParse(const Param *, int, const char *, int, char **, ...);

@@ -34,6 +34,10 @@ volatile size_t *progv = NULL;
 char *progFname = NULL;
 sigset_t progmask;
 
+// Counter of Sets that Passed
+pthread_mutex_t countLock = PTHREAD_MUTEX_INITIALIZER;
+size_t passedCount = 0;
+
 // Options
 bool verbose;
 bool intSave;
@@ -187,6 +191,13 @@ void testElim(const unsigned long *set, size_t size, char bits)
         CK_RES(res);
     }
 
+    // Otherwise, Increment Counter
+    else {
+        pthread_mutex_lock(&countLock);
+        passedCount++;
+        pthread_mutex_unlock(&countLock);
+    }
+
     return;
 }
 
@@ -211,7 +222,7 @@ void progHandler(int signo)
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
     // Push Progress Update
-    if (pushProg(prog, total, progFname)) FAULT();
+    if (pushProg(prog, total, passedCount, progFname)) FAULT();
 
     return;
 }

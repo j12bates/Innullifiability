@@ -243,8 +243,11 @@ void progHandler(int signo)
     size_t prog = 0;
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
+    // Total Output
+    ssize_t remainingOutput = sr_query(dest, NULLIF, 0, NULL, NULL);
+
     // Push Progress Update
-    if (pushProg(prog, srcTotal, progFname)) FAULT();
+    if (pushProg(prog, srcTotal, remainingOutput, progFname)) FAULT();
 
     return;
 }
