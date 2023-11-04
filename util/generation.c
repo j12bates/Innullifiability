@@ -31,7 +31,11 @@ bool expandMutate;
 // Add'l Options
 bool omitImportDest;
 bool verbose;
-bool intSave;
+
+// Progress Options
+bool progExport;
+bool progUnmarked;
+bool intProg;
 
 // Set Records
 SR_Base *src = NULL;
@@ -54,13 +58,17 @@ sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-smcv] srcSize src.dat dest.dat "
+        "Usage: %s [-cvsmxui] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
-        "   -s      Expansion Phase Toggle -- Supersets\n"
-        "   -m      Expansion Phase Toggle -- Mutations\n"
         "   -c      Create/Overwrite Destination (Source M-values)\n"
         "   -v      Verbose: Display Progress Messages\n"
-        "   -i      Write State of Output Record on Interrupt\n";
+        "Expansion Phases (both enabled by default):\n"
+        "   -s      Supersets\n"
+        "   -m      Mutations\n"
+        "Progress Updates:\n"
+        "   -x      Export Current Output Record\n"
+        "   -u      Include Count of Remaining Unmarked Sets\n"
+        "   -i      Generate Progress Update on Interrupt\n";
 
 int main(int argc, char **argv)
 {
@@ -74,9 +82,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("smcvi", true, usage, argc, argv,
-                &expandSupers, &expandMutate, &omitImportDest,
-                &verbose, &intSave));
+        CK_IFACE_FN(optHandle("cvsmxui", true, usage, argc, argv,
+                &omitImportDest, &verbose, &expandSupers, &expandMutate,
+                &progExport, &progUnmarked, &intProg));
     }
 
     // Default to all expansion phases
@@ -237,17 +245,23 @@ void *threadUnblocked(void *arg)
 void progHandler(int signo)
 {
     if (signo != SIGUSR1) return;
-    if (progFname == NULL) return;
 
     // Sum of Progress
     size_t prog = 0;
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
-    // Total Output
-    ssize_t remainingOutput = sr_query(dest, NULLIF, 0, NULL, NULL);
+    // Count Unmarked Sets in Output if Specified
+    ssize_t remainingOutput = 0;
+    if (progUnmarked)
+        remainingOutput = sr_query(dest, NULLIF, 0, NULL, NULL);
 
     // Push Progress Update
-    if (pushProg(prog, srcTotal, remainingOutput, progFname)) FAULT();
+    if (progFname != NULL)
+        if (pushProg(prog, srcTotal, remainingOutput, progFname))
+            FAULT();
+
+    // Export Destination if Specified
+    if (progExport) CK_IFACE_FN(openExport(dest, destFname));
 
     return;
 }
@@ -257,12 +271,8 @@ void intHandler(int signo)
 {
     if (signo != SIGINT) return;
 
-    // Export Destination if Specified
-    if (intSave) {
-        if (verbose) fprintf(stderr, "Writing Output Record...");
-        CK_IFACE_FN(openExport(dest, destFname));
-        if (verbose) fprintf(stderr, "Done\n");
-    }
+    // Generate Progress Update if Specified
+    if (intProg) progHandler(SIGUSR1);
 
     // Exit the program
     safeExit();
