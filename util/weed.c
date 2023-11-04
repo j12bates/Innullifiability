@@ -40,13 +40,15 @@ size_t passedCount = 0;
 
 // Options
 bool verbose;
-bool intSave;
+bool progExport;
+bool intProg;
 
 // Usage Format String
 const char *usage =
         "Usage: %s [-vi] recSize rec.dat [threads [prog.out]]\n"
         "   -v      Verbose: Display Progress Messages\n"
-        "   -i      Write State of Output Record on Interrupt\n";
+        "   -x      Export Current Output Record on Progress Update\n"
+        "   -i      Generate Progress Update on Interrupt\n";
 
 int main(int argc, char **argv)
 {
@@ -60,8 +62,8 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("vi", true, usage, argc, argv,
-                &verbose, &intSave));
+        CK_IFACE_FN(optHandle("vxi", true, usage, argc, argv,
+                &verbose, &progExport, &intProg));
     }
 
     // Validate Thread Count
@@ -215,14 +217,18 @@ void *threadHandler(void *arg)
 void progHandler(int signo)
 {
     if (signo != SIGUSR1) return;
-    if (progFname == NULL) return;
 
     // Sum of Progress
     size_t prog = 0;
     for (size_t i = 0; i < threads; i++) prog += progv[i];
 
     // Push Progress Update
-    if (pushProg(prog, total, passedCount, progFname)) FAULT();
+    if (progFname != NULL)
+        if (pushProg(prog, total, passedCount, progFname))
+            FAULT();
+
+    // Export Record if Specified
+    if (progExport) CK_IFACE_FN(openExport(rec, fname));
 
     return;
 }
@@ -232,12 +238,8 @@ void intHandler(int signo)
 {
     if (signo != SIGINT) return;
 
-    // Export Destination if Specified
-    if (intSave) {
-        if (verbose) fprintf(stderr, "Writing Output Record...");
-        CK_IFACE_FN(openExport(rec, fname));
-        if (verbose) fprintf(stderr, "Done\n");
-    }
+    // Generate Progress Update if Specified
+    if (intProg) progHandler(SIGUSR1);
 
     // Exit the program
     safeExit();
