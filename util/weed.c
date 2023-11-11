@@ -184,7 +184,7 @@ void testElim(const unsigned long *set, size_t size, char bits)
     int res;
 
     // Run the Test
-    res = nulTest(set, size);
+    res = nulTest(set, size, 0);
     CK_RES(res);
 
     // Eliminate if Nullifiable

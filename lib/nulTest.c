@@ -14,9 +14,10 @@
 
 // Test if a set is Nullifiable or Not
 // Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
-int nulTest(const unsigned long *set, size_t size)
+int nulTest(const unsigned long *set, size_t size,
+        unsigned long completeSrcMaxM)
 {
-    int recursiveTest(const unsigned long *, size_t);
+    int recursiveTest(const unsigned long *, size_t, unsigned long);
 
     // Simple cases to not use recursion on
     if (size == 0) return 1;
@@ -25,7 +26,7 @@ int nulTest(const unsigned long *set, size_t size)
     for (size_t i = 0; i < size; i++) if (set[i] == 0) return 0;
 
     // Use recursion
-    return recursiveTest(set, size);
+    return recursiveTest(set, size, completeSrcMaxM);
 }
 
 // Test if a Length-3 Set is Nullifiable or Not
@@ -70,7 +71,8 @@ int nulTestTriplet(const unsigned long set[3])
 // A set is only innullifiable if the test always returns that result
 // after every operation. This function only works on sets that are
 // size-3 or larger, and positive integers only.
-int recursiveTest(const unsigned long *set, size_t size)
+int recursiveTest(const unsigned long *set, size_t size,
+        unsigned long firstMin)
 {
     // Base case
     if (size == 3) return nulTestTriplet(set);
@@ -127,11 +129,14 @@ int recursiveTest(const unsigned long *set, size_t size)
             // If empty element, this means nothing
             if (replacements[i] == 0) continue;
 
+            // Skip if below the minimum first computation
+            if (replacements[i] < firstMin) continue;
+
             // Place into the new set
             newSet[0] = replacements[i];
 
             // Recurse on this set
-            int res = recursiveTest(newSet, size - 1);
+            int res = recursiveTest(newSet, size - 1, 0);
 
             // If we get an error or if it's been nullified, carry that
             // on

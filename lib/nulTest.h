@@ -7,6 +7,6 @@
 
 #include <stdlib.h>
 
-int nulTest(const unsigned long *, size_t);
+int nulTest(const unsigned long *, size_t, unsigned long);
 
 #endif
