@@ -26,7 +26,7 @@ int nulTest(const unsigned long *set, size_t size,
     for (size_t i = 0; i < size; i++) if (set[i] == 0) return 0;
 
     // Use recursion
-    return recursiveTest(set, size, completeSrcMaxM);
+    return recursiveTest(set, size, completeSrcMaxM + 1);
 }
 
 // Test if a Length-3 Set is Nullifiable or Not
