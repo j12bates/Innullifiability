@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     rec = sr_initialize(size);
     CK_PTR(rec);
 
-    CK_IFACE_FN(openImport(rec, fname));
+    CK_IFACE_FN(openImport(rec, fname, NULL));
 
     // Display Infos
     fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",

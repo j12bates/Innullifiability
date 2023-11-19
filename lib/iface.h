@@ -5,6 +5,8 @@
 #ifndef IFACE_H
 #define IFACE_H
 
+#include <stdbool.h>
+
 #include <errno.h>
 #include <string.h>
 
@@ -54,11 +56,16 @@ typedef enum ParamType {
     PARAM_STR
 } Param;
 
+struct RecExts {
+    bool weeded;
+    unsigned long completeSourceMaxM;
+};
+
 // Open Record File and Import
-int openImport(SR_Base *, char *);
+int openImport(SR_Base *, char *, struct RecExts *);
 
 // Open File and Export Record
-int openExport(SR_Base *, char *);
+int openExport(SR_Base *, char *, struct RecExts *);
 
 // Push Progress Update
 int pushProg(size_t, size_t, size_t, char *);

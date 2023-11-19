@@ -58,7 +58,7 @@ int main(int argc, char **argv)
         CK_RES(res);
     }
 
-    CK_IFACE_FN(openExport(rec, fname));
+    CK_IFACE_FN(openExport(rec, fname, NULL));
 
     sr_release(rec);
 

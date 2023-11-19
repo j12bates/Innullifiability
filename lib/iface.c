@@ -21,9 +21,13 @@
 #include "iface.h"
 #include "setRec.h"
 
+const char *userHeader1 =
+        "Maximum M-value of Contiguous Complete Source (positive for "
+        "actual number, -1 for weeded): %ld\n";
+
 // Open Record File and Import
 // Returns 0 on success, 1 on error
-int openImport(SR_Base *rec, char *fname)
+int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
 {
     // Open File
     FILE *f = fopen(fname, "rb");
@@ -31,6 +35,14 @@ int openImport(SR_Base *rec, char *fname)
         fprintf(stderr, "Error on Opening '%s': %s\n",
                 fname, strerror(errno));
         return 1;
+    }
+
+    // Read User Header
+    long headerCSMM;
+    fscanf(f, userHeader1, &headerCSMM);
+    if (exts != NULL) {
+        exts->completeSourceMaxM = headerCSMM;
+        exts->weeded = headerCSMM == -1;
     }
 
     // Import Record
@@ -53,7 +65,7 @@ int openImport(SR_Base *rec, char *fname)
 
 // Open File and Export Record
 // Returns 0 on success, 1 on error
-int openExport(SR_Base *rec, char *fname)
+int openExport(SR_Base *rec, char *fname, struct RecExts *exts)
 {
     // Open File
     FILE *f = fopen(fname, "wb");
@@ -62,6 +74,14 @@ int openExport(SR_Base *rec, char *fname)
                 fname, strerror(errno));
         return 1;
     }
+
+    // Write User Header
+    long headerCSMM = 0;
+    if (exts != NULL) {
+        if (exts->weeded) headerCSMM = -1;
+        else headerCSMM = exts->completeSourceMaxM;
+    }
+    fprintf(f, userHeader1, headerCSMM);
 
     // Export Record
     int res = sr_export(rec, f);

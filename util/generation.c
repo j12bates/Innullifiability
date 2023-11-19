@@ -131,11 +131,11 @@ int main(int argc, char **argv)
     CK_PTR(dest);
 
     // Import Source Record from File
-    CK_IFACE_FN(openImport(src, srcFname));
+    CK_IFACE_FN(openImport(src, srcFname, NULL));
     srcTotal = sr_getTotal(src);
 
     // Import Destination Record from File
-    if (!omitImportDest) CK_IFACE_FN(openImport(dest, destFname));
+    if (!omitImportDest) CK_IFACE_FN(openImport(dest, destFname, NULL));
 
     // Or Create it from Scratch
     else {
@@ -202,7 +202,7 @@ int main(int argc, char **argv)
 
     // Export Destination
     if (verbose) fprintf(stderr, "Writing Output Record...");
-    CK_IFACE_FN(openExport(dest, destFname));
+    CK_IFACE_FN(openExport(dest, destFname, NULL));
     if (verbose) fprintf(stderr, "Done\n");
 
     // Unlink Records
@@ -261,7 +261,7 @@ void progHandler(int signo)
             FAULT();
 
     // Export Destination if Specified
-    if (progExport) CK_IFACE_FN(openExport(dest, destFname));
+    if (progExport) CK_IFACE_FN(openExport(dest, destFname, NULL));
 
     return;
 }
