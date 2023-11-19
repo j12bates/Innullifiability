@@ -288,8 +288,8 @@ int sr_import(Base *base, FILE *restrict f)
 {
     int res;
 
-    // Read and interpret the header
-    res = fseek(f, 0, SEEK_SET);
+    // Read and interpret the header that follows the reserved space
+    res = fseek(f, 0x0800, SEEK_SET);
     if (res < 0) return -1;
 
     size_t size;
@@ -328,8 +328,8 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
-    // Write an info header at the start of the file
-    res = fseek(f, 0, SEEK_SET);
+    // Write an info header after the reserved space
+    res = fseek(f, 0x0800, SEEK_SET);
     if (res < 0) return -1;
 
     res = fprintf(f, headerFormat,
