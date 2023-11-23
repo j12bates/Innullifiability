@@ -22,8 +22,11 @@
 #include "setRec.h"
 
 const char *userHeader1 =
-        "Maximum M-value of Contiguous Complete Source (positive for "
-        "actual number, -1 for weeded): %ld\n";
+        "Real Size: %d\n";
+const char *userHeader2 =
+        "Number of Fixed Values: %d\n";
+const char *userHeader3 =
+        "Fixed Values: ";
 
 // Open Record File and Import
 // Returns 0 on success, 1 on error
@@ -38,12 +41,14 @@ int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
     }
 
     // Read User Header
-    long headerCSMM;
-    fscanf(f, userHeader1, &headerCSMM);
+    size_t size, fixed;
+    fscanf(f, userHeader1, &size);
+    fscanf(f, userHeader2, &fixed);
     if (exts != NULL) {
-        exts->completeSourceMaxM = headerCSMM;
-        exts->weeded = headerCSMM == -1;
+        exts->fixed = fixed;
     }
+    // TODO: 'scanf' error checking, deal with reading in individual
+    // fixed values
 
     // Import Record
     int res = sr_import(rec, f);
@@ -76,12 +81,16 @@ int openExport(SR_Base *rec, char *fname, struct RecExts *exts)
     }
 
     // Write User Header
-    long headerCSMM = 0;
+    size_t size, fixed = 0;
     if (exts != NULL) {
-        if (exts->weeded) headerCSMM = -1;
-        else headerCSMM = exts->completeSourceMaxM;
+        fixed = exts->fixed;
     }
-    fprintf(f, userHeader1, headerCSMM);
+    size = sr_getSize(rec) + fixed;
+
+    fprintf(f, userHeader1, size);
+    fprintf(f, userHeader2, fixed);
+    fprintf(f, userHeader3);
+    // TODO: basically same stuff
 
     // Export Record
     int res = sr_export(rec, f);

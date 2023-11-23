@@ -57,8 +57,8 @@ typedef enum ParamType {
 } Param;
 
 struct RecExts {
-    bool weeded;
-    unsigned long completeSourceMaxM;
+    size_t fixed;
+    unsigned long *fixedValues;
 };
 
 // Open Record File and Import
