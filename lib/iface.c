@@ -22,11 +22,10 @@
 #include "setRec.h"
 
 const char *userHeader1 =
-        "Real Size: %d\n";
+        "Real Size: %zu\n"
+        "Number of Fixed Values: %zu\n";
 const char *userHeader2 =
-        "Number of Fixed Values: %d\n";
-const char *userHeader3 =
-        "Fixed Values: ";
+        "Fixed Values: %lu, %lu, %lu, %lu\n";
 
 // Open Record File and Import
 // Returns 0 on success, 1 on error
@@ -41,14 +40,16 @@ int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
     }
 
     // Read User Header
-    size_t size, fixed;
-    fscanf(f, userHeader1, &size);
-    fscanf(f, userHeader2, &fixed);
+    size_t size, fixedc;
+    fscanf(f, userHeader1, &size, &fixedc);
     if (exts != NULL) {
-        exts->fixed = fixed;
+        exts->fixedc = fixedc;
+
+        unsigned long *fixedv = exts->fixedv;
+        fscanf(f, userHeader2,
+                fixedv, fixedv + 1, fixedv + 2, fixedv + 3);
     }
-    // TODO: 'scanf' error checking, deal with reading in individual
-    // fixed values
+    // TODO: 'scanf' error checking
 
     // Import Record
     int res = sr_import(rec, f);
@@ -80,17 +81,21 @@ int openExport(SR_Base *rec, char *fname, struct RecExts *exts)
         return 1;
     }
 
-    // Write User Header
-    size_t size, fixed = 0;
+    // Information for User Header
+    size_t size, fixedc = 0;
+    unsigned long blank[4] = {0};
+    unsigned long *fixedv = blank;
     if (exts != NULL) {
-        fixed = exts->fixed;
+        fixedc = exts->fixedc;
+        fixedv = exts->fixedv;
     }
-    size = sr_getSize(rec) + fixed;
+    size = sr_getSize(rec) + fixedc;
 
-    fprintf(f, userHeader1, size);
-    fprintf(f, userHeader2, fixed);
-    fprintf(f, userHeader3);
-    // TODO: basically same stuff
+    // Write User Header
+    fprintf(f, userHeader1, size, fixedc);
+    fprintf(f, userHeader2,
+            fixedv[0], fixedv[1], fixedv[2], fixedv[3]);
+    // TODO: 'printf' error checking
 
     // Export Record
     int res = sr_export(rec, f);

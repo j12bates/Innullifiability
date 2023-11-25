@@ -57,8 +57,8 @@ typedef enum ParamType {
 } Param;
 
 struct RecExts {
-    size_t fixed;
-    unsigned long *fixedValues;
+    size_t fixedc;
+    unsigned long fixedv[4];
 };
 
 // Open Record File and Import
