@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     rec = sr_initialize(size);
     CK_PTR(rec);
 
-    CK_IFACE_FN(openImport(rec, fname, NULL));
+    CK_IFACE_FN(openImport(rec, fname));
     total = sr_getTotal(rec);
 
     // ============ Iteratively Perform Test
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 
     // ============ Export and Cleanup
     if (verbose) fprintf(stderr, "Writing Output Record...");
-    CK_IFACE_FN(openExport(rec, fname, NULL));
+    CK_IFACE_FN(openExport(rec, fname));
     if (verbose) fprintf(stderr, "Done\n");
 
     sr_release(rec);
@@ -228,7 +228,7 @@ void progHandler(int signo)
             FAULT();
 
     // Export Record if Specified
-    if (progExport) CK_IFACE_FN(openExport(rec, fname, NULL));
+    if (progExport) CK_IFACE_FN(openExport(rec, fname));
 
     return;
 }

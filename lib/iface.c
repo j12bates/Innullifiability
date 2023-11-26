@@ -21,15 +21,9 @@
 #include "iface.h"
 #include "setRec.h"
 
-const char *userHeader1 =
-        "Real Size: %zu\n"
-        "Number of Fixed Values: %zu\n";
-const char *userHeader2 =
-        "Fixed Values: %lu, %lu, %lu, %lu\n";
-
 // Open Record File and Import
 // Returns 0 on success, 1 on error
-int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
+int openImport(SR_Base *rec, char *fname)
 {
     // Open File
     FILE *f = fopen(fname, "rb");
@@ -38,18 +32,6 @@ int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
                 fname, strerror(errno));
         return 1;
     }
-
-    // Read User Header
-    size_t size, fixedc;
-    fscanf(f, userHeader1, &size, &fixedc);
-    if (exts != NULL) {
-        exts->fixedc = fixedc;
-
-        unsigned long *fixedv = exts->fixedv;
-        fscanf(f, userHeader2,
-                fixedv, fixedv + 1, fixedv + 2, fixedv + 3);
-    }
-    // TODO: 'scanf' error checking
 
     // Import Record
     int res = sr_import(rec, f);
@@ -71,7 +53,7 @@ int openImport(SR_Base *rec, char *fname, struct RecExts *exts)
 
 // Open File and Export Record
 // Returns 0 on success, 1 on error
-int openExport(SR_Base *rec, char *fname, struct RecExts *exts)
+int openExport(SR_Base *rec, char *fname)
 {
     // Open File
     FILE *f = fopen(fname, "wb");
@@ -80,22 +62,6 @@ int openExport(SR_Base *rec, char *fname, struct RecExts *exts)
                 fname, strerror(errno));
         return 1;
     }
-
-    // Information for User Header
-    size_t size, fixedc = 0;
-    unsigned long blank[4] = {0};
-    unsigned long *fixedv = blank;
-    if (exts != NULL) {
-        fixedc = exts->fixedc;
-        fixedv = exts->fixedv;
-    }
-    size = sr_getSize(rec) + fixedc;
-
-    // Write User Header
-    fprintf(f, userHeader1, size, fixedc);
-    fprintf(f, userHeader2,
-            fixedv[0], fixedv[1], fixedv[2], fixedv[3]);
-    // TODO: 'printf' error checking
 
     // Export Record
     int res = sr_export(rec, f);
