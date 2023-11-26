@@ -81,9 +81,12 @@ typedef _Atomic char Rec;
 typedef struct Base Base;
 struct Base {
     Rec *rec;
-    size_t size;
+    size_t size;            // real size of sets (variable and fixed)
+    size_t varSize;         // size up to the M-value (ignoring fixed)
     unsigned long mval_min;
     unsigned long mval_max;
+    size_t fixedc;          // number of fixed values
+    unsigned long fixedv[4];
 };
 
 // Output Function
@@ -97,14 +100,17 @@ const char *headerMsg =
         "Data begins 4K (4096) into the file\n";
 
 // Macros for Calculating Size of Record
-#define TOTAL(minm, maxm, size) (mcn(maxm, size) - mcn(minm - 1, size))
-#define TOTAL_B(base) TOTAL(base->mval_min, base->mval_max, base->size)
+#define TOTAL(minm, maxm, varSize) \
+            (mcn(maxm, varSize) - mcn(minm - 1, varSize))
+#define TOTAL_B(base) \
+            TOTAL(base->mval_min, base->mval_max, base->varSize)
 
 // Helper Function Declarations
 static int mark(Rec *, unsigned long,
         const unsigned long *, size_t, char);
 static ssize_t query(const Rec *,
         unsigned long, unsigned long, size_t,
+        const unsigned long *, size_t,
         size_t, size_t, char, char,
         size_t *, size_t, OutFun *);
 
@@ -135,8 +141,10 @@ Base *sr_initialize(size_t size)
     // Populate to indicate empty
     base->rec = NULL;
     base->size = size;
+    base->varSize = size;
     base->mval_min = 1; // avoid uflow when decrementing for total calc
     base->mval_max = 0;
+    base->fixedc = 0;
 
     return base;
 }
@@ -226,12 +234,17 @@ int sr_mark(const Base *base, const unsigned long *set, size_t size,
     errno = 0;
 #endif
 
-    // Skip if set is unallocated
-    if (set[size - 1] > base->mval_max
-            || set[size - 1] < base->mval_min) return 0;
+    // Skip if set M-value is out of range
+    size_t varSize = base->varSize;
+    if (set[varSize - 1] > base->mval_max
+            || set[varSize - 1] < base->mval_min) return 0;
+
+    // Skip if fixed values don't match
+    for (size_t fixed = 0; fixed < base->fixedc; fixed++)
+        if (set[varSize + fixed] != base->fixedv[fixed]) return 0;
 
     // Mark this set on the record
-    int res = mark(base->rec, base->mval_min, set, size, mask);
+    int res = mark(base->rec, base->mval_min, set, varSize, mask);
 
     return res;
 }
@@ -247,7 +260,8 @@ ssize_t sr_query(const Base *base, char mask, char bits,
 {
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
-            base->mval_min, base->mval_max, base->size,
+            base->mval_min, base->mval_max, base->varSize,
+            base->fixedv, base->fixedc,
             0, 1, mask, bits, prog, PERIOD, out);
 
     return res;
@@ -272,7 +286,8 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
 
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
-            base->mval_min, base->mval_max, base->size,
+            base->mval_min, base->mval_max, base->varSize,
+            base->fixedv, base->fixedc,
             mod, concurrents, mask, bits, prog, PERIOD, out);
 
     return res;
@@ -362,12 +377,13 @@ int sr_export(const Base *base, FILE *restrict f)
 
 // This function marks a particular set in the record, OR'ing the given
 // bits. Assumes given set is in ascending order, the right size, and in
-// the right range of values.
+// the right range of values. This function only deals with the variable
+// portion of sets, as the fixed values have no bearing on anything.
 int mark(Rec *rec, unsigned long minm,
-        const unsigned long *set, size_t size, char mask)
+        const unsigned long *set, size_t varSize, char mask)
 {
     // OR the bits we care about
-    size_t index = setToIndex(set, size) - mcn(minm - 1, size);
+    size_t index = setToIndex(set, varSize) - mcn(minm - 1, varSize);
     char prev = atomic_fetch_or(rec + index, mask);
 
     // Whether they were already set
@@ -388,7 +404,8 @@ int mark(Rec *rec, unsigned long minm,
 // periodic progress tracking by updating an object with the number of
 // sets remaining.
 ssize_t query(const Rec *rec,
-        unsigned long minm, unsigned long maxm, size_t size,
+        unsigned long minm, unsigned long maxm, size_t varSize,
+        const unsigned long *fixedv, size_t fixedc,
         size_t offset, size_t skip, char mask, char bits,
         size_t *progress, size_t period, OutFun *out)
 {
@@ -396,17 +413,21 @@ ssize_t query(const Rec *rec,
     ssize_t setc = 0;
 
     // The set representation we'll use
+    size_t size = varSize + fixedc;
     unsigned long *values = calloc(size, sizeof(unsigned long));
     if (values == NULL) return -1;
 
-    // The first allocated set, adjusted to our starting point
-    indexToSet(values, size, 0);
-    values[size - 1] = minm;
+    // The representation of the first allocated set, including fixed
+    // values, adjusted to our starting point
+    indexToSet(values, varSize - 1, 0);
+    values[varSize - 1] = minm;
+    for (size_t fixed = 0; fixed < fixedc; fixed++)
+        values[varSize + fixed] = fixedv[fixed];
     incSetValues(values, size, offset);
 
     // Loop over every Nth set, checking, outputting, and updating
     // progress
-    size_t total = TOTAL(minm, maxm, size);
+    size_t total = TOTAL(minm, maxm, varSize);
     for (size_t i = offset; i < total; i += skip)
     {
         bool match = false;
@@ -430,13 +451,14 @@ ssize_t query(const Rec *rec,
         }
 
         // Advance to Next Nth Set
-        incSetValues(values, size, skip);
+        incSetValues(values, varSize, skip);
 
         // Update Progress every so often
         if (progress != NULL) if (i / skip % period == 0)
             *progress = i / skip;
     }
 
+    // Final progress update
     if (progress != NULL) *progress = (total - offset - 1) / skip + 1;
 
     free(values);
@@ -446,12 +468,12 @@ ssize_t query(const Rec *rec,
 
 // Compute Index from Set
 // Returns the index, no error checking
-size_t setToIndex(const unsigned long *set, size_t size)
+size_t setToIndex(const unsigned long *set, size_t varSize)
 {
     size_t index = 0;
 
     // Go from most significant (highest) to least
-    for (size_t vals = size; vals > 0; vals--)
+    for (size_t vals = varSize; vals > 0; vals--)
     {
         // Get set value, decrement since we're not using zero, add
         // combinations to index
@@ -464,10 +486,10 @@ size_t setToIndex(const unsigned long *set, size_t size)
 
 // Compute Set from Index
 // Set is written into given array pointer
-void indexToSet(unsigned long *set, size_t size, size_t index)
+void indexToSet(unsigned long *set, size_t varSize, size_t index)
 {
     // Go from most significant (highest) to least
-    for (size_t vals = size; vals > 0; vals--)
+    for (size_t vals = varSize; vals > 0; vals--)
     {
         // Find the last value for which the number of combinations is
         // within the remainder
@@ -492,11 +514,11 @@ void indexToSet(unsigned long *set, size_t size, size_t index)
 // so, and otherwise it'll increment the next value, using a loop to
 // deal with chains of overflowing place values. It'll repeat this
 // process until it's able to settle the first value.
-void incSetValues(unsigned long *set, size_t size, size_t add)
+void incSetValues(unsigned long *set, size_t varSize, size_t add)
 {
     // Handle Trivial Size Cases
-    if (size == 0);
-    else if (size == 1) set[0] += add;
+    if (varSize == 0);
+    else if (varSize == 1) set[0] += add;
 
     // Repeat until we're done increasing
     else while (add > 0)
@@ -511,13 +533,13 @@ void incSetValues(unsigned long *set, size_t size, size_t add)
         // If there's more, increment the next value, dealing with the
         // further ones if necessary
         size_t i;
-        for (i = 1; i < size; i++)
+        for (i = 1; i < varSize; i++)
         {
             // Reset previous value
             set[i - 1] = i;
 
             // If we can increment this value, do so
-            if (i == size - 1) ++set[i];
+            if (i == varSize - 1) ++set[i];
             else if (++set[i] < set[i + 1]) break;
         }
 
