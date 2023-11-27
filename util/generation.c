@@ -139,7 +139,8 @@ int main(int argc, char **argv)
 
     // Or Create it from Scratch
     else {
-        int res = sr_alloc(dest, sr_getMinM(src), sr_getMaxM(src));
+        int res = sr_alloc(dest, srcSize + 1,
+                sr_getMinM(src), sr_getMaxM(src), 0, NULL);
         CK_RES(res);
     }
 

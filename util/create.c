@@ -54,7 +54,7 @@ int main(int argc, char **argv)
     CK_PTR(rec);
 
     {
-        int res = sr_alloc(rec, minm, maxm);
+        int res = sr_alloc(rec, size, minm, maxm, 0, NULL);
         CK_RES(res);
     }
 

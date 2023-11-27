@@ -72,6 +72,7 @@
 
 #include "setRec.h"
 
+#define FIXED_MAX 4
 #define PERIOD 0x1000
 
 // Individual Set Record Type
@@ -86,17 +87,22 @@ struct Base {
     unsigned long mval_min;
     unsigned long mval_max;
     size_t fixedc;          // number of fixed values
-    unsigned long fixedv[4];
+    unsigned long fixedv[FIXED_MAX];
 };
 
 // Output Function
 typedef void OutFun(const unsigned long *, size_t, char);
 
-// Strings
-const char *headerFormat =
-        "setRec -- N = %lu, "
-        "M-Value Range is %lu to %lu\n";
-const char *headerMsg =
+// Header Format Strings
+const char *hdrFmtFull =
+        "Full Set -- Size: %lu\n";
+const char *hdrFmtVar =
+        "Variable Segment -- Size: %lu, "
+        "M-Value Range: %lu to %lu\n";
+const char *hdrFmtFixed =
+        "Fixed Segment -- Size: %lu, "
+        "Values: %lu, %lu, %lu, %lu\n";     // matches FIXED_MAX
+const char *hdrMsgData =
         "Data begins 4K (4096) into the file\n";
 
 // Macros for Calculating Size of Record
@@ -155,15 +161,32 @@ Base *sr_initialize(size_t size)
 // Allocates a specific M-Value range to a Set Record. Min can be set to
 // any low number safely to include every set up to Max. On error,
 // record is preserved.
-int sr_alloc(Base *base, unsigned long minm, unsigned long maxm)
+int sr_alloc(Base *base,
+        size_t varSize, unsigned long minm, unsigned long maxm,
+        size_t fixedc, const unsigned long *fixedv)
 {
     // Adjust input values if necessary
-    if (minm < base->size) minm = base->size;
+    if (minm < varSize) minm = varSize;
     if (maxm < minm) maxm = minm - 1;
 
+#ifndef NO_VALIDATE
+    // Validate Size and Fixed Values
+    errno = EINVAL;
+    if (fixedc > FIXED_MAX) return -1;
+    if (varSize + fixedc != base->size) return -1;
+    if (fixedc > 0) if (fixedv[0] <= maxm) return -1;
+    for (size_t i = 1; i < fixedc; i++)
+        if (fixedv[i] <= fixedv[i - 1]) return -1;
+    errno = 0;
+#endif
+
     // Populate Information Structure
+    base->varSize = varSize;
     base->mval_min = minm;
     base->mval_max = maxm;
+    base->fixedc = fixedc;
+    for (size_t i = 0; i < fixedc; i++)
+        base->fixedv[i] = fixedv[i];
 
     // Allocate Memory for Record Array
     Rec *rec = calloc(TOTAL_B(base), sizeof(Rec));
@@ -195,6 +218,12 @@ size_t sr_getSize(const Base *base)
     return base->size;
 }
 
+// Get Property: Variable Segment Size
+size_t sr_getVarSize(const Base *base)
+{
+    return base->varSize;
+}
+
 // Get Property: Minimum M-Value
 unsigned long sr_getMinM(const Base *base)
 {
@@ -205,6 +234,19 @@ unsigned long sr_getMinM(const Base *base)
 unsigned long sr_getMaxM(const Base *base)
 {
     return base->mval_max;
+}
+
+// Get Property: Fixed Segment Size
+size_t sr_getFixedSize(const Base *base)
+{
+    return base->fixedc;
+}
+
+// Get Property: Particular Fixed Segment Value
+unsigned long sr_getFixedValue(const Base *base, size_t fixed)
+{
+    if (fixed < base->fixedc) return base->fixedv[fixed];
+    else return 0;
 }
 
 // Get Property: Total Addressable Sets
@@ -303,22 +345,39 @@ int sr_import(Base *base, FILE *restrict f)
 {
     int res;
 
-    // Read and interpret the header that follows the reserved space
+    // Header follows the Reserved Space
     res = fseek(f, 0x0800, SEEK_SET);
     if (res < 0) return -1;
 
+    // Read Numbers for Full Set
     size_t size;
-    unsigned long minm, maxm;
-    res = fscanf(f, headerFormat, &size, &minm, &maxm);
+    res = fscanf(f, hdrFmtFull, &size);
     if (res == EOF && ferror(f)) return -1;
-    else if (res != 3) return -3;
+    else if (res != 1) return -3;
 
     // Exit if record is wrong size
     if (size != base->size) return -2;
 
+    // Read Numbers for Variable Segment
+    size_t varSize;
+    unsigned long minm, maxm;
+    res = fscanf(f, hdrFmtVar, &varSize, &minm, &maxm);
+    if (res == EOF && ferror(f)) return -1;
+    else if (res != 3) return -3;
+
+    // Read Numbers for Fixed Segment
+    size_t fixedSize;
+    unsigned long fixed[4];
+    res = fscanf(f, hdrFmtFixed, &fixedSize,
+            fixed, fixed + 1, fixed + 2, fixed + 3);
+    if (res == EOF && ferror(f)) return -1;
+    else if (res != 5) return -3;
+
     // Allocate New Array
-    res = sr_alloc(base, minm, maxm);
-    if (res == -1) return -1;
+    res = sr_alloc(base, varSize, minm, maxm, fixedSize, fixed);
+    if (res == -1)
+        if (errno == EINVAL) return -3;
+        else return -1;
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -343,15 +402,27 @@ int sr_export(const Base *base, FILE *restrict f)
 {
     int res;
 
-    // Write an info header after the reserved space
+    // Header follows the Reserved Space
     res = fseek(f, 0x0800, SEEK_SET);
     if (res < 0) return -1;
 
-    res = fprintf(f, headerFormat,
-            base->size, base->mval_min, base->mval_max);
+    // Write Header for Full Set
+    res = fprintf(f, hdrFmtFull, base->size);
     if (res < 0) return -1;
 
-    res = fprintf(f, headerMsg);
+    // Write Header for Variable Segment
+    res = fprintf(f, hdrFmtVar, base->varSize,
+            base->mval_min, base->mval_max);
+    if (res < 0) return -1;
+
+    // Write Header for Fixed Segment
+    res = fprintf(f, hdrFmtFixed, base->fixedc,
+            base->fixedv[0], base->fixedv[1],
+            base->fixedv[2], base->fixedv[3]);
+    if (res < 0) return -1;
+
+    // Write Header Message
+    res = fprintf(f, hdrMsgData);
     if (res < 0) return -1;
 
     // Write entire raw array one block into the file

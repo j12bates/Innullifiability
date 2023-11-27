@@ -16,15 +16,19 @@ typedef struct Base SR_Base;
 SR_Base *sr_initialize(size_t);
 
 // Allocate a Set Record
-int sr_alloc(SR_Base *, unsigned long, unsigned long);
+int sr_alloc(SR_Base *, size_t, unsigned long, unsigned long,
+        size_t, const unsigned long *);
 
 // Release a Set Record
 void sr_release(SR_Base *);
 
 // Get Record Properties
 size_t sr_getSize(const SR_Base *);
+size_t sr_getVarSize(const SR_Base *);
 unsigned long sr_getMinM(const SR_Base *);
 unsigned long sr_getMaxM(const SR_Base *);
+size_t sr_getFixedSize(const SR_Base *);
+unsigned long sr_getFixedValue(const SR_Base *, size_t);
 size_t sr_getTotal(const SR_Base *);
 
 // Mark a Certain Set and Supersets
