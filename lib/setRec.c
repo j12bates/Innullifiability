@@ -169,7 +169,6 @@ int sr_alloc(Base *base,
     if (minm < varSize) minm = varSize;
     if (maxm < minm) maxm = minm - 1;
 
-#ifndef NO_VALIDATE
     // Validate Size and Fixed Values
     errno = EINVAL;
     if (fixedc > FIXED_MAX) return -1;
@@ -178,7 +177,6 @@ int sr_alloc(Base *base,
     for (size_t i = 1; i < fixedc; i++)
         if (fixedv[i] <= fixedv[i - 1]) return -1;
     errno = 0;
-#endif
 
     // Populate Information Structure
     base->varSize = varSize;

@@ -45,7 +45,7 @@ bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-vi] recSize rec.dat [threads [prog.out]]\n"
+        "Usage: %s [-vxi] recSize rec.dat [threads [prog.out]]\n"
         "   -v      Verbose: Display Progress Messages\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
