@@ -144,9 +144,18 @@ int main(int argc, char **argv)
         CK_RES(res);
     }
 
-    // Store M-range
-    minM = sr_getMinM(dest);
-    maxM = sr_getMaxM(dest);
+    // If we have fixed values, the highest one is our M-range
+    size_t fixedc = sr_getFixedSize(dest);
+    if (fixedc) {
+        minM = sr_getFixedValue(dest, fixedc - 1);
+        maxM = minM;
+    }
+
+    // Otherwise, just the usual M-range
+    else {
+        minM = sr_getMinM(dest);
+        maxM = sr_getMaxM(dest);
+    }
 
     // ============ Perform Expansions in Threads
 
