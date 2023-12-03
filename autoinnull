@@ -72,7 +72,7 @@ echo "N = $tsize, M <= $tmaxm" >&2
 echo >&2
 echo "================ Finding Base Sets" >&2
 
-$utilpath/create 3 0 $tmaxm $tempf || exit 1
+$utilpath/create 3 0 $tmaxm 0 "" $tempf || exit 1
 
 $utilpath/weed 3 $tempf $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
