@@ -60,7 +60,8 @@ sigset_t progmask;
 const char *usage =
         "Usage: %s [-cvsmxui] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
-        "   -c      Create/Overwrite Destination (Source M-values)\n"
+        "   -c      Create/Overwrite Destination (M-range and Fixed "
+                "Values taken from Source)\n"
         "   -v      Verbose: Display Progress Messages\n"
         "Expansion Phases (both enabled by default):\n"
         "   -s      Supersets\n"
@@ -139,8 +140,13 @@ int main(int argc, char **argv)
 
     // Or Create it from Scratch
     else {
-        int res = sr_alloc(dest, srcSize + 1,
-                sr_getMinM(src), sr_getMaxM(src), 0, NULL);
+        size_t fixedSize = sr_getFixedSize(src);
+        unsigned long *fixed = calloc(fixedSize, sizeof(unsigned long));
+        for (size_t i = 0; i < fixedSize; i++)
+            fixed[i] = sr_getFixedValue(src, i);
+
+        int res = sr_alloc(dest, srcSize + 1 - fixedSize,
+                sr_getMinM(src), sr_getMaxM(src), fixedSize, fixed);
         CK_RES(res);
     }
 
