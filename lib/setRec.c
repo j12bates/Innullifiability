@@ -27,9 +27,19 @@
 // create the actual array. This can be done with the Allocate function,
 // which creates an empty Record, or by Importing an existing Record
 // from a file. The range of sets represented is determined upon
-// Allocation, and is specified as a range of M-values, meaning the
-// addressable sets will be the ones whose M-value is between a given
-// min and max, inclusive.
+// Allocation.
+
+// The range works by essentially splitting up set representations into
+// two 'segments': there's the Variable segment, which are lower values
+// that are the ones actually changing throughout the record, and
+// there's the Fixed segment, which stores some upper values that remain
+// static throughout. The M-range controlled through the min/max M-value
+// parameters set in Allocation or Importing actually corresponds to the
+// M-value of the Variable segment, not the full sets themselves. The
+// Fixed segment can be thought of some high values just tacked on the
+// end, not actually making any difference in the backend, outside of
+// the set representations. The maximum size for the Fixed segment is
+// four values.
 
 // The bytes are like bit-fields for each set, and different bits can be
 // OR'd on by using the 'Mark' function. The Mark function takes in the
@@ -86,7 +96,7 @@ struct Base {
     size_t varSize;         // size up to the M-value (ignoring fixed)
     unsigned long mval_min;
     unsigned long mval_max;
-    size_t fixedc;          // number of fixed values
+    size_t fixedSize;       // number of fixed values
     unsigned long fixedv[FIXED_MAX];
 };
 
@@ -150,7 +160,7 @@ Base *sr_initialize(size_t size)
     base->varSize = size;
     base->mval_min = 1; // avoid uflow when decrementing for total calc
     base->mval_max = 0;
-    base->fixedc = 0;
+    base->fixedSize = 0;
 
     return base;
 }
@@ -163,7 +173,7 @@ Base *sr_initialize(size_t size)
 // record is preserved.
 int sr_alloc(Base *base,
         size_t varSize, unsigned long minm, unsigned long maxm,
-        size_t fixedc, const unsigned long *fixedv)
+        size_t fixedSize, const unsigned long *fixedv)
 {
     // Adjust input values if necessary
     if (minm < varSize) minm = varSize;
@@ -171,10 +181,10 @@ int sr_alloc(Base *base,
 
     // Validate Size and Fixed Values
     errno = EINVAL;
-    if (fixedc > FIXED_MAX) return -1;
-    if (varSize + fixedc != base->size) return -1;
-    if (fixedc > 0) if (fixedv[0] <= maxm) return -1;
-    for (size_t i = 1; i < fixedc; i++)
+    if (fixedSize > FIXED_MAX) return -1;
+    if (varSize + fixedSize != base->size) return -1;
+    if (fixedSize > 0) if (fixedv[0] <= maxm) return -1;
+    for (size_t i = 1; i < fixedSize; i++)
         if (fixedv[i] <= fixedv[i - 1]) return -1;
     errno = 0;
 
@@ -182,8 +192,8 @@ int sr_alloc(Base *base,
     base->varSize = varSize;
     base->mval_min = minm;
     base->mval_max = maxm;
-    base->fixedc = fixedc;
-    for (size_t i = 0; i < fixedc; i++)
+    base->fixedSize = fixedSize;
+    for (size_t i = 0; i < fixedSize; i++)
         base->fixedv[i] = fixedv[i];
 
     // Allocate Memory for Record Array
@@ -237,13 +247,13 @@ unsigned long sr_getMaxM(const Base *base)
 // Get Property: Fixed Segment Size
 size_t sr_getFixedSize(const Base *base)
 {
-    return base->fixedc;
+    return base->fixedSize;
 }
 
 // Get Property: Particular Fixed Segment Value
 unsigned long sr_getFixedValue(const Base *base, size_t fixed)
 {
-    if (fixed < base->fixedc) return base->fixedv[fixed];
+    if (fixed < base->fixedSize) return base->fixedv[fixed];
     else return 0;
 }
 
@@ -280,8 +290,8 @@ int sr_mark(const Base *base, const unsigned long *set, size_t size,
             || set[varSize - 1] < base->mval_min) return 0;
 
     // Skip if fixed values don't match
-    for (size_t fixed = 0; fixed < base->fixedc; fixed++)
-        if (set[varSize + fixed] != base->fixedv[fixed]) return 0;
+    for (size_t i = 0; i < base->fixedSize; i++)
+        if (set[varSize + i] != base->fixedv[i]) return 0;
 
     // Mark this set on the record
     int res = mark(base->rec, base->mval_min, set, varSize, mask);
@@ -301,7 +311,7 @@ ssize_t sr_query(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->varSize,
-            base->fixedv, base->fixedc,
+            base->fixedv, base->fixedSize,
             0, 1, mask, bits, prog, PERIOD, out);
 
     return res;
@@ -327,7 +337,7 @@ ssize_t sr_query_parallel(const Base *base, char mask, char bits,
     // Output Sets that Match Query
     ssize_t res = query(base->rec,
             base->mval_min, base->mval_max, base->varSize,
-            base->fixedv, base->fixedc,
+            base->fixedv, base->fixedSize,
             mod, concurrents, mask, bits, prog, PERIOD, out);
 
     return res;
@@ -373,9 +383,10 @@ int sr_import(Base *base, FILE *restrict f)
 
     // Allocate New Array
     res = sr_alloc(base, varSize, minm, maxm, fixedSize, fixed);
-    if (res == -1)
+    if (res == -1) {
         if (errno == EINVAL) return -3;
         else return -1;
+    }
 
     // Raw array is one block into the file
     res = fseek(f, 0x1000, SEEK_SET);
@@ -414,7 +425,7 @@ int sr_export(const Base *base, FILE *restrict f)
     if (res < 0) return -1;
 
     // Write Header for Fixed Segment
-    res = fprintf(f, hdrFmtFixed, base->fixedc,
+    res = fprintf(f, hdrFmtFixed, base->fixedSize,
             base->fixedv[0], base->fixedv[1],
             base->fixedv[2], base->fixedv[3]);
     if (res < 0) return -1;
@@ -474,7 +485,7 @@ int mark(Rec *rec, unsigned long minm,
 // sets remaining.
 ssize_t query(const Rec *rec,
         unsigned long minm, unsigned long maxm, size_t varSize,
-        const unsigned long *fixedv, size_t fixedc,
+        const unsigned long *fixedv, size_t fixedSize,
         size_t offset, size_t skip, char mask, char bits,
         size_t *progress, size_t period, OutFun *out)
 {
@@ -482,7 +493,7 @@ ssize_t query(const Rec *rec,
     ssize_t setc = 0;
 
     // The set representation we'll use
-    size_t size = varSize + fixedc;
+    size_t size = varSize + fixedSize;
     unsigned long *values = calloc(size, sizeof(unsigned long));
     if (values == NULL) return -1;
 
@@ -490,8 +501,8 @@ ssize_t query(const Rec *rec,
     // values, adjusted to our starting point
     indexToSet(values, varSize - 1, 0);
     values[varSize - 1] = minm;
-    for (size_t fixed = 0; fixed < fixedc; fixed++)
-        values[varSize + fixed] = fixedv[fixed];
+    for (size_t i = 0; i < fixedSize; i++)
+        values[varSize + i] = fixedv[i];
     incSetValues(values, size, offset);
 
     // Loop over every Nth set, checking, outputting, and updating
