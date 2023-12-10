@@ -11,6 +11,16 @@
 // that don't have the second bit set by introducing mutations to the
 // values. Each of these expansion phases are optional.
 
+// This and the Weed program are the two programs which do *proper
+// work,* and so they have the ability to have their progress tracked.
+// When sent SIGUSR1, these will produce a progress update, sending a
+// small amount of data to a file provided in the argument list, ideally
+// a named pipe. It provides 64-bit binary representations of the number
+// of sets currently elapsed in the scan, as well as the total number of
+// sets. For Generation, it'll optionally also provide the number of
+// sets remaining unmarked in the output, and for Weed, it'll provide
+// the number of sets having passed the test so far.
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
