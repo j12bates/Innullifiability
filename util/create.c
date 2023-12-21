@@ -3,8 +3,9 @@
 // Copyright (c) 2023, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This program creates a blank record file with a specified Size and
-// M-Value Range, for use with the other programs.
+// This program creates a blank record file with a specified Variable
+// Segment Size, M-range, and Fixed Segment, for use with other
+// programs.
 
 #include <stdio.h>
 #include <stdlib.h>
