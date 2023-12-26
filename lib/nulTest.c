@@ -15,9 +15,10 @@
 // Test if a set is Nullifiable or Not
 // Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
 int nulTest(const unsigned long *set, size_t size,
-        unsigned long completeSrcMaxM)
+        unsigned long minm, unsigned long maxm)
 {
-    int recursiveTest(const unsigned long *, size_t, unsigned long);
+    int recursiveTest(const unsigned long *, size_t,
+            unsigned long, unsigned long);
 
     // Simple cases to not use recursion on
     if (size == 0) return 1;
@@ -26,7 +27,7 @@ int nulTest(const unsigned long *set, size_t size,
     for (size_t i = 0; i < size; i++) if (set[i] == 0) return 0;
 
     // Use recursion
-    return recursiveTest(set, size, completeSrcMaxM + 1);
+    return recursiveTest(set, size, minm, maxm);
 }
 
 // Test if a Length-3 Set is Nullifiable or Not
@@ -63,16 +64,19 @@ int nulTestTriplet(const unsigned long set[3])
 // Returns 0 if nullifiable, 1 if innullifiable, -1 on memory error
 
 // This function will simply determine whether or not a set is
-// nullifiable. It is a recursive function, and it starts by checking if
-// there is a trivial way to nullify the set, and then it performs every
-// single possible operation on the set, before recursing and checking
-// again as though that were a new set. If it finds that the set is
-// nullifiable at any point, that means the set was always nullifiable.
-// A set is only innullifiable if the test always returns that result
-// after every operation. This function only works on sets that are
-// size-3 or larger, and positive integers only.
+// nullifiable, given an initial reduction space. It is a recursive
+// function, and it starts by checking if there is a trivial way to
+// nullify the set, and then it performs every single possible operation
+// on the set, before recursing and checking again as though that were a
+// new set. The initial reduction space gives the M-range that this 'new
+// set' must fit in for it to go through the recursion. If it finds that
+// the set is nullifiable at any point, that means the set was always
+// nullifiable. A set is only innullifiable if the test always returns
+// that result after every operation. This function only works on sets
+// that are size-3 or larger, and positive integers only. The maximum
+// M-value can be set to zero to indicate no upper bound.
 int recursiveTest(const unsigned long *set, size_t size,
-        unsigned long firstMin)
+        unsigned long minm, unsigned long maxm)
 {
     // Base case
     if (size == 3) return nulTestTriplet(set);
@@ -97,12 +101,18 @@ int recursiveTest(const unsigned long *set, size_t size,
         for (size_t pairB = pairA + 1; pairB < size; pairB++)
     {
         // Fill the new set with all the other values, leave the first
-        // position for the operation result
+        // position for the operation result, find the M-value among
+        // these values
         size_t index = 1;
+        unsigned long mval = 0;
         for (size_t i = 0; i < size; i++) {
             if (i == pairA || i == pairB) continue;
             else newSet[index++] = set[i];
+            if (set[i] > mval) mval = set[i];
         }
+
+        // This isn't gonna work if we have a value poking out
+        if (mval > maxm && maxm != 0) continue;
 
         // Get the values of that pair
         unsigned int a = set[pairA];
@@ -129,14 +139,16 @@ int recursiveTest(const unsigned long *set, size_t size,
             // If empty element, this means nothing
             if (replacements[i] == 0) continue;
 
-            // Skip if below the minimum first computation
-            if (replacements[i] < firstMin) continue;
+            // Skip if it'd poke out, or if we don't have a value high
+            // enough
+            if (replacements[i] > maxm && maxm != 0) continue;
+            if (mval < minm && replacements[i] < minm) continue;
 
             // Place into the new set
             newSet[0] = replacements[i];
 
-            // Recurse on this set
-            int res = recursiveTest(newSet, size - 1, 0);
+            // Recurse on this set, no more initial reduction space
+            int res = recursiveTest(newSet, size - 1, 0, 0);
 
             // If we get an error or if it's been nullified, carry that
             // on
