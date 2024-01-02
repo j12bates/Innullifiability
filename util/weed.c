@@ -26,6 +26,9 @@ size_t size;
 char *fname;
 size_t total;
 
+// Initial Reduction M-range
+unsigned long minm = 0, maxm = 0;
+
 // Number of Threads
 size_t threads = 1;
 
@@ -45,7 +48,8 @@ bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-vxi] recSize rec.dat [threads [prog.out]]\n"
+        "Usage: %s [-vxi] recSize rec.dat [minm maxm threads "
+                "[prog.out]]\n"
         "   -v      Verbose: Display Progress Messages\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
@@ -56,11 +60,11 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[5] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
-                PARAM_FNAME, PARAM_END};
+        const Param params[7] = {PARAM_SIZE, PARAM_FNAME,
+                PARAM_VAL, PARAM_VAL, PARAM_CT, PARAM_FNAME, PARAM_END};
 
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
-                &size, &fname, &threads, &progFname));
+                &size, &fname, &minm, &maxm, &threads, &progFname));
 
         CK_IFACE_FN(optHandle("vxi", true, usage, argc, argv,
                 &verbose, &progExport, &intProg));
@@ -184,7 +188,7 @@ void testElim(const unsigned long *set, size_t size, char bits)
     int res;
 
     // Run the Test
-    res = nulTest(set, size, 0, 0);
+    res = nulTest(set, size, minm, maxm);
     CK_RES(res);
 
     // Eliminate if Nullifiable

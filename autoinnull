@@ -74,7 +74,7 @@ echo "================ Finding Base Sets" >&2
 
 $utilpath/create 3 0 $tmaxm 0 "" $tempf || exit 1
 
-$utilpath/weed 3 $tempf $th $progf & curwork=$!
+$utilpath/weed 3 $tempf 0 0 $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
 wait $curwork || exit 1
 kill $curloop
@@ -98,7 +98,7 @@ done
 echo >&2
 echo "================ Testing Remaining Sets" >&2
 
-$utilpath/weed $tsize $tempf $th $progf & curwork=$!
+$utilpath/weed $tsize $tempf 0 0 $th $progf & curwork=$!
 progLoop $curwork $progf & curloop=$!
 wait $curwork || exit 1
 kill $curloop
