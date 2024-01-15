@@ -7,9 +7,24 @@
 // performs a generation. Given that all the marked sets on the source
 // correspond to nullifiable sets, the program will mark all their
 // supersets on the destination, as all supersets of a nullifiable set
-// are also nullifiable. Then, it will also expand any of those sets
-// that don't have the second bit set by introducing mutations to the
-// values. Each of these expansion phases are optional.
+// are also nullifiable. Then, it will also expand sets by introducing
+// mutations to the values, or replacing each individual value with
+// every possible pair that could reduce to it. Each of these expansion
+// phases are optional, but using both guarantees that any set that can
+// reduce to any nullifiable sets in the source range is marked.
+
+// The superset status of a set is recorded in the second bit, and by
+// default, mutations on supersets of nullifiable sets are skipped
+// because they're covered already through mutations done earlier on the
+// parent set. However this is not completely equivalent to a ranged
+// weeding, since those 'earlier mutations' could be in a completely
+// different range and not dealt with in the one expansion. So there's
+// an option to disable that optimization and do a 'thorough expansion'
+// instead, which provides an equivalent effect to a ranged weeding. But
+// even with the optimization, if we are sure to operate on every
+// M-range (effectively to infinity, practically to M * (M - 1)) through
+// either these expansions or ranged weeding, this guarantees those
+// 'earlier mutations' are dealt with, and thus a fully swept record.
 
 // This and the Weed program are the two programs which do *proper
 // work,* and so they have the ability to have their progress tracked.
@@ -37,6 +52,7 @@
 // Toggles for each Expansion Phase
 bool expandSupers;
 bool expandMutate;
+bool expandThorough;
 
 // Add'l Options
 bool omitImportDest;
@@ -68,7 +84,7 @@ sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-cvsmxui] srcSize src.dat dest.dat "
+        "Usage: %s [-cvsmtxui] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
         "   -c      Create/Overwrite Destination (M-range and Fixed "
                 "Values taken from Source)\n"
@@ -76,6 +92,7 @@ const char *usage =
         "Expansion Phases (both enabled by default):\n"
         "   -s      Supersets\n"
         "   -m      Mutations\n"
+        "   -t      Thorough\n"
         "Progress Updates:\n"
         "   -x      Export Current Output Record\n"
         "   -u      Include Count of Remaining Unmarked Sets\n"
@@ -93,9 +110,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("cvsmxui", true, usage, argc, argv,
+        CK_IFACE_FN(optHandle("cvsmtxui", true, usage, argc, argv,
                 &omitImportDest, &verbose, &expandSupers, &expandMutate,
-                &progExport, &progUnmarked, &intProg));
+                &expandThorough, &progExport, &progUnmarked, &intProg));
     }
 
     // Default to all expansion phases
@@ -318,9 +335,10 @@ void handleExpand(const unsigned long *set, size_t size, char bits)
     if (expandSupers)
         expand(set, size, minM, maxM, EXPAND_SUPERS, &elim_onlySup);
 
-    // Introduce Mutations, but only if not touched by supersets; don't
-    // rule out further mutations
-    if (expandMutate) if (!(bits & ONLY_SUP))
+    // Introduce Mutations, but only if not touched by supersets (or if
+    // we're doing a thorough expansion); don't rule out further
+    // mutations
+    if (expandMutate) if (!(bits & ONLY_SUP) || expandThorough)
         expand(set, size, minM, maxM, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
                 &elim_nul);
 

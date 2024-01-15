@@ -5,7 +5,12 @@
 
 // This program takes in a record, and 'weeds out' all the remaining
 // unmarked nullifiable sets. It will iteratively apply the exhaustive
-// test and mark any sets that fail.
+// test and mark any sets that fail. It can also weed on a specific
+// range for the initial reduction, meaning it'll only proceed to work
+// on sets it's reduced to that M-range on the first go. This can be
+// likened to performing a thorough expansion on a weeded record with a
+// specific M-range, and in fact it has the same effect: every set that
+// can be reduced to anything nullifiable in that range gets marked.
 
 #include <stdbool.h>
 #include <stdio.h>
