@@ -13,18 +13,21 @@
 // phases are optional, but using both guarantees that any set that can
 // reduce to any nullifiable sets in the source range is marked.
 
-// The superset status of a set is recorded in the second bit, and by
-// default, mutations on supersets of nullifiable sets are skipped
-// because they're covered already through mutations done earlier on the
-// parent set. However this is not completely equivalent to a ranged
-// weeding, since those 'earlier mutations' could be in a completely
-// different range and not dealt with in the one expansion. So there's
-// an option to disable that optimization and do a 'thorough expansion'
-// instead, which provides an equivalent effect to a ranged weeding. But
-// even with the optimization, if we are sure to operate on every
-// M-range (effectively to infinity, practically to M * (M - 1)) through
-// either these expansions or ranged weeding, this guarantees those
-// 'earlier mutations' are dealt with, and thus a fully swept record.
+// This means that, when a full expansion is done from a fully swept
+// record, a 'thorough' expansion, it can stand in for a weeding of that
+// particular range. However, it is not *equivalent* to a weeding, since
+// it skips a couple of cases that can be expanded from elsewhere.
+// First, because it only works from real sets in a set record, it does
+// not necessarily touch sets that immediately reduce down to something
+// with double-values (these aren't stored in set records), but these
+// can be considered supersets of length-3 nullifiable sets, which will
+// be covered. Second, it skips doing mutations on supersets of
+// nullifiable sets (the superset status of a set is recorded in the
+// second bit), since these can be covered through mutations done
+// earlier on the parent set. In both of these cases, 'coverage' is
+// assured through operating on every M-range (effectively to infinity,
+// practically to M * (M - 1)) through either thorough expansions or
+// ranged weeding, and this also gives a fully swept record.
 
 // This and the Weed program are the two programs which do *proper
 // work,* and so they have the ability to have their progress tracked.
@@ -52,7 +55,6 @@
 // Toggles for each Expansion Phase
 bool expandSupers;
 bool expandMutate;
-bool expandThorough;
 
 // Add'l Options
 bool omitImportDest;
@@ -84,7 +86,7 @@ sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-cvsmtxui] srcSize src.dat dest.dat "
+        "Usage: %s [-cvsmxui] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
         "   -c      Create/Overwrite Destination (M-range and Fixed "
                 "Values taken from Source)\n"
@@ -92,7 +94,6 @@ const char *usage =
         "Expansion Phases (both enabled by default):\n"
         "   -s      Supersets\n"
         "   -m      Mutations\n"
-        "   -t      Thorough\n"
         "Progress Updates:\n"
         "   -x      Export Current Output Record\n"
         "   -u      Include Count of Remaining Unmarked Sets\n"
@@ -110,9 +111,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("cvsmtxui", true, usage, argc, argv,
+        CK_IFACE_FN(optHandle("cvsmxui", true, usage, argc, argv,
                 &omitImportDest, &verbose, &expandSupers, &expandMutate,
-                &expandThorough, &progExport, &progUnmarked, &intProg));
+                &progExport, &progUnmarked, &intProg));
     }
 
     // Default to all expansion phases
@@ -335,10 +336,9 @@ void handleExpand(const unsigned long *set, size_t size, char bits)
     if (expandSupers)
         expand(set, size, minM, maxM, EXPAND_SUPERS, &elim_onlySup);
 
-    // Introduce Mutations, but only if not touched by supersets (or if
-    // we're doing a thorough expansion); don't rule out further
-    // mutations
-    if (expandMutate) if (!(bits & ONLY_SUP) || expandThorough)
+    // Introduce Mutations, but only if not touched by supersets; don't
+    // rule out further mutations
+    if (expandMutate) if (!(bits & ONLY_SUP))
         expand(set, size, minM, maxM, EXPAND_MUT_ADD | EXPAND_MUT_MUL,
                 &elim_nul);
 
