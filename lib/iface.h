@@ -23,13 +23,13 @@
 
 #define CK_NO(NO) \
     do { \
-        int __no = (NO); \
+        long long __no = (NO); \
         if (__no > 0) FAULT(); \
     } while (0)
 
 #define CK_RES(RES) \
     do { \
-        int __res = (RES); \
+        long long __res = (RES); \
         if (__res < 0) FAULT(); \
     } while (0)
 
