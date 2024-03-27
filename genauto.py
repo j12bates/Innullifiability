@@ -16,17 +16,18 @@ def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
     nextFixed = lastFixed
     nextMinM = lastM + 1
 
-# if this fixed value has run its course, treat it like our last M-value
+# if this fixed value has run its course, break it back into an M-value
+# and proceed
     if len(lastFixed) != 0:
         if nextMinM == lastFixed[0]:
             nextFixed = nextFixed[1:]
             return nextRange(N, nextMinM, nextFixed, limitM, maxRecSize)
 
-# go into a new fixed value if there's not enough space for a whole new
-# M-value
+# if a range of one M-value would exceed the size limit, make it a fixed
+# value instead and proceed like it's a smaller set
     if recSize(N, nextMinM, nextMinM, nextFixed) > maxRecSize:
         nextFixed = [nextMinM] + lastFixed
-        nextMinM = 0
+        return nextRange(N, 0, nextFixed, limitM, maxRecSize)
 
 # enumerate max M-values until we'd exceed the size limit
     nextMaxM = nextMinM
@@ -37,6 +38,14 @@ def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
             break
 
     return (N, nextMinM, nextMaxM, nextFixed)
+
+# create a blank record file from given range
+def createRec(N, minM, maxM, fixed, destDir):
+    fixedArr = [str(n) for n in fixed]
+    fname = f"{destDir}/rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
+    cmd = f"./bin/create {N} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
+    os.system(cmd)
+    return fname
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
