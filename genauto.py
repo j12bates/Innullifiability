@@ -4,6 +4,7 @@ import math
 import os
 import sys
 
+# compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
     k = N - len(fixed)
     return math.comb(maxM, k) - math.comb(max(0, minM - 1), k)
@@ -44,8 +45,9 @@ def createRec(N, minM, maxM, fixed, destDir):
     fixedArr = [str(n) for n in fixed]
     fname = f"{destDir}/rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
     cmd = f"./bin/create {N} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
-    os.system(cmd)
-    return fname
+
+    fail = os.system(cmd)
+    return None if fail else fname
 
 # take a record filename and extract the range information
 def getRange(fname):
@@ -77,6 +79,25 @@ def getRange(fname):
         return not_a_rec
 
     return (N, minM, maxM, fixed)
+
+# performs thorough expansions into a destination record from all source
+# record files in a directory
+# returns success boolean
+def expand(srcdir, dest, threads):
+    srcs = os.listdir(srcdir)
+    (destN, _, _, _) = getRange(dest)
+
+    for src in srcs:
+        (srcN, _, _, _) = getRange(src)
+        if srcN != destN - 1:
+            continue
+
+        cmd = f"./bin/gen {srcN} {srcdir}/{src} {dest} {threads}"
+        fail = os.system(cmd)
+        if fail:
+            return False
+
+    return True
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
