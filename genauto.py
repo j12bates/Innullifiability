@@ -9,13 +9,17 @@ def recSize(N, minM, maxM, fixed):
     k = N - len(fixed)
     return math.comb(maxM, k) - math.comb(max(0, minM - 1), k)
 
-# returns (N, minM, maxM, fixed)
+# returns (N, minM, maxM, fixed), or False if no successor
 # This will take in the range info from the previous record, and figure
 # out a successor range, as large as possible while keeping to a size
 # restriction.
 def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
     nextFixed = lastFixed
     nextMinM = lastM + 1
+
+# if we've come to the end of the range, end here
+    if nextMinM > limitM:
+        return False
 
 # if this fixed value has run its course, break it back into an M-value
 # and proceed
@@ -41,10 +45,11 @@ def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
     return (N, nextMinM, nextMaxM, nextFixed)
 
 # create a blank record file from given range
-def createRec(N, minM, maxM, fixed, destDir):
+def createRec(N, minM, maxM, fixed, destDir, idx):
+    k = N - len(fixed)
     fixedArr = [str(n) for n in fixed]
-    fname = f"{destDir}/rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
-    cmd = f"./bin/create {N} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
+    fname = f"{destDir}/{idx:04d}_rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
+    cmd = f"./bin/create {k} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
 
     fail = os.system(cmd)
     return None if fail else fname
@@ -62,15 +67,15 @@ def getRange(fname):
 
 # "rec_N_minM-maxM_f1,f2" -> ["rec", "N", "minM-maxM", "f1,f2"]
     attrs = segments[0].split('_')
-    if len(attrs) != 4:
+    if len(attrs) != 5:
         return not_a_rec
-    if attrs[0] != 'rec':
+    if attrs[1] != 'rec':
         return not_a_rec
 
-    N = int(attrs[1])
-    fixed = [int(n) for n in attrs[3].split(',') if n != '']
+    N = int(attrs[2])
+    fixed = [int(n) for n in attrs[4].split(',') if n != '']
 
-    MRange = attrs[2].split('-')
+    MRange = attrs[3].split('-')
     if len(MRange) != 2:
         return not_a_rec
     minM = int(MRange[0])
@@ -80,24 +85,19 @@ def getRange(fname):
 
     return (N, minM, maxM, fixed)
 
-# performs thorough expansions into a destination record from all source
-# record files in a directory
 # returns success boolean
-def expand(srcdir, dest, threads):
-    srcs = os.listdir(srcdir)
+def expand(src, dest, threads):
+    (srcN, _, _, _) = getRange(src)
+    cmd = f"./bin/gen {srcN} {src} {dest} {threads}"
+    fail = os.system(cmd)
+    return not fail
+
+# returns success boolean
+def weed(dest, minM, maxM, threads):
     (destN, _, _, _) = getRange(dest)
-
-    for src in srcs:
-        (srcN, _, _, _) = getRange(src)
-        if srcN != destN - 1:
-            continue
-
-        cmd = f"./bin/gen {srcN} {srcdir}/{src} {dest} {threads}"
-        fail = os.system(cmd)
-        if fail:
-            return False
-
-    return True
+    cmd = f"./bin/weed {destN} {dest} {minM} {maxM} {threads}"
+    fail = os.system(cmd)
+    return not fail
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
