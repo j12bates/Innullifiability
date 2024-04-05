@@ -99,6 +99,37 @@ def weed(dest, minM, maxM, threads):
     fail = os.system(cmd)
     return not fail
 
+# automatically generate a directory of records with M-range
+def createDir(N, minM, maxM, maxRecSize, dirname):
+    cmd = f"mkdir {dirname}"
+    fail = os.system(cmd)
+    if fail:
+        return False
+
+# generate successive ranges and create records until we get through the
+# range we're given
+    idx = 0
+    fixed = []
+    (recMinM, recMaxM, limitM) = (0, minM - 1, maxM)
+    while True:
+        res = nextRange(N, recMaxM, fixed, limitM, maxRecSize)
+        if not res:
+            break
+        (N, recMinM, recMaxM, fixed) = res
+
+        res = createRec(N, recMinM, recMaxM, fixed, dirname, idx)
+        if not res:
+            return False
+        idx += 1
+
+# create base log file
+    outlines = [f"N_{N} M_{minM}_{maxM}"]
+    f = open(f"{dirname}/log", 'w')
+    f.writelines([line + '\n' for line in outlines])
+    f.close()
+
+    return True
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         print("Usage: ./genauto.py destSize dest src")
