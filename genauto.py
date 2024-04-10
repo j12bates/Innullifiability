@@ -130,11 +130,44 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 
     return True
 
+# expand a directory completely into a single record file
+def dirExpand(srcDir, dest, threads):
+    srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
+    srcs.sort()
+    for src in srcs:
+        res = expand(src, dest, threads)
+        if not res:
+            return False
+
+# script usage message
+def usage():
+    print("Usage: ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
+    print("       ./genauto.py x dest src")                     # expand dir to dir
+    print("       ./genauto.py s dest")                         # sweep dir
+
+
+# ====== SCRIPT INVOCATION ROUTINE
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: ./genauto.py destSize dest src")
+        usage()
         sys.exit(1)
 
-    destSize = int(sys.argv[1])
+    mode = sys.argv[1]
     destdir = sys.argv[2]
-    srcdir = sys.argv[3]
+
+    if mode == 'c':
+        N = int(sys.argv[3])
+        minM = int(sys.argv[4])
+        maxM = int(sys.argv[5])
+        maxRecSize = int(sys.argv[6])
+        createDir(N, minM, maxM, maxRecSize, destdir)
+
+    elif mode == 'x':
+        srcdir = sys.argv[3]
+
+    elif mode == 's':
+        pass
+
+    else:
+        usage()
+        sys.exit(1)
