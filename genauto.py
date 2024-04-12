@@ -3,6 +3,7 @@
 import math
 import os
 import sys
+import threading
 
 # compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
@@ -85,17 +86,21 @@ def getRange(fname):
 
     return (N, minM, maxM, fixed)
 
+# figures out NUMA job
+def numajob(node):
+    return f"numactl --cpunodebind={node} --membind={node} -- "
+
 # returns success boolean
-def expand(src, dest, threads):
+def expand(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
-    cmd = f"./bin/gen {srcN} {src} {dest} {threads}"
+    cmd = f"{numajob(node)} ./bin/gen {srcN} {src} {dest} {threads}"
     fail = os.system(cmd)
     return not fail
 
 # returns success boolean
-def weed(dest, minM, maxM, threads):
+def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
-    cmd = f"./bin/weed {destN} {dest} {minM} {maxM} {threads}"
+    cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
     fail = os.system(cmd)
     return not fail
 
@@ -131,13 +136,74 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
     return True
 
 # expand a directory completely into a single record file
-def dirExpand(srcDir, dest, threads):
+def dirExpand(srcDir, dest, threads, node):
     srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
     srcs.sort()
     for src in srcs:
-        res = expand(src, dest, threads)
+        res = expand(src, dest, threads, node)
         if not res:
             return False
+
+    return True
+
+# TODO: change this all so that threadwork is done with a wrapper, not
+# particular to either expansion or sweeping
+
+# during an expansion, we'll keep track of the next destination record to deal
+# with, so a job can come pick it up and then advance it to the next one.
+nextDestIdx = 0
+dests = []              # TODO: don't do this, use function to retrieve rec by idx
+jobIdxLock = threading.Lock()
+
+# this function will run directory expansions into the next record that needs
+# to be expanded into. it'll run just one at a time, with however many threads
+# specified, on whatever NUMA node it's assigned to.
+def massExpandJob(srcDir, threads, node):
+    global nextDestIdx
+    global dests
+    global jobIdxLock
+    while True:
+        # get the next destination to expand into
+        with jobIdxLock:
+            if nextDestIdx == len(dests):
+                return True
+            else:
+                destIdx = nextDestIdx
+                nextDestIdx += 1
+
+        # expand into it
+        res = dirExpand(srcDir, dests[destIdx], threads, node)
+        if not res:
+            return False
+
+# ====== MASS EXPANSION
+# this is the main routine for the Expansion mode. it'll create job routines
+# based off of the number of jobs we want to run per node. these jobs will
+# collectively perform a mass expansion -- expanding a source directory into
+# every record in a target directory.
+def massExpand(srcDir, destDir, jobsPerNode, threadsPerNode, totalNodes):
+    global nextDestIdx
+    global dests
+    global jobIdxLock
+    dests = [f"{destdir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
+    dests.sort()
+
+    th = [[0] * jobsPerNode] * totalNodes
+    threadsPerJob = int(threadsPerNode / jobsPerNode + 1)
+
+# we're just creating a bunch of job threads. nothing special... then we join
+# them
+    for node in range(totalNodes):
+        for i in range(jobsPerNode):
+            th[node][i] = threading.Thread(target=massExpandJob,
+                    args=(srcDir, threadsPerJob, node))
+            th[node][i].start()
+
+    for node in range(totalNodes):
+        for i in range(jobsPerNode):
+            th[node][i].join()
+
+    return True
 
 # script usage message
 def usage():
@@ -155,6 +221,7 @@ if __name__ == '__main__':
     mode = sys.argv[1]
     destdir = sys.argv[2]
 
+# Create a Directory
     if mode == 'c':
         N = int(sys.argv[3])
         minM = int(sys.argv[4])
@@ -162,9 +229,12 @@ if __name__ == '__main__':
         maxRecSize = int(sys.argv[6])
         createDir(N, minM, maxM, maxRecSize, destdir)
 
+# Perform Mass Expansion
     elif mode == 'x':
         srcdir = sys.argv[3]
+        massExpand(srcdir, destdir, 2, 2, 1)
 
+# Sweep Directory
     elif mode == 's':
         pass
 
