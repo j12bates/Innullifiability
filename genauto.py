@@ -94,6 +94,7 @@ def numajob(node):
 def expand(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
     cmd = f"{numajob(node)} ./bin/gen {srcN} {src} {dest} {threads}"
+    print(cmd)
     fail = os.system(cmd)
     return not fail
 
@@ -101,6 +102,7 @@ def expand(src, dest, threads, node):
 def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
     cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
+    print(cmd)
     fail = os.system(cmd)
     return not fail
 
@@ -135,9 +137,15 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 
     return True
 
+# ====== JOBS
+# these jobs are called by worker threads, and they do an operation on a
+# destination record. Expansion is a full directory expansion, and Weeding is
+# just a normal ranged weeding. each one has the same argument format.
+
 # expand a directory completely into a single record file
-def dirExpand(srcDir, dest, threads, node):
-    srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
+def expandJob(params, dest, threads, node):
+    (srcdir) = params
+    srcs = [f"{srcdir}/{rec}" for rec in os.listdir(srcdir) if rec != 'log']
     srcs.sort()
     for src in srcs:
         res = expand(src, dest, threads, node)
@@ -146,24 +154,24 @@ def dirExpand(srcDir, dest, threads, node):
 
     return True
 
-# TODO: change this all so that threadwork is done with a wrapper, not
-# particular to either expansion or sweeping
+def weedJob(params, dest, threads, node):
+    (minM, maxM) = params
+    return weed(dest, minM, maxM, threads, node)
 
-# during an expansion, we'll keep track of the next destination record to deal
-# with, so a job can come pick it up and then advance it to the next one.
+# ====== WORKER THREAD ROUTINE
+# this function will run jobs into the next record that needs it. it'll run just
+# one at a time, with however many threads specified, on whatever NUMA node it's
+# assigned to. these global variables keep track of the next destination, so
+# another thread can pick up work when it finishes.
 nextDestIdx = 0
 dests = []              # TODO: don't do this, use function to retrieve rec by idx
 jobIdxLock = threading.Lock()
-
-# this function will run directory expansions into the next record that needs
-# to be expanded into. it'll run just one at a time, with however many threads
-# specified, on whatever NUMA node it's assigned to.
-def massExpandJob(srcDir, threads, node):
+def massWorker(job, params, threads, node):
     global nextDestIdx
     global dests
     global jobIdxLock
     while True:
-        # get the next destination to expand into
+        # get the next destination to work
         with jobIdxLock:
             if nextDestIdx == len(dests):
                 return True
@@ -171,17 +179,16 @@ def massExpandJob(srcDir, threads, node):
                 destIdx = nextDestIdx
                 nextDestIdx += 1
 
-        # expand into it
-        res = dirExpand(srcDir, dests[destIdx], threads, node)
+        # execute the job on it
+        res = job(params, dests[destIdx], threads, node)
         if not res:
             return False
 
-# ====== MASS EXPANSION
-# this is the main routine for the Expansion mode. it'll create job routines
-# based off of the number of jobs we want to run per node. these jobs will
-# collectively perform a mass expansion -- expanding a source directory into
-# every record in a target directory.
-def massExpand(srcDir, destDir, jobsPerNode, threadsPerNode, totalNodes):
+# ====== MASS PROCESSING
+# this is the main routine for the Expansion and Sweeping modes. it'll create
+# worker threads based off of the number of jobs we want to run per node. these
+# jobs will collectively perform either a mass expansion or mass weeding.
+def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
     global nextDestIdx
     global dests
     global jobIdxLock
@@ -195,8 +202,8 @@ def massExpand(srcDir, destDir, jobsPerNode, threadsPerNode, totalNodes):
 # them
     for node in range(totalNodes):
         for i in range(jobsPerNode):
-            th[node][i] = threading.Thread(target=massExpandJob,
-                    args=(srcDir, threadsPerJob, node))
+            th[node][i] = threading.Thread(target=massWorker,
+                    args=(job, params, threadsPerJob, node))
             th[node][i].start()
 
     for node in range(totalNodes):
@@ -232,11 +239,11 @@ if __name__ == '__main__':
 # Perform Mass Expansion
     elif mode == 'x':
         srcdir = sys.argv[3]
-        massExpand(srcdir, destdir, 2, 2, 1)
+        massProcess(expandJob, (srcdir), destdir, 2, 2, 1)
 
 # Sweep Directory
     elif mode == 's':
-        pass
+        massProcess(weedJob, (0, 0), destdir, 2, 2, 1)
 
     else:
         usage()
