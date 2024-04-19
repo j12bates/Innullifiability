@@ -37,7 +37,7 @@ def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
 
 # enumerate max M-values until we'd exceed the size limit
     nextMaxM = nextMinM
-    for i in range(nextMinM, (nextFixed + [limitM])[0]):
+    for i in range(nextMinM, (nextFixed + [limitM + 1])[0]):
         if recSize(N, nextMinM, i, nextFixed) <= maxRecSize:
             nextMaxM = i
         else:
@@ -86,26 +86,7 @@ def getRange(fname):
 
     return (N, minM, maxM, fixed)
 
-# figures out NUMA job
-def numajob(node):
-    return f"numactl --cpunodebind={node} --membind={node} -- "
-
-# returns success boolean
-def expand(src, dest, threads, node):
-    (srcN, _, _, _) = getRange(src)
-    cmd = f"{numajob(node)} ./bin/gen {srcN} {src} {dest} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
-    return not fail
-
-# returns success boolean
-def weed(dest, minM, maxM, threads, node):
-    (destN, _, _, _) = getRange(dest)
-    cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
-    return not fail
-
+# ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
 def createDir(N, minM, maxM, maxRecSize, dirname):
     cmd = f"mkdir {dirname}"
@@ -137,6 +118,27 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 
     return True
 
+# ====== COMMAND EXECUTION
+# figures out NUMA job
+def numajob(node):
+    return f"numactl --cpunodebind={node} --membind={node} -- "
+
+# returns success boolean
+def expand(src, dest, threads, node):
+    (srcN, _, _, _) = getRange(src)
+    cmd = f"{numajob(node)} ./bin/gen {srcN} {src} {dest} {threads}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
+# returns success boolean
+def weed(dest, minM, maxM, threads, node):
+    (destN, _, _, _) = getRange(dest)
+    cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
 # ====== JOBS
 # these jobs are called by worker threads, and they do an operation on a
 # destination record. Expansion is a full directory expansion, and Weeding is
@@ -165,16 +167,18 @@ def weedJob(params, dest, threads, node):
 # another thread can pick up work when it finishes.
 nextDestIdx = 0
 dests = []              # TODO: don't do this, use function to retrieve rec by idx
+error = False
 jobIdxLock = threading.Lock()
 def massWorker(job, params, threads, node):
     global nextDestIdx
     global dests
+    global error
     global jobIdxLock
     while True:
         # get the next destination to work
         with jobIdxLock:
-            if nextDestIdx == len(dests):
-                return True
+            if nextDestIdx == len(dests) or error:
+                break
             else:
                 destIdx = nextDestIdx
                 nextDestIdx += 1
@@ -182,7 +186,10 @@ def massWorker(job, params, threads, node):
         # execute the job on it
         res = job(params, dests[destIdx], threads, node)
         if not res:
-            return False
+            with jobIdxLock:
+                error = True
+
+    return True
 
 # ====== MASS PROCESSING
 # this is the main routine for the Expansion and Sweeping modes. it'll create
@@ -191,6 +198,7 @@ def massWorker(job, params, threads, node):
 def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
     global nextDestIdx
     global dests
+    global error
     global jobIdxLock
     dests = [f"{destdir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
     dests.sort()
@@ -210,7 +218,17 @@ def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
         for i in range(jobsPerNode):
             th[node][i].join()
 
-    return True
+    return not error
+
+# ====== MASS EXPANSION
+def massExpand(destdir, srcdir):
+    res = massProcess(expandJob, (srcdir), destdir, 2, 6, 1)
+    return res
+
+# ====== MASS WEEDING
+def massWeed(destdir, minM, maxM):
+    res = massProcess(weedJob, (minM, maxM), destdir, 2, 6, 1)
+    return res
 
 # script usage message
 def usage():
@@ -239,11 +257,11 @@ if __name__ == '__main__':
 # Perform Mass Expansion
     elif mode == 'x':
         srcdir = sys.argv[3]
-        massProcess(expandJob, (srcdir), destdir, 2, 2, 1)
+        massExpand(destdir, srcdir)
 
 # Sweep Directory
     elif mode == 's':
-        massProcess(weedJob, (0, 0), destdir, 2, 2, 1)
+        massWeed(destdir, 0, 0)
 
     else:
         usage()
