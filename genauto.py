@@ -111,7 +111,7 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
         idx += 1
 
 # create base log file
-    outlines = [f"N_{N} M_{minM}_{maxM}"]
+    outlines = [f"INST: N_{N} M_{minM}_{maxM}"]
     f = open(f"{dirname}/log", 'w')
     f.writelines([line + '\n' for line in outlines])
     f.close()
@@ -223,12 +223,50 @@ def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
 # ====== MASS EXPANSION
 def massExpand(destdir, srcdir):
     res = massProcess(expandJob, (srcdir), destdir, 2, 6, 1)
-    return res
+    if not res:
+        return False
+
+# read log from source
+    f = open(f"{srcdir}/log", 'r')
+    inlines = [line.strip() for line in f.readlines()]
+    f.close()
+
+# search for the (manually added) swept marker in source
+    swept = "SWEPT" in inlines
+
+# get source N, M-range
+    params = inlines[0].split(' ')
+    N = params[1].split('_')[1]
+    minM = params[2].split('_')[1]
+    maxM = params[2].split('_')[2]
+
+# output a new line into the destination log
+    outlines = [f"EXPD: M_{minM}_{maxM} [from {srcdir}]"]
+    if swept:
+        outlines[0] += " THOROUGH"
+
+    f = open(f"{destdir}/log", 'a')
+    f.writelines([line + '\n' for line in outlines])
+    f.close()
+
+    return True
 
 # ====== MASS WEEDING
 def massWeed(destdir, minM, maxM):
     res = massProcess(weedJob, (minM, maxM), destdir, 2, 6, 1)
-    return res
+    if not res:
+        return False
+
+# output a new line into the destination log
+    outlines = [f"WEED: M_{minM}_{maxM}"]
+    if maxM == 0:
+        outlines[0] += " INDEF MAX"
+
+    f = open(f"{destdir}/log", 'a')
+    f.writelines([line + '\n' for line in outlines])
+    f.close()
+
+    return True
 
 # script usage message
 def usage():
