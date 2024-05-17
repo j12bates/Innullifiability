@@ -132,6 +132,22 @@ def expand(src, dest, threads, node):
     return not fail
 
 # returns success boolean
+def supers(src, dest, threads, node):
+    (srcN, _, _, _) = getRange(src)
+    cmd = f"{numajob(node)} ./bin/gen -s {srcN} {src} {dest} {threads}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
+# returns success boolean
+def mutate(src, dest, threads, node):
+    (srcN, _, _, _) = getRange(src)
+    cmd = f"{numajob(node)} ./bin/gen -m {srcN} {src} {dest} {threads}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
+# returns success boolean
 def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
     cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
@@ -146,11 +162,19 @@ def weed(dest, minM, maxM, threads, node):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, threads, node):
-    (srcdir) = params
+    (srcdir, do_supers, do_mutate) = params
     srcs = [f"{srcdir}/{rec}" for rec in os.listdir(srcdir) if rec != 'log']
     srcs.sort()
     for src in srcs:
-        res = expand(src, dest, threads, node)
+        res = True
+
+        if do_supers and do_mutate:
+            res = expand(src, dest, threads, node)
+        elif do_supers:
+            res = supers(src, dest, threads, node)
+        elif do_mutate:
+            res = mutate(src, dest, threads, node)
+
         if not res:
             return False
 
@@ -221,8 +245,8 @@ def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
     return not error
 
 # ====== MASS EXPANSION
-def massExpand(destdir, srcdir):
-    res = massProcess(expandJob, (srcdir), destdir, 2, 6, 1)
+def massExpand(destdir, srcdir, supers, mutate):
+    res = massProcess(expandJob, (srcdir, supers, mutate), destdir, 2, 6, 1)
     if not res:
         return False
 
@@ -241,9 +265,15 @@ def massExpand(destdir, srcdir):
     maxM = params[2].split('_')[2]
 
 # output a new line into the destination log
-    outlines = [f"EXPD: M_{minM}_{maxM} [from {srcdir}]"]
-    if swept:
-        outlines[0] += " THOROUGH"
+    logline = f"M_{minM}_{maxM} [from {srcdir}]"
+    if not swept:
+        logline += " WARN: source not marked SWEPT"
+
+    outlines = []
+    if supers:
+        outlines += ["_SUP: " + logline]
+    if mutate:
+        outlines += ["_MUT: " + logline]
 
     f = open(f"{destdir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
@@ -270,9 +300,12 @@ def massWeed(destdir, minM, maxM):
 
 # script usage message
 def usage():
-    print("Usage: ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
-    print("       ./genauto.py x dest src")                     # expand dir to dir
-    print("       ./genauto.py s dest")                         # sweep dir
+    print("Usage:")
+    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
+    print("EXPAND -- ./genauto.py x dest src")                     # expand dir to dir
+    print("SUPERS -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
+    print("MUTATE -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
+    print("WEED   -- ./genauto.py w dest minM maxM")               # weed dir
 
 
 # ====== SCRIPT INVOCATION ROUTINE
@@ -292,14 +325,24 @@ if __name__ == '__main__':
         maxRecSize = int(sys.argv[6])
         createDir(N, minM, maxM, maxRecSize, destdir)
 
-# Perform Mass Expansion
+# Mass Expansion Modes
     elif mode == 'x':
         srcdir = sys.argv[3]
-        massExpand(destdir, srcdir)
+        massExpand(destdir, srcdir, True, True)
 
-# Sweep Directory
     elif mode == 's':
-        massWeed(destdir, 0, 0)
+        srcdir = sys.argv[3]
+        massExpand(destdir, srcdir, True, False)
+
+    elif mode == 'm':
+        srcdir = sys.argv[3]
+        massExpand(destdir, srcdir, False, True)
+
+# Mass Weeding
+    elif mode == 'w':
+        minM = int(sys.argv[3])
+        maxM = int(sys.argv[4])
+        massWeed(destdir, minM, maxM)
 
     else:
         usage()
