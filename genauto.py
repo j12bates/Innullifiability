@@ -1,5 +1,10 @@
 #!/usr/bin/python
 
+THREADS_PER_NODE = 6
+NODES = 1
+
+JOBS_PER_NODE = 2
+
 import math
 import os
 import sys
@@ -184,31 +189,48 @@ def weedJob(params, dest, threads, node):
     (minM, maxM) = params
     return weed(dest, minM, maxM, threads, node)
 
+# these are global variables for managing worker threads with the mass routine
+th = [[0] * JOBS_PER_NODE] * NODES
+workerJobIdxs = [[0] * JOBS_PER_NODE] * NODES
+nextJobIdx = 0
+destDir = ""
+error = False
+jobIdxLock = threading.Lock()
+
+# get a destination record filename by index
+# returns false if index is beyond bound
+def getDest(idx):
+    global destDir
+
+    for rec in os.listdir(destDir):
+        if rec.split('_')[0] == f"{idx:04d}":
+            return f"{destDir}/{rec}"
+
+    return False
+
 # ====== WORKER THREAD ROUTINE
 # this function will run jobs into the next record that needs it. it'll run just
 # one at a time, with however many threads specified, on whatever NUMA node it's
 # assigned to. these global variables keep track of the next destination, so
 # another thread can pick up work when it finishes.
-nextDestIdx = 0
-dests = []              # TODO: don't do this, use function to retrieve rec by idx
-error = False
-jobIdxLock = threading.Lock()
-def massWorker(job, params, threads, node):
-    global nextDestIdx
-    global dests
-    global error
-    global jobIdxLock
+def massWorker(job, params, threads, node, workerNum):
+    global workerJobIdxs, nextJobIdx, error, jobIdxLock
+
+    dest = ""
     while True:
-        # get the next destination to work
+# get the next job (destination record)
         with jobIdxLock:
-            if nextDestIdx == len(dests) or error:
+            jobIdx = nextJobIdx
+            dest = getDest(jobIdx)
+            if not dest or error:
+                workerJobIdxs[node][workerNum] = -1
                 break
             else:
-                destIdx = nextDestIdx
-                nextDestIdx += 1
+                workerJobIdxs[node][workerNum] = jobIdx
+                nextJobIdx += 1
 
-        # execute the job on it
-        res = job(params, dests[destIdx], threads, node)
+# execute the job on it
+        res = job(params, dest, threads, node)
         if not res:
             with jobIdxLock:
                 error = True
@@ -219,34 +241,33 @@ def massWorker(job, params, threads, node):
 # this is the main routine for the Expansion and Sweeping modes. it'll create
 # worker threads based off of the number of jobs we want to run per node. these
 # jobs will collectively perform either a mass expansion or mass weeding.
-def massProcess(job, params, destDir, jobsPerNode, threadsPerNode, totalNodes):
-    global nextDestIdx
-    global dests
-    global error
-    global jobIdxLock
+def massProcess(job, params, destdir):
+    global th, nextJobIdx, error, jobIdxLock, destDir
+    destDir = destdir       # TODO: define global variable when reading args
+    nextJobIdx = 0
+    error = False
     dests = [f"{destdir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
     dests.sort()
 
-    th = [[0] * jobsPerNode] * totalNodes
-    threadsPerJob = int(threadsPerNode / jobsPerNode + 1)
+    threadsPerJob = int(THREADS_PER_NODE / JOBS_PER_NODE + 1)
 
 # we're just creating a bunch of job threads. nothing special... then we join
 # them
-    for node in range(totalNodes):
-        for i in range(jobsPerNode):
+    for node in range(NODES):
+        for i in range(JOBS_PER_NODE):
             th[node][i] = threading.Thread(target=massWorker,
-                    args=(job, params, threadsPerJob, node))
+                    args=(job, params, threadsPerJob, node, i))
             th[node][i].start()
 
-    for node in range(totalNodes):
-        for i in range(jobsPerNode):
+    for node in range(NODES):
+        for i in range(JOBS_PER_NODE):
             th[node][i].join()
 
     return not error
 
 # ====== MASS EXPANSION
 def massExpand(destdir, srcdir, supers, mutate):
-    res = massProcess(expandJob, (srcdir, supers, mutate), destdir, 2, 6, 1)
+    res = massProcess(expandJob, (srcdir, supers, mutate), destdir)
     if not res:
         return False
 
@@ -283,7 +304,7 @@ def massExpand(destdir, srcdir, supers, mutate):
 
 # ====== MASS WEEDING
 def massWeed(destdir, minM, maxM):
-    res = massProcess(weedJob, (minM, maxM), destdir, 2, 6, 1)
+    res = massProcess(weedJob, (minM, maxM), destdir)
     if not res:
         return False
 
