@@ -167,8 +167,8 @@ def weed(dest, minM, maxM, threads, node):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, threads, node):
-    (srcdir, do_supers, do_mutate) = params
-    srcs = [f"{srcdir}/{rec}" for rec in os.listdir(srcdir) if rec != 'log']
+    (srcDir, do_supers, do_mutate) = params
+    srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
     srcs.sort()
     for src in srcs:
         res = True
@@ -241,12 +241,11 @@ def massWorker(job, params, threads, node, workerNum):
 # this is the main routine for the Expansion and Sweeping modes. it'll create
 # worker threads based off of the number of jobs we want to run per node. these
 # jobs will collectively perform either a mass expansion or mass weeding.
-def massProcess(job, params, destdir):
+def massProcess(job, params):
     global th, nextJobIdx, error, jobIdxLock, destDir
-    destDir = destdir       # TODO: define global variable when reading args
     nextJobIdx = 0
     error = False
-    dests = [f"{destdir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
+    dests = [f"{destDir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
     dests.sort()
 
     threadsPerJob = int(THREADS_PER_NODE / JOBS_PER_NODE + 1)
@@ -266,13 +265,13 @@ def massProcess(job, params, destdir):
     return not error
 
 # ====== MASS EXPANSION
-def massExpand(destdir, srcdir, supers, mutate):
-    res = massProcess(expandJob, (srcdir, supers, mutate), destdir)
+def massExpand(srcDir, supers, mutate):
+    res = massProcess(expandJob, (srcDir, supers, mutate))
     if not res:
         return False
 
 # read log from source
-    f = open(f"{srcdir}/log", 'r')
+    f = open(f"{srcDir}/log", 'r')
     inlines = [line.strip() for line in f.readlines()]
     f.close()
 
@@ -286,7 +285,7 @@ def massExpand(destdir, srcdir, supers, mutate):
     maxM = params[2].split('_')[2]
 
 # output a new line into the destination log
-    logline = f"M_{minM}_{maxM} [from {srcdir}]"
+    logline = f"M_{minM}_{maxM} [from {srcDir}]"
     if not swept:
         logline += " WARN: source not marked SWEPT"
 
@@ -296,15 +295,16 @@ def massExpand(destdir, srcdir, supers, mutate):
     if mutate:
         outlines += ["_MUT: " + logline]
 
-    f = open(f"{destdir}/log", 'a')
+    global destDir
+    f = open(f"{destDir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
     return True
 
 # ====== MASS WEEDING
-def massWeed(destdir, minM, maxM):
-    res = massProcess(weedJob, (minM, maxM), destdir)
+def massWeed(minM, maxM):
+    res = massProcess(weedJob, (minM, maxM))
     if not res:
         return False
 
@@ -313,7 +313,8 @@ def massWeed(destdir, minM, maxM):
     if maxM == 0:
         outlines[0] += " INDEF MAX"
 
-    f = open(f"{destdir}/log", 'a')
+    global destDir
+    f = open(f"{destDir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
@@ -336,7 +337,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     mode = sys.argv[1]
-    destdir = sys.argv[2]
+    destDir = sys.argv[2]
 
 # Create a Directory
     if mode == 'c':
@@ -344,26 +345,26 @@ if __name__ == '__main__':
         minM = int(sys.argv[4])
         maxM = int(sys.argv[5])
         maxRecSize = int(sys.argv[6])
-        createDir(N, minM, maxM, maxRecSize, destdir)
+        createDir(N, minM, maxM, maxRecSize, destDir)
 
 # Mass Expansion Modes
     elif mode == 'x':
-        srcdir = sys.argv[3]
-        massExpand(destdir, srcdir, True, True)
+        srcDir = sys.argv[3]
+        massExpand(srcDir, True, True)
 
     elif mode == 's':
-        srcdir = sys.argv[3]
-        massExpand(destdir, srcdir, True, False)
+        srcDir = sys.argv[3]
+        massExpand(srcDir, True, False)
 
     elif mode == 'm':
-        srcdir = sys.argv[3]
-        massExpand(destdir, srcdir, False, True)
+        srcDir = sys.argv[3]
+        massExpand(srcDir, False, True)
 
 # Mass Weeding
     elif mode == 'w':
         minM = int(sys.argv[3])
         maxM = int(sys.argv[4])
-        massWeed(destdir, minM, maxM)
+        massWeed(minM, maxM)
 
     else:
         usage()
