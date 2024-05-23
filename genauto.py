@@ -129,14 +129,6 @@ def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
 
 # returns success boolean
-def expand(src, dest, threads, node):
-    (srcN, _, _, _) = getRange(src)
-    cmd = f"{numajob(node)} ./bin/gen {srcN} {src} {dest} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
-    return not fail
-
-# returns success boolean
 def supers(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
     cmd = f"{numajob(node)} ./bin/gen -s {srcN} {src} {dest} {threads}"
@@ -168,20 +160,52 @@ def weed(dest, minM, maxM, threads, node):
 # expand a directory completely into a single record file
 def expandJob(params, dest, threads, node):
     (srcDir, do_supers, do_mutate) = params
+
+    (destN, destMinM, destMaxM, destFixed) = getRange(dest)
+    destValid = set(destFixed + list(range(1, destMaxM + 1)))
+
     srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
     srcs.sort()
     for src in srcs:
-        res = True
+        (srcN, srcMinM, srcMaxM, srcFixed) = getRange(src)
+        srcValid = set(srcFixed + list(range(1, srcMaxM + 1)))
 
-        if do_supers and do_mutate:
-            res = expand(src, dest, threads, node)
-        elif do_supers:
+        skip_supers = False
+        skip_mutate = False
+
+# Unmet Required Values: values that must be in destination sets and do not appear in source sets;
+# if there is only one, supersets can insert it, but if there are two, impossible
+# if there are two, a mutation can insert them, but if three, impossible
+        unmetReqd = [n for n in destFixed if n not in srcValid]
+# M-range counts because one number in it is required to be in sets, just use '0'
+        unmetReqd += [0] if set(range(destMinM, destMaxM + 1)).isdisjoint(srcValid) else []
+        if len(unmetReqd) > 1 and do_supers:
+            print(f"SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
+            skip_supers = True
+        if len(unmetReqd) > 2 and do_mutate:
+            print(f"SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
+            skip_mutate = True
+
+# Poking Values: values that always appear in source sets and cannot be in destination sets;
+# if there are any of these, supersets can't get rid of them
+# if there is one, a mutation can replace it, but if two, impossible
+        poking = [n for n in srcFixed if n not in destValid]
+        poking += [0] if set(range(srcMinM, srcMaxM + 1)).isdisjoint(destValid) else []
+        if len(poking) > 0 and do_supers:
+            print(f"SKIPPING SUPERS [POKING]: {src} into {dest}")
+            skip_supers = True
+        if len(poking) > 1 and do_mutate:
+            print(f"SKIPPING MUTATE [POKING]: {src} into {dest}")
+            skip_mutate = True
+
+        if do_supers and not skip_supers:
             res = supers(src, dest, threads, node)
-        elif do_mutate:
+            if not res:
+                return False
+        if do_mutate and not skip_mutate:
             res = mutate(src, dest, threads, node)
-
-        if not res:
-            return False
+            if not res:
+                return False
 
     return True
 
