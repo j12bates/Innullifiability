@@ -4,6 +4,7 @@ THREADS_PER_NODE = 6
 NODES = 1
 
 JOBS_PER_NODE = 2
+THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
 
 import math
 import os
@@ -218,7 +219,7 @@ th = [[0] * JOBS_PER_NODE] * NODES
 workerJobIdxs = [[0] * JOBS_PER_NODE] * NODES
 nextJobIdx = 0
 destDir = ""
-error = False
+stop = False
 jobIdxLock = threading.Lock()
 
 # get a destination record filename by index
@@ -237,8 +238,8 @@ def getDest(idx):
 # one at a time, with however many threads specified, on whatever NUMA node it's
 # assigned to. these global variables keep track of the next destination, so
 # another thread can pick up work when it finishes.
-def massWorker(job, params, threads, node, workerNum):
-    global workerJobIdxs, nextJobIdx, error, jobIdxLock
+def massWorker(job, params, node, workerNum):
+    global workerJobIdxs, nextJobIdx, stop, jobIdxLock
 
     dest = ""
     while True:
@@ -246,45 +247,76 @@ def massWorker(job, params, threads, node, workerNum):
         with jobIdxLock:
             jobIdx = nextJobIdx
             dest = getDest(jobIdx)
-            if not dest or error:
+            if not dest:
                 workerJobIdxs[node][workerNum] = -1
                 break
-            else:
-                workerJobIdxs[node][workerNum] = jobIdx
-                nextJobIdx += 1
+            elif stop:
+                break
+            workerJobIdxs[node][workerNum] = jobIdx
+            nextJobIdx += 1
 
 # execute the job on it
-        res = job(params, dest, threads, node)
+        res = job(params, dest, THREADS_PER_JOB, node)
         if not res:
             with jobIdxLock:
-                error = True
+                stop = True
 
     return True
+
+# ====== PROGRESS SAVING THREAD ROUTINE
+# periodically dumps all the current job indices to a file, such that if
+# something interrupts the process it can be resumed from this savepoint
+def massProgDump(file):
+    global workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
+
+    while True:
+# grab all the current job indices of each worker thread
+        outlines = []
+        with jobIdxLock:
+            if stop:
+                break
+            outlines = [str(nextJobIdx)]
+            for node in range(NODES):
+                outlines += [' '.join([str(idx) for idx in workerJobIdxs[node]])]
+
+# dump to a file, wait a bit
+        f = open(file, "w")
+        f.writelines([line + '\n' for line in outlines])
+        f.close()
+
+        os.system("sleep 1")
 
 # ====== MASS PROCESSING
 # this is the main routine for the Expansion and Sweeping modes. it'll create
 # worker threads based off of the number of jobs we want to run per node. these
 # jobs will collectively perform either a mass expansion or mass weeding.
 def massProcess(job, params):
-    global th, nextJobIdx, error, jobIdxLock, destDir
+    global th, nextJobIdx, stop, jobIdxLock, destDir
     nextJobIdx = 0
-    error = False
-    dests = [f"{destDir}/{rec}" for rec in os.listdir(destDir) if rec != 'log']
-    dests.sort()
-
-    threadsPerJob = int(THREADS_PER_NODE / JOBS_PER_NODE + 1)
+    stop = False
 
 # we're just creating a bunch of job threads. nothing special... then we join
 # them
     for node in range(NODES):
         for i in range(JOBS_PER_NODE):
             th[node][i] = threading.Thread(target=massWorker,
-                    args=(job, params, threadsPerJob, node, i))
+                    args=(job, params, node, i))
             th[node][i].start()
+
+    progFile = f"{destDir}/prog"
+    progTh = threading.Thread(target=massProgDump, args=(progFile,))
+    progTh.start()
 
     for node in range(NODES):
         for i in range(JOBS_PER_NODE):
             th[node][i].join()
+
+    with jobIdxLock:
+        error = stop
+        stop = True
+
+    progTh.join()
+    os.system(f"rm {progFile}")
 
     return not error
 
