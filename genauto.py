@@ -124,6 +124,23 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 
     return True
 
+# count the minimum number of values that are in a set in range A that aren't in
+# a set in range B. this is for computing Unmet Required and Poking Values.
+def countInANotInB(recA, recB):
+    (A_N, A_minM, A_maxM, A_fixed) = getRange(recA)
+    (B_N, B_minM, B_maxM, B_fixed) = getRange(recB)
+    B_valid = set(list(range(1, B_maxM + 1)) + B_fixed)
+
+# all fixed values are in each set in A, count the ones that don't appear in B
+    count = len([0 for n in A_fixed if n not in B_valid])
+
+# one value in the M-range is definitely in sets in A, meaning if none are valid
+# in B, we have one extra
+    if set(range(A_minM, A_maxM + 1)).isdisjoint(B_valid):
+        count += 1
+
+    return count
+
 # ====== COMMAND EXECUTION
 # figures out NUMA job
 def numajob(node):
@@ -162,49 +179,36 @@ def weed(dest, minM, maxM, threads, node):
 def expandJob(params, dest, threads, node):
     (srcDir, do_supers, do_mutate) = params
 
-    (destN, destMinM, destMaxM, destFixed) = getRange(dest)
-    destValid = set(destFixed + list(range(1, destMaxM + 1)))
-
     srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
     srcs.sort()
     for src in srcs:
-        (srcN, srcMinM, srcMaxM, srcFixed) = getRange(src)
-        srcValid = set(srcFixed + list(range(1, srcMaxM + 1)))
-
-        skip_supers = False
-        skip_mutate = False
-
-# TODO: simplify this logic into one function and two calls to it
 # Unmet Required Values: values that must be in destination sets and do not appear in source sets;
 # if there is only one, supersets can insert it, but if there are two, impossible
 # if there are two, a mutation can insert them, but if three, impossible
-        unmetReqd = [n for n in destFixed if n not in srcValid]
-# M-range counts because one number in it is required to be in sets, just use '0'
-        unmetReqd += [0] if set(range(destMinM, destMaxM + 1)).isdisjoint(srcValid) else []
-        if len(unmetReqd) > 1 and do_supers:
+        unmetReqd = countInANotInB(dest, src)
+        if unmetReqd > 1 and do_supers:
             print(f"SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
-            skip_supers = True
-        if len(unmetReqd) > 2 and do_mutate:
+            do_supers = False
+        if unmetReqd > 2 and do_mutate:
             print(f"SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
-            skip_mutate = True
+            do_mutate = False
 
 # Poking Values: values that always appear in source sets and cannot be in destination sets;
 # if there are any of these, supersets can't get rid of them
 # if there is one, a mutation can replace it, but if two, impossible
-        poking = [n for n in srcFixed if n not in destValid]
-        poking += [0] if set(range(srcMinM, srcMaxM + 1)).isdisjoint(destValid) else []
-        if len(poking) > 0 and do_supers:
+        poking = countInANotInB(src, dest)
+        if poking > 0 and do_supers:
             print(f"SKIPPING SUPERS [POKING]: {src} into {dest}")
-            skip_supers = True
-        if len(poking) > 1 and do_mutate:
+            do_supers = False
+        if poking > 1 and do_mutate:
             print(f"SKIPPING MUTATE [POKING]: {src} into {dest}")
-            skip_mutate = True
+            do_mutate = False
 
-        if do_supers and not skip_supers:
+        if do_supers:
             res = supers(src, dest, threads, node)
             if not res:
                 return False
-        if do_mutate and not skip_mutate:
+        if do_mutate:
             res = mutate(src, dest, threads, node)
             if not res:
                 return False
@@ -440,6 +444,8 @@ if __name__ == '__main__':
     elif mode == 'm':
         srcDir = sys.argv[3]
         massExpand(srcDir, False, True)
+
+# TODO: inspect mode, for counting number of yet-unmarked sets
 
 # Mass Weeding
     elif mode == 'w':
