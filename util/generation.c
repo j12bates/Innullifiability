@@ -59,6 +59,7 @@ bool expandMutate;
 // Add'l Options
 bool omitImportDest;
 bool verbose;
+bool noSupBit;
 
 // Progress Options
 bool progExport;
@@ -86,11 +87,12 @@ sigset_t progmask;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-cvsmxui] srcSize src.dat dest.dat "
+        "Usage: %s [-cvbsmxui] srcSize src.dat dest.dat "
                 "[threads [prog.out]]\n"
         "   -c      Create/Overwrite Destination (M-range and Fixed "
                 "Values taken from Source)\n"
         "   -v      Verbose: Display Progress Messages\n"
+        "   -b      Single-Bit Marking (no Supersets)\n"
         "Expansion Phases (both enabled by default):\n"
         "   -s      Supersets\n"
         "   -m      Mutations\n"
@@ -111,8 +113,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
                 &srcSize, &srcFname, &destFname, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("cvsmxui", true, usage, argc, argv,
-                &omitImportDest, &verbose, &expandSupers, &expandMutate,
+        CK_IFACE_FN(optHandle("cvbsmxui", true, usage, argc, argv,
+                &omitImportDest, &verbose, &noSupBit,
+                &expandSupers, &expandMutate,
                 &progExport, &progUnmarked, &intProg));
     }
 
@@ -334,7 +337,8 @@ void handleExpand(const unsigned long *set, size_t size, char bits)
     // Either way, a nullifiable set's supersets should be marked;
     // further mutations are accounted for
     if (expandSupers)
-        expand(set, size, minM, maxM, EXPAND_SUPERS, &elim_onlySup);
+        expand(set, size, minM, maxM, EXPAND_SUPERS,
+                !noSupBit ? &elim_onlySup : &elim_nul);
 
     // Introduce Mutations, but only if not touched by supersets; don't
     // rule out further mutations
