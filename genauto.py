@@ -61,6 +61,29 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     fail = os.system(cmd)
     return None if fail else fname
 
+# decompress a compressed file
+# returns 0 on fail, 1 on success, 2 if non-compressed, as well as new filename
+def decompress(file, threads):
+    segments = file.split('.')
+    if segments[-1] != "xz":
+        return (2, file)
+
+    cmd = f"xz -T {threads} -d {file}"
+    print(cmd)
+    fail = os.system(cmd)
+
+    num = 0 if fail else 1
+    file = '.'.join(segments[:-1])
+    return (num, file)
+
+# compress a non-compressed file
+# returns success boolean
+def compress(file, threads):
+    cmd = f"xz -T {threads} {file}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
 # take a record filename and extract the range information
 def getRange(fname):
     not_a_rec = (0, 0, 0, [])
@@ -142,6 +165,7 @@ def countInANotInB(recA, recB):
     return count
 
 # ====== COMMAND EXECUTION
+# TODO: make a constant variable for binary path
 # figures out NUMA job
 def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
@@ -187,10 +211,10 @@ def expandJob(params, dest, threads, node):
 # if there are two, a mutation can insert them, but if three, impossible
         unmetReqd = countInANotInB(dest, src)
         if unmetReqd > 1 and do_supers:
-            print(f"SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
+            print(f"# SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
             do_supers = False
         if unmetReqd > 2 and do_mutate:
-            print(f"SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
+            print(f"# SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
             do_mutate = False
 
 # Poking Values: values that always appear in source sets and cannot be in destination sets;
@@ -198,10 +222,10 @@ def expandJob(params, dest, threads, node):
 # if there is one, a mutation can replace it, but if two, impossible
         poking = countInANotInB(src, dest)
         if poking > 0 and do_supers:
-            print(f"SKIPPING SUPERS [POKING]: {src} into {dest}")
+            print(f"# SKIPPING SUPERS [POKING]: {src} into {dest}")
             do_supers = False
         if poking > 1 and do_mutate:
-            print(f"SKIPPING MUTATE [POKING]: {src} into {dest}")
+            print(f"# SKIPPING MUTATE [POKING]: {src} into {dest}")
             do_mutate = False
 
         if do_supers:
@@ -260,8 +284,18 @@ def massWorker(job, params, node, wkr):
             elif stop:
                 break
 
+# decompress if necessary
+        (res, dest) = decompress(dest, THREADS_PER_JOB)
+        if res == 0:
+            return False
+        recompress = res != 2
+
 # execute the job on it
         res = job(params, dest, THREADS_PER_JOB, node)
+
+# re-compress if applicable
+        if recompress and res:
+            res = compress(dest, THREADS_PER_JOB)
 
 # set up for the next job, mark this as done (we might have to break), save
 # progress
