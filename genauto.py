@@ -63,12 +63,12 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
 
 # decompress a compressed file
 # returns 0 on fail, 1 on success, 2 if non-compressed, as well as new filename
-def decompress(file, threads):
+def decompress(file, threads, node):
     segments = file.split('.')
     if segments[-1] != "xz":
         return (2, file)
 
-    cmd = f"xz -T {threads} -d {file}"
+    cmd = f"{numajob(node)} xz -T {threads} -d {file}"
     print(cmd)
     fail = os.system(cmd)
 
@@ -78,8 +78,8 @@ def decompress(file, threads):
 
 # compress a non-compressed file
 # returns success boolean
-def compress(file, threads):
-    cmd = f"xz -T {threads} {file}"
+def compress(file, threads, node):
+    cmd = f"{numajob(node)} xz -T {threads} {file}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -117,7 +117,7 @@ def getRange(fname):
 
 # ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
-def createDir(N, minM, maxM, maxRecSize, dirname):
+def createDir(N, minM, maxM, maxRecSize, do_compress, dirname):
     cmd = f"mkdir {dirname}"
     fail = os.system(cmd)
     if fail:
@@ -134,9 +134,15 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
             break
         (N, recMinM, recMaxM, fixed) = res
 
-        res = createRec(N, recMinM, recMaxM, fixed, dirname, idx)
-        if not res:
+        file = createRec(N, recMinM, recMaxM, fixed, dirname, idx)
+        if not file:
             return False
+
+        if do_compress:
+            res = compress(file, THREADS_PER_NODE, 0)
+            if not res:
+                return False
+
         idx += 1
 
 # create base log file
@@ -285,7 +291,7 @@ def massWorker(job, params, node, wkr):
                 break
 
 # decompress if necessary
-        (res, dest) = decompress(dest, THREADS_PER_JOB)
+        (res, dest) = decompress(dest, THREADS_PER_JOB, node)
         if res == 0:
             return False
         recompress = res != 2
@@ -295,7 +301,7 @@ def massWorker(job, params, node, wkr):
 
 # re-compress if applicable
         if recompress and res:
-            res = compress(dest, THREADS_PER_JOB)
+            res = compress(dest, THREADS_PER_JOB, node)
 
 # set up for the next job, mark this as done (we might have to break), save
 # progress
@@ -442,7 +448,7 @@ def massWeed(minM, maxM):
 # script usage message
 def usage():
     print("Usage:")
-    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
+    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize [compress]")    # create a dir
     print("EXPAND -- ./genauto.py x dest src")                     # expand dir to dir
     print("SUPERS -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
     print("MUTATE -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
@@ -464,7 +470,8 @@ if __name__ == '__main__':
         minM = int(sys.argv[4])
         maxM = int(sys.argv[5])
         maxRecSize = int(sys.argv[6])
-        createDir(N, minM, maxM, maxRecSize, destDir)
+        do_compress = len(sys.argv) > 7
+        createDir(N, minM, maxM, maxRecSize, do_compress, destDir)
 
 # Mass Expansion Modes
     elif mode == 'x':
