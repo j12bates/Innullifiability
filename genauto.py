@@ -212,16 +212,19 @@ def expandJob(params, dest, threads, node):
     srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
     srcs.sort()
     for src in srcs:
+        skip_supers = False
+        skip_mutate = False
+
 # Unmet Required Values: values that must be in destination sets and do not appear in source sets;
 # if there is only one, supersets can insert it, but if there are two, impossible
 # if there are two, a mutation can insert them, but if three, impossible
         unmetReqd = countInANotInB(dest, src)
         if unmetReqd > 1 and do_supers:
             print(f"# SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
-            do_supers = False
+            skip_supers = True
         if unmetReqd > 2 and do_mutate:
             print(f"# SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
-            do_mutate = False
+            skip_mutate = True
 
 # Poking Values: values that always appear in source sets and cannot be in destination sets;
 # if there are any of these, supersets can't get rid of them
@@ -229,16 +232,16 @@ def expandJob(params, dest, threads, node):
         poking = countInANotInB(src, dest)
         if poking > 0 and do_supers:
             print(f"# SKIPPING SUPERS [POKING]: {src} into {dest}")
-            do_supers = False
+            skip_supers = True
         if poking > 1 and do_mutate:
             print(f"# SKIPPING MUTATE [POKING]: {src} into {dest}")
-            do_mutate = False
+            skip_mutate = True
 
-        if do_supers:
+        if do_supers and not skip_supers:
             res = supers(src, dest, threads, node)
             if not res:
                 return False
-        if do_mutate:
+        if do_mutate and not skip_mutate:
             res = mutate(src, dest, threads, node)
             if not res:
                 return False
