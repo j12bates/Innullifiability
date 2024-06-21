@@ -6,6 +6,9 @@ NODES = 1
 JOBS_PER_NODE = 2
 THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
 
+COMPRESSION = False
+NO_SUPERS_MARK = False
+
 import math
 import os
 import sys
@@ -61,25 +64,30 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     fail = os.system(cmd)
     return None if fail else fname
 
+# TODO: reorder
 # decompress a compressed file
-# returns 0 on fail, 1 on success, 2 if non-compressed, as well as new filename
+# return decompressed filename, or False on error
 def decompress(file, threads, node):
     segments = file.split('.')
     if segments[-1] != "xz":
-        return (2, file)
+        return file
 
     cmd = f"{numajob(node)} xz -T {threads} -d {file}"
     print(cmd)
     fail = os.system(cmd)
+    if fail:
+        return False
 
-    num = 0 if fail else 1
     file = '.'.join(segments[:-1])
-    return (num, file)
+    return file
 
 # compress a non-compressed file
 # returns success boolean
 def compress(file, threads, node):
-    cmd = f"{numajob(node)} xz -T {threads} {file}"
+    if COMPRESSION == False:
+        return True
+
+    cmd = f"{numajob(node)} xz -{COMPRESSION} -T {threads} {file}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -117,7 +125,7 @@ def getRange(fname):
 
 # ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
-def createDir(N, minM, maxM, maxRecSize, do_compress, dirname):
+def createDir(N, minM, maxM, maxRecSize, dirname):
     cmd = f"mkdir {dirname}"
     fail = os.system(cmd)
     if fail:
@@ -138,10 +146,9 @@ def createDir(N, minM, maxM, maxRecSize, do_compress, dirname):
         if not file:
             return False
 
-        if do_compress:
-            res = compress(file, THREADS_PER_NODE, 0)
-            if not res:
-                return False
+        res = compress(file, THREADS_PER_NODE, 0)
+        if not res:
+            return False
 
         idx += 1
 
@@ -179,7 +186,8 @@ def numajob(node):
 # returns success boolean
 def supers(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
-    cmd = f"{numajob(node)} ./bin/gen -s {srcN} {src} {dest} {threads}"
+    opts = "s" + "b" if NO_SUPERS_MARK else ""
+    cmd = f"{numajob(node)} ./bin/gen -{opts} {srcN} {src} {dest} {threads}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -187,7 +195,8 @@ def supers(src, dest, threads, node):
 # returns success boolean
 def mutate(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
-    cmd = f"{numajob(node)} ./bin/gen -m {srcN} {src} {dest} {threads}"
+    opts = "m" + "b" if NO_SUPERS_MARK else ""
+    cmd = f"{numajob(node)} ./bin/gen -{opts} {srcN} {src} {dest} {threads}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -209,9 +218,12 @@ def weed(dest, minM, maxM, threads, node):
 def expandJob(params, dest, threads, node):
     (srcDir, do_supers, do_mutate) = params
 
-    srcs = [f"{srcDir}/{rec}" for rec in os.listdir(srcDir) if rec != 'log']
-    srcs.sort()
-    for src in srcs:
+    srcIdx = 0
+    while True:
+        src = getRecFname(srcDir, srcIdx)
+        if not src:
+            break
+
         skip_supers = False
         skip_mutate = False
 
@@ -246,6 +258,8 @@ def expandJob(params, dest, threads, node):
             if not res:
                 return False
 
+        srcIdx += 1
+
     return True
 
 def weedJob(params, dest, threads, node):
@@ -260,17 +274,16 @@ destDir = ""
 stop = False
 jobIdxLock = threading.Lock()
 
-# get a destination record filename by index
-# returns false if index is beyond bound
-def getDest(idx):
-    global destDir
-
-    if idx == -1:
+# TODO: reorder
+# ====== GET RECORD FILENAME BY INDEX
+# returns false if index is beyond bound or invalid
+def getRecFname(dirname, idx):
+    if idx < 0:
         return False
 
-    for rec in os.listdir(destDir):
+    for rec in os.listdir(dirname):
         if rec.split('_')[0] == f"{idx:04d}":
-            return f"{destDir}/{rec}"
+            return f"{dirname}/{rec}"
 
     return False
 
@@ -286,7 +299,7 @@ def massWorker(job, params, node, wkr):
     while True:
 # get the job to work (destination record)
         with jobIdxLock:
-            dest = getDest(workerJobIdxs[node][wkr])
+            dest = getRecFname(destDir, workerJobIdxs[node][wkr])
             if not dest:
                 workerJobIdxs[node][wkr] = -1
                 break
@@ -294,16 +307,15 @@ def massWorker(job, params, node, wkr):
                 break
 
 # decompress if necessary
-        (res, dest) = decompress(dest, THREADS_PER_JOB, node)
-        if res == 0:
+        dest = decompress(dest, THREADS_PER_JOB, node)
+        if not dest:
             return False
-        recompress = res != 2
 
 # execute the job on it
         res = job(params, dest, THREADS_PER_JOB, node)
 
-# re-compress if applicable
-        if recompress and res:
+# re-compress if/as configured
+        if res:
             res = compress(dest, THREADS_PER_JOB, node)
 
 # set up for the next job, mark this as done (we might have to break), save
@@ -451,7 +463,7 @@ def massWeed(minM, maxM):
 # script usage message
 def usage():
     print("Usage:")
-    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize [compress]")    # create a dir
+    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
     print("EXPAND -- ./genauto.py x dest src")                     # expand dir to dir
     print("SUPERS -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
     print("MUTATE -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
@@ -473,8 +485,7 @@ if __name__ == '__main__':
         minM = int(sys.argv[4])
         maxM = int(sys.argv[5])
         maxRecSize = int(sys.argv[6])
-        do_compress = len(sys.argv) > 7
-        createDir(N, minM, maxM, maxRecSize, do_compress, destDir)
+        createDir(N, minM, maxM, maxRecSize, destDir)
 
 # Mass Expansion Modes
     elif mode == 'x':
@@ -500,3 +511,5 @@ if __name__ == '__main__':
     else:
         usage()
         sys.exit(1)
+
+    sys.exit(0)
