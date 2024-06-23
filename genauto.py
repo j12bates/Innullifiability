@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+# TODO: import these constants from config files... from the directories, and
+# maybe a global one
 THREADS_PER_NODE = 6
 NODES = 1
 
@@ -13,6 +15,9 @@ import math
 import os
 import sys
 import threading
+
+# TODO: ensure all errors are caught, all programs interrupt nicely and such, we
+# want good behaviour
 
 # compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
@@ -183,6 +188,7 @@ def countInANotInB(recA, recB):
 def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
 
+# TODO: merge into one function
 # returns success boolean
 def supers(src, dest, threads, node):
     (srcN, _, _, _) = getRange(src)
@@ -208,6 +214,19 @@ def weed(dest, minM, maxM, threads, node):
     print(cmd)
     fail = os.system(cmd)
     return not fail
+
+# returns number of sets, -1 on error
+def inspect(dest, node):
+    (destN, _, _, _) = getRange(dest)
+    cmd = f"{numajob(node)} ./bin/eval -s {destN} {dest}"
+    print(cmd)
+    out = os.popen(cmd).readlines()
+    try:
+        count = int(out[0].split(' ')[0])
+    except e:
+        return -1
+    else:
+        return count
 
 # ====== JOBS
 # these jobs are called by worker threads, and they do an operation on a
@@ -262,9 +281,27 @@ def expandJob(params, dest, threads, node):
 
     return True
 
+# perform a weeding of a single record
 def weedJob(params, dest, threads, node):
     (minM, maxM) = params
     return weed(dest, minM, maxM, threads, node)
+
+# writes one record inspection result to output file
+def inspectJob(params, dest, threads, node):
+    (outfile) = params
+
+    count = inspect(dest, node)
+    if count == -1:
+        return False
+
+    shortFname = dest.split('/')[-1]
+    line = f"{shortFname:<32} -- {count:>12}\n"
+
+    f = open(outfile, 'a')
+    f.writelines([line])
+    f.close()
+
+    return True
 
 # these are global variables for managing worker threads with the mass routine
 th = [[None] * JOBS_PER_NODE] * NODES
@@ -460,14 +497,37 @@ def massWeed(minM, maxM):
 
     return True
 
+# ====== DIRECTORY INSPECTION
+def massInspect(outfile):
+# clear file
+    f = open(outfile, 'w')
+    f.close()
+
+    res = massProcess(inspectJob, (outfile))
+    if not res:
+        return False
+
+# read in and sort lines (to order records by index), then overwrite
+    f = open(outfile, 'r')
+    lines = f.readlines()
+    f.close()
+    lines.sort()
+
+    f = open(outfile, 'w')
+    f.writelines([line for line in lines])
+    f.close()
+
+    return True
+
 # script usage message
 def usage():
     print("Usage:")
-    print("CREATE -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
-    print("EXPAND -- ./genauto.py x dest src")                     # expand dir to dir
-    print("SUPERS -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
-    print("MUTATE -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
-    print("WEED   -- ./genauto.py w dest minM maxM")               # weed dir
+    print("CREATE  -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
+    print("EXPAND  -- ./genauto.py x dest src")                     # expand dir to dir
+    print("SUPERS  -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
+    print("MUTATE  -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
+    print("WEED    -- ./genauto.py w dest minM maxM")               # weed dir
+    print("INSPECT -- ./genauto.py i dest outfile")                 # inspect dir
 
 
 # ====== SCRIPT INVOCATION ROUTINE
@@ -500,13 +560,16 @@ if __name__ == '__main__':
         srcDir = sys.argv[3]
         massExpand(srcDir, False, True)
 
-# TODO: inspect mode, for counting number of yet-unmarked sets
-
 # Mass Weeding
     elif mode == 'w':
         minM = int(sys.argv[3])
         maxM = int(sys.argv[4])
         massWeed(minM, maxM)
+
+# Directory Inspection
+    elif mode == 'i':
+        outfile = sys.argv[3]
+        massInspect(outfile)
 
     else:
         usage()
