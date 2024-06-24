@@ -188,20 +188,13 @@ def countInANotInB(recA, recB):
 def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
 
-# TODO: merge into one function
 # returns success boolean
-def supers(src, dest, threads, node):
+def expand(src, dest, supers, mutate, threads, node):
     (srcN, _, _, _) = getRange(src)
-    opts = "s" + "b" if NO_SUPERS_MARK else ""
-    cmd = f"{numajob(node)} ./bin/gen -{opts} {srcN} {src} {dest} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
-    return not fail
+    if not supers and not mutate:
+        return True
 
-# returns success boolean
-def mutate(src, dest, threads, node):
-    (srcN, _, _, _) = getRange(src)
-    opts = "m" + "b" if NO_SUPERS_MARK else ""
+    opts = ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
     cmd = f"{numajob(node)} ./bin/gen -{opts} {srcN} {src} {dest} {threads}"
     print(cmd)
     fail = os.system(cmd)
@@ -235,47 +228,47 @@ def inspect(dest, node):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, threads, node):
-    (srcDir, do_supers, do_mutate) = params
+    (srcDir, supers, mutate) = params
 
     srcIdx = 0
     while True:
+        skip_supers = []
+        skip_mutate = []
+
+# obtain next source record
         src = getRecFname(srcDir, srcIdx)
         if not src:
             break
 
-        skip_supers = False
-        skip_mutate = False
-
 # Unmet Required Values: values that must be in destination sets and do not appear in source sets;
-# if there is only one, supersets can insert it, but if there are two, impossible
-# if there are two, a mutation can insert them, but if three, impossible
-        unmetReqd = countInANotInB(dest, src)
-        if unmetReqd > 1 and do_supers:
-            print(f"# SKIPPING SUPERS [UNMET REQD]: {src} into {dest}")
-            skip_supers = True
-        if unmetReqd > 2 and do_mutate:
-            print(f"# SKIPPING MUTATE [UNMET REQD]: {src} into {dest}")
-            skip_mutate = True
-
 # Poking Values: values that always appear in source sets and cannot be in destination sets;
-# if there are any of these, supersets can't get rid of them
-# if there is one, a mutation can replace it, but if two, impossible
+        unmetReqd = countInANotInB(dest, src)
         poking = countInANotInB(src, dest)
-        if poking > 0 and do_supers:
-            print(f"# SKIPPING SUPERS [POKING]: {src} into {dest}")
-            skip_supers = True
-        if poking > 1 and do_mutate:
-            print(f"# SKIPPING MUTATE [POKING]: {src} into {dest}")
-            skip_mutate = True
 
-        if do_supers and not skip_supers:
-            res = supers(src, dest, threads, node)
-            if not res:
-                return False
-        if do_mutate and not skip_mutate:
-            res = mutate(src, dest, threads, node)
-            if not res:
-                return False
+# supersets can't remove any poking values, and can only fill in one unmet required value
+        if unmetReqd > 1:
+            skip_supers += ["UNMET"]
+        if poking > 0:
+            skip_supers += ["POKING"]
+
+# mutations take a value away, so can address one poking value, and can fill in up to two unmet
+# required values
+        if unmetReqd > 2:
+            skip_mutate += ["UNMET"]
+        if poking > 1:
+            skip_mutate += ["POKING"]
+
+# address any skipping
+        if supers and skip_supers:
+            print(f"# SKIPPING SUPERS {skip_supers}: {src} into {dest}")
+        if mutate and skip_mutate:
+            print(f"# SKIPPING MUTATE {skip_supers}: {src} into {dest}")
+
+# run the appropriate command
+        res = expand(src, dest, supers and not skip_supers,
+                     mutate and not skip_mutate, threads, node)
+        if not res:
+            return False
 
         srcIdx += 1
 
