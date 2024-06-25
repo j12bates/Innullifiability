@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# TODO: import these constants from config files... from the directories, and
-# maybe a global one
 THREADS_PER_NODE = 6
 NODES = 1
 
@@ -10,6 +8,8 @@ THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
 
 COMPRESSION = False
 NO_SUPERS_MARK = False
+
+BIN_DIR = "./bin"
 
 import math
 import os
@@ -31,12 +31,26 @@ def readConfigs(confFile):
             THREADS_PER_NODE = configs['hw']['threadsPerNode']
             NODES = configs['hw']['numaNodes']
         if 'dir' in configs:
-            COMPRESSION = configs['dir']['compression']
+            COMPRESSION = configs['dir']['compressionLevel']
             NO_SUPERS_MARK = configs['dir']['oneBitMarking']
         if 'exec' in configs:
             JOBS_PER_NODE = configs['exec']['jobsPerNode']
+            BIN_DIR = configs['exec']['utilBinDir']
 
     THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
+
+    return True
+
+# write configurations to a JSON file
+def writeConfigs(confFile):
+    configs = {}
+    configs['hw'] = {'threadsPerNode': THREADS_PER_NODE, 'numaNodes': NODES}
+    configs['dir'] = {'compressionLevel': COMPRESSION, 'oneBitMarking': NO_SUPERS_MARK}
+    configs['exec'] = {'jobsPerNode': JOBS_PER_NODE, 'utilBinDir': BIN_DIR}
+
+    f = open(confFile, 'w')
+    f.write(json.dumps(configs, indent=4) + '\n')
+    f.close()
 
     return True
 
@@ -88,7 +102,7 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     k = N - len(fixed)
     fixedArr = [str(n) for n in fixed]
     fname = f"{destDir}/{idx:04d}_rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
-    cmd = f"./bin/create {k} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
+    cmd = f"{BIN_DIR}/create {k} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
 
     fail = os.system(cmd)
     return None if fail else fname
@@ -155,6 +169,7 @@ def getRange(fname):
 # ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
 def createDir(N, minM, maxM, maxRecSize, dirname):
+# TODO: use filesystem functions, not command
     cmd = f"mkdir {dirname}"
     fail = os.system(cmd)
     if fail:
@@ -187,6 +202,7 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
+# TODO: use filesystem functions, not command
 # copy existing configuration file for user to modify
     if os.path.isfile("config.json"):
         cmd = f"cp config.json {dirname}/config.json"
@@ -214,7 +230,6 @@ def countInANotInB(recA, recB):
     return count
 
 # ====== COMMAND EXECUTION
-# TODO: make a constant variable for binary path
 # figures out NUMA job
 def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
@@ -226,7 +241,7 @@ def expand(src, dest, supers, mutate, threads, node):
         return True
 
     opts = ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
-    cmd = f"{numajob(node)} ./bin/gen -{opts} {srcN} {src} {dest} {threads}"
+    cmd = f"{numajob(node)} {BIN_DIR}/gen -{opts} {srcN} {src} {dest} {threads}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -234,7 +249,7 @@ def expand(src, dest, supers, mutate, threads, node):
 # returns success boolean
 def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
-    cmd = f"{numajob(node)} ./bin/weed {destN} {dest} {minM} {maxM} {threads}"
+    cmd = f"{numajob(node)} {BIN_DIR}/weed {destN} {dest} {minM} {maxM} {threads}"
     print(cmd)
     fail = os.system(cmd)
     return not fail
@@ -242,7 +257,7 @@ def weed(dest, minM, maxM, threads, node):
 # returns number of sets, -1 on error
 def inspect(dest, node):
     (destN, _, _, _) = getRange(dest)
-    cmd = f"{numajob(node)} ./bin/eval -s {destN} {dest}"
+    cmd = f"{numajob(node)} {BIN_DIR}/eval -s {destN} {dest}"
     print(cmd)
     out = os.popen(cmd).readlines()
     try:
@@ -564,8 +579,10 @@ if __name__ == '__main__':
     mode = sys.argv[1]
     destDir = sys.argv[2]
 
-# there's a config in the invocation directory, and maybe a superseding one in the record directory
+# there's a config in the invocation directory, read it in if it exists and then write one back
+# out with everything just 'cuz, then there might be special configs for the record directory
     readConfigs("config.json")
+    writeConfigs("config.json")
     readConfigs(f"{destDir}/config.json")
 
 # Create a Directory
