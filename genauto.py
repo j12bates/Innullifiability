@@ -15,6 +15,30 @@ import math
 import os
 import sys
 import threading
+import json
+
+# read in configurations from a JSON file
+# config files can have three segments, and any which are configured will be loaded in to update
+# what already exists. thus files can be loaded in sequentially to have a default which can be
+# superseded
+def readConfigs(confFile):
+    global THREADS_PER_NODE, NODES, COMPRESSION, NO_SUPERS_MARK, JOBS_PER_NODE, THREADS_PER_JOB
+
+    if os.path.isfile(confFile):
+        with open(confFile) as raw:
+            configs = json.load(raw)
+        if 'hw' in configs:
+            THREADS_PER_NODE = configs['hw']['threadsPerNode']
+            NODES = configs['hw']['numaNodes']
+        if 'dir' in configs:
+            COMPRESSION = configs['dir']['compression']
+            NO_SUPERS_MARK = configs['dir']['oneBitMarking']
+        if 'exec' in configs:
+            JOBS_PER_NODE = configs['exec']['jobsPerNode']
+
+    THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
+
+    return True
 
 # TODO: ensure all errors are caught, all programs interrupt nicely and such, we
 # want good behaviour
@@ -163,6 +187,13 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
+# copy existing configuration file for user to modify
+    if os.path.isfile("config.json"):
+        cmd = f"cp config.json {dirname}/config.json"
+        fail = os.system(cmd)
+        if fail:
+            pass
+
     return True
 
 # count the minimum number of values that are in a set in range A that aren't in
@@ -297,9 +328,9 @@ def inspectJob(params, dest, threads, node):
     return True
 
 # these are global variables for managing worker threads with the mass routine
-th = [[None] * JOBS_PER_NODE] * NODES
-workerJobIdxs = [[NODES * wkr + node for wkr in range(JOBS_PER_NODE)] for node in range(NODES)]
-nextJobIdx = NODES * JOBS_PER_NODE
+th = []
+workerJobIdxs = []
+nextJobIdx = 0
 destDir = ""
 stop = False
 jobIdxLock = threading.Lock()
@@ -397,7 +428,10 @@ def massProgLoad():
 # worker threads based off of the number of jobs we want to run per node. these
 # jobs will collectively perform either a mass expansion or mass weeding.
 def massProcess(job, params):
-    global th, nextJobIdx, stop, jobIdxLock, destDir
+    global th, workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
+    th = [[None] * JOBS_PER_NODE] * NODES
+    workerJobIdxs = [[NODES * wkr + node for wkr in range(JOBS_PER_NODE)] for node in range(NODES)]
+    nextJobIdx = NODES * JOBS_PER_NODE
     stop = False
 
 # if a progress file exists, give option to load it and resume
@@ -465,7 +499,6 @@ def massExpand(srcDir, supers, mutate):
     if mutate:
         outlines += ["_MUT: " + logline]
 
-    global destDir
     f = open(f"{destDir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
     f.close()
@@ -483,7 +516,6 @@ def massWeed(minM, maxM):
     if maxM == 0:
         outlines[0] += " INDEF MAX"
 
-    global destDir
     f = open(f"{destDir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
     f.close()
@@ -531,6 +563,10 @@ if __name__ == '__main__':
 
     mode = sys.argv[1]
     destDir = sys.argv[2]
+
+# there's a config in the invocation directory, and maybe a superseding one in the record directory
+    readConfigs("config.json")
+    readConfigs(f"{destDir}/config.json")
 
 # Create a Directory
     if mode == 'c':
