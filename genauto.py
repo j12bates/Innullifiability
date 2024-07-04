@@ -169,11 +169,7 @@ def getRange(fname):
 # ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
 def createDir(N, minM, maxM, maxRecSize, dirname):
-# TODO: use filesystem functions, not command
-    cmd = f"mkdir {dirname}"
-    fail = os.system(cmd)
-    if fail:
-        return False
+    os.mkdir(dirname)
 
 # generate successive ranges and create records until we get through the
 # range we're given
@@ -202,7 +198,6 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
-# TODO: use filesystem functions, not command
 # copy existing configuration file for user to modify
     if os.path.isfile("config.json"):
         cmd = f"cp config.json {dirname}/config.json"
@@ -450,17 +445,22 @@ def massProcess(job, params):
     stop = False
 
 # if a progress file exists, give option to load it and resume
-# TODO: log commands while executing in another file, verify command is the same
     progFile = f"{destDir}/prog"
     if os.path.isfile(progFile):
-        resp = input("Resume previous invocation? [Y/n] ")
-        if resp in ['Y', 'y', '']:
+        print("There exists a progress file from an interrupted invocation. Before")
+        print("resuming, please ensure the current invocation is the same command as")
+        print("the previously executed one (which produced the progress file):")
+        os.system(f"cat {destDir}/cmdLast")
+        resp = input("Resume previous invocation? [y/n/C] ")
+        if resp in ['Y', 'y']:
             massProgLoad()
         elif resp in ['N', 'n']:
             pass
         else:
             print("Cancelling")
             return False
+
+    os.system(f"echo {' '.join(sys.argv)} > {destDir}/cmdLast")
     massProgDump()
 
 # we're just creating a bunch of job threads. nothing special... then we join
