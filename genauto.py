@@ -1,14 +1,20 @@
 #!/usr/bin/python
 
+# CONSTANTS/CONFIGS
+
+# Hardware
 THREADS_PER_NODE = 6
 NODES = 1
 
+# Execution
 JOBS_PER_NODE = 2
 THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
 
+# Record Directory
 COMPRESSION = False
 NO_SUPERS_MARK = False
 
+# Path to Util Binaries
 BIN_DIR = "./bin"
 
 import math
@@ -107,34 +113,6 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     fail = os.system(cmd)
     return None if fail else fname
 
-# TODO: reorder
-# decompress a compressed file
-# return decompressed filename, or False on error
-def decompress(file, threads, node):
-    segments = file.split('.')
-    if segments[-1] != "xz":
-        return file
-
-    cmd = f"{numajob(node)} xz -T {threads} -d {file}"
-    print(cmd)
-    fail = os.system(cmd)
-    if fail:
-        return False
-
-    file = '.'.join(segments[:-1])
-    return file
-
-# compress a non-compressed file
-# returns success boolean
-def compress(file, threads, node):
-    if COMPRESSION == False:
-        return True
-
-    cmd = f"{numajob(node)} xz -{COMPRESSION} -T {threads} {file}"
-    print(cmd)
-    fail = os.system(cmd)
-    return not fail
-
 # take a record filename and extract the range information
 def getRange(fname):
     not_a_rec = (0, 0, 0, [])
@@ -207,6 +185,18 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 
     return True
 
+# ====== GET RECORD FILENAME BY INDEX
+# returns false if index is beyond bound or invalid
+def getRecFname(dirname, idx):
+    if idx < 0:
+        return False
+
+    for rec in os.listdir(dirname):
+        if rec.split('_')[0] == f"{idx:04d}":
+            return f"{dirname}/{rec}"
+
+    return False
+
 # count the minimum number of values that are in a set in range A that aren't in
 # a set in range B. this is for computing Unmet Required and Poking Values.
 def countInANotInB(recA, recB):
@@ -229,6 +219,34 @@ def countInANotInB(recA, recB):
 def numajob(node):
     return f"numactl --cpunodebind={node} --membind={node} -- "
 
+# decompress a compressed file
+# return decompressed filename, or False on error
+def decompress(file, threads, node):
+    segments = file.split('.')
+    if segments[-1] != "xz":
+        return file
+
+    cmd = f"{numajob(node)} xz -T {threads} -d {file}"
+    print(cmd)
+    fail = os.system(cmd)
+    if fail:
+        return False
+
+    file = '.'.join(segments[:-1])
+    return file
+
+# compress a non-compressed file
+# returns success boolean
+def compress(file, threads, node):
+    if COMPRESSION == False:
+        return True
+
+    cmd = f"{numajob(node)} xz -{COMPRESSION} -T {threads} {file}"
+    print(cmd)
+    fail = os.system(cmd)
+    return not fail
+
+# run the expansion process, Generation util
 # returns success boolean
 def expand(src, dest, supers, mutate, threads, node):
     (srcN, _, _, _) = getRange(src)
@@ -241,6 +259,7 @@ def expand(src, dest, supers, mutate, threads, node):
     fail = os.system(cmd)
     return not fail
 
+# run the weeding process, Weed util
 # returns success boolean
 def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
@@ -249,6 +268,7 @@ def weed(dest, minM, maxM, threads, node):
     fail = os.system(cmd)
     return not fail
 
+# inspect a singular record, Evaluate util
 # returns number of sets, -1 on error
 def inspect(dest, node):
     (destN, _, _, _) = getRange(dest)
@@ -344,19 +364,6 @@ nextJobIdx = 0
 destDir = ""
 stop = False
 jobIdxLock = threading.Lock()
-
-# TODO: reorder
-# ====== GET RECORD FILENAME BY INDEX
-# returns false if index is beyond bound or invalid
-def getRecFname(dirname, idx):
-    if idx < 0:
-        return False
-
-    for rec in os.listdir(dirname):
-        if rec.split('_')[0] == f"{idx:04d}":
-            return f"{dirname}/{rec}"
-
-    return False
 
 # ====== WORKER THREAD ROUTINE
 # this function will run jobs into the next record that needs it. it'll run just
