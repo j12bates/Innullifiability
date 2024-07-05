@@ -60,8 +60,7 @@ def writeConfigs(confFile):
 
     return True
 
-# TODO: ensure all errors are caught, all programs interrupt nicely and such, we
-# want good behaviour
+# TODO: ensure all errors are caught, all programs interrupt nicely and such, we want good behaviour
 
 # compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
@@ -69,9 +68,8 @@ def recSize(N, minM, maxM, fixed):
     return math.comb(maxM, k) - math.comb(max(0, minM - 1), k)
 
 # returns (N, minM, maxM, fixed), or False if no successor
-# This will take in the range info from the previous record, and figure
-# out a successor range, as large as possible while keeping to a size
-# restriction.
+# This will take in the range info from the previous record, and figure out a successor range, as
+# large as possible while keeping to a size restriction.
 def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
     nextFixed = lastFixed
     nextMinM = lastM + 1
@@ -80,15 +78,14 @@ def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
     if nextMinM > limitM:
         return False
 
-# if this fixed value has run its course, break it back into an M-value
-# and proceed
+# if this fixed value has run its course, break it back into an M-value and proceed
     if len(lastFixed) != 0:
         if nextMinM == lastFixed[0]:
             nextFixed = nextFixed[1:]
             return nextRange(N, nextMinM, nextFixed, limitM, maxRecSize)
 
-# if a range of one M-value would exceed the size limit, make it a fixed
-# value instead and proceed like it's a smaller set
+# if a range of one M-value would exceed the size limit, make it a fixed value instead and proceed
+# like it's a smaller set
     if recSize(N, nextMinM, nextMinM, nextFixed) > maxRecSize:
         nextFixed = [nextMinM] + lastFixed
         return nextRange(N, 0, nextFixed, limitM, maxRecSize)
@@ -149,8 +146,7 @@ def getRange(fname):
 def createDir(N, minM, maxM, maxRecSize, dirname):
     os.mkdir(dirname)
 
-# generate successive ranges and create records until we get through the
-# range we're given
+# generate successive ranges and create records until we get through the range we're given
     idx = 0
     fixed = []
     (recMinM, recMaxM, limitM) = (0, minM - 1, maxM)
@@ -197,8 +193,8 @@ def getRecFname(dirname, idx):
 
     return False
 
-# count the minimum number of values that are in a set in range A that aren't in
-# a set in range B. this is for computing Unmet Required and Poking Values.
+# count the minimum number of values that are in a set in range A that aren't in a set in range B.
+# this is for computing Unmet Required and Poking Values.
 def countInANotInB(recA, recB):
     (A_N, A_minM, A_maxM, A_fixed) = getRange(recA)
     (B_N, B_minM, B_maxM, B_fixed) = getRange(recB)
@@ -207,8 +203,8 @@ def countInANotInB(recA, recB):
 # all fixed values are in each set in A, count the ones that don't appear in B
     count = len([0 for n in A_fixed if n not in B_valid])
 
-# one value in the M-range is definitely in sets in A, meaning if none are valid
-# in B, we have one extra
+# one value in the M-range is definitely in sets in A, meaning if none are valid in B, we have one
+# extra
     if set(range(A_minM, A_maxM + 1)).isdisjoint(B_valid):
         count += 1
 
@@ -283,9 +279,9 @@ def inspect(dest, node):
         return count
 
 # ====== JOBS
-# these jobs are called by worker threads, and they do an operation on a
-# destination record. Expansion is a full directory expansion, and Weeding is
-# just a normal ranged weeding. each one has the same argument format.
+# these jobs are called by worker threads, and they do an operation on a destination record.
+# Expansion is a full directory expansion, and Weeding is just a normal ranged weeding. each one has
+# the same argument format.
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, threads, node):
@@ -366,10 +362,9 @@ stop = False
 jobIdxLock = threading.Lock()
 
 # ====== WORKER THREAD ROUTINE
-# this function will run jobs into the next record that needs it. it'll run just
-# one at a time, with however many threads specified, on whatever NUMA node it's
-# assigned to. these global variables keep track of the next destination, so
-# another thread can pick up work when it finishes.
+# this function will run jobs into the next record that needs it. it'll run just one at a time, with
+# however many threads specified, on whatever NUMA node it's assigned to. these global variables
+# keep track of the next destination, so another thread can pick up work when it finishes.
 def massWorker(job, params, node, wkr):
     global workerJobIdxs, nextJobIdx, stop, jobIdxLock
 
@@ -396,8 +391,7 @@ def massWorker(job, params, node, wkr):
         if res:
             res = compress(dest, THREADS_PER_JOB, node)
 
-# set up for the next job, mark this as done (we might have to break), save
-# progress
+# set up for the next job, mark this as done (we might have to break), save progress
         with jobIdxLock:
             if not res:
                 stop = True
@@ -441,9 +435,9 @@ def massProgLoad():
             workerJobIdxs[node] = [int(s) for s in inlines[node + 1].split(' ')]
 
 # ====== MASS PROCESSING
-# this is the main routine for the Expansion and Sweeping modes. it'll create
-# worker threads based off of the number of jobs we want to run per node. these
-# jobs will collectively perform either a mass expansion or mass weeding.
+# this is the main routine for the Expansion and Sweeping modes. it'll create worker threads based
+# off of the number of jobs we want to run per node. these jobs will collectively perform either a
+# mass expansion or mass weeding.
 def massProcess(job, params):
     global th, workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
     th = [[None] * JOBS_PER_NODE] * NODES
@@ -470,8 +464,7 @@ def massProcess(job, params):
     os.system(f"echo {' '.join(sys.argv)} > {destDir}/cmdLast")
     massProgDump()
 
-# we're just creating a bunch of job threads. nothing special... then we join
-# them
+# we're just creating a bunch of job threads. nothing special... then we join them
     for node in range(NODES):
         for i in range(JOBS_PER_NODE):
             th[node][i] = threading.Thread(target=massWorker,
@@ -571,8 +564,8 @@ def usage():
     print("Usage:")
     print("CREATE  -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
     print("EXPAND  -- ./genauto.py x dest src")                     # expand dir to dir
-    print("SUPERS  -- ./genauto.py s dest src")                     # expand dir to dir (only supersets)
-    print("MUTATE  -- ./genauto.py m dest src")                     # expand dir to dir (only mutations)
+    print("SUPERS  -- ./genauto.py s dest src")                 # expand dir to dir (only supersets)
+    print("MUTATE  -- ./genauto.py m dest src")                 # expand dir to dir (only mutations)
     print("WEED    -- ./genauto.py w dest minM maxM")               # weed dir
     print("INSPECT -- ./genauto.py i dest outfile")                 # inspect dir
 
