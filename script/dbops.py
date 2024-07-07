@@ -1,4 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/python3
+
+# Copyright (c) 2024, Jacob Bates
+# SPDX-License-Identifier: BSD-2-Clause
 
 # CONSTANTS/CONFIGS
 
@@ -563,13 +566,14 @@ def massInspect(outfile):
 
 # script usage message
 def usage():
+    name = sys.argv[0]
     print("Usage:")
-    print("CREATE  -- ./genauto.py c dest N minM maxM maxRecSize")  # create a dir
-    print("EXPAND  -- ./genauto.py x dest src")                     # expand dir to dir
-    print("SUPERS  -- ./genauto.py s dest src")                 # expand dir to dir (only supersets)
-    print("MUTATE  -- ./genauto.py m dest src")                 # expand dir to dir (only mutations)
-    print("WEED    -- ./genauto.py w dest minM maxM")               # weed dir
-    print("INSPECT -- ./genauto.py i dest outfile")                 # inspect dir
+    print(f"CREATE  -- {name} c dest N minM maxM maxRecSize")   # create a dir
+    print(f"EXPAND  -- {name} x dest src")                      # expand dir to dir
+    print(f"SUPERS  -- {name} s dest src")                      # expand dir to dir (only supersets)
+    print(f"MUTATE  -- {name} m dest src")                      # expand dir to dir (only mutations)
+    print(f"WEED    -- {name} w dest minM maxM")                # weed dir
+    print(f"INSPECT -- {name} i dest outfile")                  # inspect dir
 
 
 # ====== SCRIPT INVOCATION ROUTINE
