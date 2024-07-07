@@ -23,6 +23,10 @@ import sys
 import threading
 import json
 
+# TODO: ensure all errors are caught, all programs interrupt nicely and such, we want good behaviour
+
+# TODO: progress tracking on the individual record level, progress indicators (multiple levels?)
+
 # read in configurations from a JSON file
 # config files can have three segments, and any which are configured will be loaded in to update
 # what already exists. thus files can be loaded in sequentially to have a default which can be
@@ -59,8 +63,6 @@ def writeConfigs(confFile):
     f.close()
 
     return True
-
-# TODO: ensure all errors are caught, all programs interrupt nicely and such, we want good behaviour
 
 # compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
@@ -510,9 +512,9 @@ def massExpand(srcDir, supers, mutate):
 
     outlines = []
     if supers:
-        outlines += ["_SUP: " + logline]
+        outlines += ["XSUP: " + logline]
     if mutate:
-        outlines += ["_MUT: " + logline]
+        outlines += ["XMUT: " + logline]
 
     f = open(f"{destDir}/log", 'a')
     f.writelines([line + '\n' for line in outlines])
