@@ -177,13 +177,6 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
-# copy existing configuration file for user to modify
-    if os.path.isfile("config.json"):
-        cmd = f"cp config.json {dirname}/config.json"
-        fail = os.system(cmd)
-        if fail:
-            pass
-
     return True
 
 # ====== GET RECORD FILENAME BY INDEX
@@ -410,8 +403,6 @@ def massWorker(job, params, node, wkr):
 
 # ====== SAVE TO PROGRESS FILE
 def massProgDump():
-    global workerJobIdxs, nextJobIdx, jobIdxLock, destDir
-
 # grab all the current job indices of each worker thread, the next job counter
     outlines = []
     with jobIdxLock:
@@ -426,7 +417,7 @@ def massProgDump():
 
 # ====== LOAD FROM PROGRESS FILE
 def massProgLoad():
-    global workerJobIdxs, nextJobIdx, jobIdxLock, destDir
+    global workerJobIdxs, nextJobIdx
 
 # read progress file lines
     f = open(f"{destDir}/prog", 'r')
@@ -445,7 +436,7 @@ def massProgLoad():
 # mass expansion or mass weeding.
 def massProcess(job, params):
     global th, workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
-    th = [[None] * JOBS_PER_NODE] * NODES
+    th = [[0 for _ in range(JOBS_PER_NODE)] for _ in range(NODES)]
     workerJobIdxs = [[NODES * wkr + node for wkr in range(JOBS_PER_NODE)] for node in range(NODES)]
     nextJobIdx = NODES * JOBS_PER_NODE
     stop = False
