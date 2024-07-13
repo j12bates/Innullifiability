@@ -22,6 +22,7 @@ BIN_DIR = "./bin"
 
 import math
 import os
+import subprocess
 import sys
 import threading
 import json
@@ -30,12 +31,23 @@ import json
 
 # TODO: progress tracking on the individual record level, progress indicators (multiple levels?)
 
+# convert argument list (for subprocess) to shell command
+# basically just put quote-marks about arguments containing whitespace, and place explicit empty
+# strings
+def argsToCmd(args):
+    newArgs = []
+    for arg in args:
+        newArg = arg if (' ' not in arg and arg != "") else f"\"{arg}\""
+        newArgs.append(newArg)
+    return ' '.join(newArgs)
+
 # read in configurations from a JSON file
 # config files can have three segments, and any which are configured will be loaded in to update
 # what already exists. thus files can be loaded in sequentially to have a default which can be
 # superseded
 def readConfigs(confFile):
-    global THREADS_PER_NODE, NODES, COMPRESSION, NO_SUPERS_MARK, JOBS_PER_NODE, THREADS_PER_JOB
+    global THREADS_PER_NODE, NODES, COMPRESSION, NO_SUPERS_MARK, JOBS_PER_NODE, BIN_DIR
+    global THREADS_PER_JOB
 
     if os.path.isfile(confFile):
         with open(confFile) as raw:
@@ -110,9 +122,12 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     k = N - len(fixed)
     fixedArr = [str(n) for n in fixed]
     fname = f"{destDir}/{idx:04d}_rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
-    cmd = f"{BIN_DIR}/create {k} {minM} {maxM} {len(fixed)} \"{' '.join(fixedArr)}\" {fname}"
 
-    fail = os.system(cmd)
+    args = [f"{BIN_DIR}/create", str(k), str(minM), str(maxM), str(len(fixed)),
+            f"{' '.join(fixedArr)}", fname]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
+
     return None if fail else fname
 
 # take a record filename and extract the range information
@@ -209,9 +224,9 @@ def countInANotInB(recA, recB):
     return count
 
 # ====== COMMAND EXECUTION
-# figures out NUMA job
+# command words for NUMA job
 def numajob(node):
-    return f"numactl --cpunodebind={node} --membind={node} -- "
+    return ["numactl", f"--cpunodebind={node}", f"--membind={node}", "--"]
 
 # decompress a compressed file
 # return decompressed filename, or False on error
@@ -220,9 +235,9 @@ def decompress(file, threads, node):
     if segments[-1] != "xz":
         return file
 
-    cmd = f"{numajob(node)} xz -T {threads} -d {file}"
-    print(cmd)
-    fail = os.system(cmd)
+    args = numajob(node) + ["xz", "-T", str(threads), "-d", file]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
     if fail:
         return False
 
@@ -235,9 +250,9 @@ def compress(file, threads, node):
     if COMPRESSION == False:
         return True
 
-    cmd = f"{numajob(node)} xz -{COMPRESSION} -T {threads} {file}"
-    print(cmd)
-    fail = os.system(cmd)
+    args = numajob(node) + ["xz", f"-{COMPRESSION}", "-T", str(threads), file]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
     return not fail
 
 # run the expansion process, Generation util
@@ -247,30 +262,31 @@ def expand(src, dest, supers, mutate, threads, node):
     if not supers and not mutate:
         return True
 
-    opts = ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
-    cmd = f"{numajob(node)} {BIN_DIR}/gen -{opts} {srcN} {src} {dest} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
+    opts = '-' + ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
+    args = numajob(node) + [f"{BIN_DIR}/gen", opts, str(srcN), src, dest, str(threads)]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
     return not fail
 
 # run the weeding process, Weed util
 # returns success boolean
 def weed(dest, minM, maxM, threads, node):
     (destN, _, _, _) = getRange(dest)
-    cmd = f"{numajob(node)} {BIN_DIR}/weed {destN} {dest} {minM} {maxM} {threads}"
-    print(cmd)
-    fail = os.system(cmd)
+    args = numajob(node) + [f"{BIN_DIR}/weed", str(destN), dest,
+            str(minM), str(maxM), str(threads)]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
     return not fail
 
 # inspect a singular record, Evaluate util
 # returns number of sets, -1 on error
 def inspect(dest, node):
     (destN, _, _, _) = getRange(dest)
-    cmd = f"{numajob(node)} {BIN_DIR}/eval -s {destN} {dest}"
-    print(cmd)
-    out = os.popen(cmd).readlines()
+    args = numajob(node) + [f"{BIN_DIR}/eval", "-s", str(destN), dest]
+    print(argsToCmd(args))
     try:
-        count = int(out[0].split(' ')[0])
+        out = subprocess.check_output(args, text=True)
+        count = int(out.split(' ')[0])
     except e:
         return -1
     else:
