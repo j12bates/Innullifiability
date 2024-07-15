@@ -223,6 +223,7 @@ def countInANotInB(recA, recB):
 
     return count
 
+# TODO: get rid of the unused threads parameter
 # ====== COMMAND EXECUTION
 # command words for NUMA job
 def numajob(node):
@@ -371,15 +372,19 @@ def inspectJob(params, dest, threads, node):
 th = []
 workerJobIdxs = []
 nextJobIdx = 0
-destDir = ""
 stop = False
 jobIdxLock = threading.Lock()
+
+# these are global variables for task
+destDir = ""
+tasks = []
+outlines = []
 
 # ====== WORKER THREAD ROUTINE
 # this function will run jobs into the next record that needs it. it'll run just one at a time, with
 # however many threads specified, on whatever NUMA node it's assigned to. these global variables
 # keep track of the next destination, so another thread can pick up work when it finishes.
-def massWorker(job, params, node, wkr):
+def massWorker(node, wkr):
     global workerJobIdxs, nextJobIdx, stop, jobIdxLock
 
     dest = ""
@@ -398,8 +403,13 @@ def massWorker(job, params, node, wkr):
         if not dest:
             return False
 
-# execute the job on it
-        res = job(params, dest, THREADS_PER_JOB, node)
+# execute each task on it in sequence
+        res = True
+        for task in tasks:
+            f = task['f']
+            params = task['params']
+            if res:
+                res = f(params, dest, THREADS_PER_JOB, node)
 
 # re-compress if/as configured
         if res:
@@ -450,7 +460,7 @@ def massProgLoad():
 # this is the main routine for the Expansion and Sweeping modes. it'll create worker threads based
 # off of the number of jobs we want to run per node. these jobs will collectively perform either a
 # mass expansion or mass weeding.
-def massProcess(job, params):
+def massProcess():
     global th, workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
     th = [[0 for _ in range(JOBS_PER_NODE)] for _ in range(NODES)]
     workerJobIdxs = [[NODES * wkr + node for wkr in range(JOBS_PER_NODE)] for node in range(NODES)]
@@ -480,12 +490,24 @@ def massProcess(job, params):
     for node in range(NODES):
         for i in range(JOBS_PER_NODE):
             th[node][i] = threading.Thread(target=massWorker,
-                    args=(job, params, node, i))
+                    args=(node, i))
             th[node][i].start()
 
     for node in range(NODES):
         for i in range(JOBS_PER_NODE):
             th[node][i].join()
+
+# run end routines for tasks in sequence
+    for task in tasks:
+        if 'f_end' in task:
+            f = task['f_end']
+            params = task['params']
+            f(params)
+
+# output lines to log file
+    f = open(f"{destDir}/log", 'a')
+    f.writelines([line + '\n' for line in outlines])
+    f.close()
 
     with jobIdxLock:
         error = stop
@@ -495,11 +517,12 @@ def massProcess(job, params):
 
     return not error
 
-# ====== MASS EXPANSION
-def massExpand(srcDir, supers, mutate):
-    res = massProcess(expandJob, (srcDir, supers, mutate))
-    if not res:
-        return False
+# ====== EXPANSION TASK CONFIGURATION
+def taskExpand(srcDir, supers, mutate):
+    global tasks, outlines
+
+# configure this task
+    tasks.append({'f': expandJob, 'params': (srcDir, supers, mutate)})
 
 # read log from source
     f = open(f"{srcDir}/log", 'r')
@@ -515,51 +538,49 @@ def massExpand(srcDir, supers, mutate):
     minM = params[2].split('_')[1]
     maxM = params[2].split('_')[2]
 
-# output a new line into the destination log
+# set up new lines to output into the destination log
     logline = f"M_{minM}_{maxM} [from {srcDir}]"
     if not swept:
         logline += " WARN: source not marked SWEPT"
 
-    outlines = []
     if supers:
         outlines += ["XSUP: " + logline]
     if mutate:
         outlines += ["XMUT: " + logline]
 
-    f = open(f"{destDir}/log", 'a')
-    f.writelines([line + '\n' for line in outlines])
-    f.close()
-
     return True
 
-# ====== MASS WEEDING
-def massWeed(minM, maxM):
-    res = massProcess(weedJob, (minM, maxM))
-    if not res:
-        return False
+# ====== WEEDING TASK CONFIGURATION
+def taskWeed(minM, maxM):
+    global tasks, outlines
 
-# output a new line into the destination log
+# configure this task
+    tasks.append({'f': weedJob, 'params': (minM, maxM)})
+
+# set up a new line to output into the destination log
     outlines = [f"WEED: M_{minM}_{maxM}"]
     if maxM == 0:
         outlines[0] += " INDEF MAX"
 
-    f = open(f"{destDir}/log", 'a')
-    f.writelines([line + '\n' for line in outlines])
-    f.close()
-
     return True
 
-# ====== DIRECTORY INSPECTION
-def massInspect(outfile):
-# clear file
+# ====== DIRECTORY INSPECTION TASK CONFIGURATION
+def taskInspect(outfile):
+    global tasks, outlines
+
+# clear the output file
     f = open(outfile, 'w')
     f.close()
 
-    res = massProcess(inspectJob, (outfile))
-    if not res:
-        return False
+# configure this task
+    tasks.append({'f': inspectJob, 'params': (outfile), 'f_end': sortFile})
+
+    return True
 
 # read in and sort lines (to order records by index), then overwrite
+def sortFile(params):
+    (outfile) = params
+
     f = open(outfile, 'r')
     lines = f.readlines()
     f.close()
@@ -583,6 +604,7 @@ def usage():
     print(f"INSPECT -- {name} i dest outfile")                  # inspect dir
 
 
+# TODO: redo commands to allow for multiple tasks on the same destination
 # ====== SCRIPT INVOCATION ROUTINE
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -609,26 +631,31 @@ if __name__ == '__main__':
 # Mass Expansion Modes
     elif mode == 'x':
         srcDir = sys.argv[3]
-        massExpand(srcDir, True, True)
+        taskExpand(srcDir, True, True)
+        massProcess()
 
     elif mode == 's':
         srcDir = sys.argv[3]
-        massExpand(srcDir, True, False)
+        taskExpand(srcDir, True, False)
+        massProcess()
 
     elif mode == 'm':
         srcDir = sys.argv[3]
-        massExpand(srcDir, False, True)
+        taskExpand(srcDir, False, True)
+        massProcess()
 
 # Mass Weeding
     elif mode == 'w':
         minM = int(sys.argv[3])
         maxM = int(sys.argv[4])
-        massWeed(minM, maxM)
+        taskWeed(minM, maxM)
+        massProcess()
 
 # Directory Inspection
     elif mode == 'i':
         outfile = sys.argv[3]
-        massInspect(outfile)
+        taskInspect(outfile)
+        massProcess()
 
     else:
         usage()
