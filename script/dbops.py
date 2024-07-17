@@ -595,24 +595,73 @@ def sortFile(params):
 # script usage message
 def usage():
     name = sys.argv[0]
-    print("Usage:")
-    print(f"CREATE  -- {name} c dest N minM maxM maxRecSize")   # create a dir
-    print(f"EXPAND  -- {name} x dest src")                      # expand dir to dir
-    print(f"SUPERS  -- {name} s dest src")                      # expand dir to dir (only supersets)
-    print(f"MUTATE  -- {name} m dest src")                      # expand dir to dir (only mutations)
-    print(f"WEED    -- {name} w dest minM maxM")                # weed dir
-    print(f"INSPECT -- {name} i dest outfile")                  # inspect dir
+    print("Usage: {name} dest [task1] [task2] ...")
+    print("Tasks can be configured this way:")
+    print(f"CREATE  -- c N minM maxM maxRecSize")   # create a dir
+    print(f"EXPAND  -- x src")                      # expand dir to dir
+    print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
+    print(f"MUTATE  -- m src")                      # expand dir to dir (only mutations)
+    print(f"WEED    -- w minM maxM")                # weed dir
+    print(f"INSPECT -- i outfile")                  # inspect dir
 
+    return True
 
-# TODO: redo commands to allow for multiple tasks on the same destination
+# interpret and configure a task from the command line arguments
+# returns number of arguments used, or 0 if invalid
+def interpretTask(argIdx):
+    taskArgs = sys.argv[argIdx:]
+    argsRemaining = len(taskArgs)
+    mode = taskArgs[0]
+
+# Create a Directory
+    if mode == 'c' and argsRemaining >= 5:
+        N = int(taskArgs[1])
+        minM = int(taskArgs[2])
+        maxM = int(taskArgs[3])
+        maxRecSize = int(taskArgs[4])
+        createDir(N, minM, maxM, maxRecSize, destDir)
+        return 5
+
+# Mass Expansion Modes
+    elif mode == 'x' and argsRemaining >= 2:
+        srcDir = taskArgs[1]
+        taskExpand(srcDir, True, True)
+        return 2
+
+    elif mode == 's' and argsRemaining >= 2:
+        srcDir = taskArgs[1]
+        taskExpand(srcDir, True, False)
+        return 2
+
+    elif mode == 'm' and argsRemaining >= 2:
+        srcDir = taskArgs[1]
+        taskExpand(srcDir, False, True)
+        return 2
+
+# Mass Weeding
+    elif mode == 'w' and argsRemaining >= 3:
+        minM = int(taskArgs[1])
+        maxM = int(taskArgs[2])
+        taskWeed(minM, maxM)
+        return 3
+
+# Directory Inspection
+    elif mode == 'i' and argsRemaining >= 2:
+        outfile = taskArgs[1]
+        taskInspect(outfile)
+        return 2
+
+# Invalid Task Character
+    else:
+        return 0
+
 # ====== SCRIPT INVOCATION ROUTINE
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         usage()
         sys.exit(1)
 
-    mode = sys.argv[1]
-    destDir = sys.argv[2]
+    destDir = sys.argv[1]
 
 # there's a config in the invocation directory, read it in if it exists and then write one back
 # out with everything just 'cuz, then there might be special configs for the record directory
@@ -620,45 +669,18 @@ if __name__ == '__main__':
     writeConfigs("config.json")
     readConfigs(f"{destDir}/config.json")
 
-# Create a Directory
-    if mode == 'c':
-        N = int(sys.argv[3])
-        minM = int(sys.argv[4])
-        maxM = int(sys.argv[5])
-        maxRecSize = int(sys.argv[6])
-        createDir(N, minM, maxM, maxRecSize, destDir)
+    nextArg = 2
 
-# Mass Expansion Modes
-    elif mode == 'x':
-        srcDir = sys.argv[3]
-        taskExpand(srcDir, True, True)
-        massProcess()
+# interpret task commands while we still have arguments
+    while nextArg < len(sys.argv):
+        adv = interpretTask(nextArg)
+        if adv:
+            nextArg += adv
+        else:
+            usage()
+            sys.exit(1)
 
-    elif mode == 's':
-        srcDir = sys.argv[3]
-        taskExpand(srcDir, True, False)
-        massProcess()
-
-    elif mode == 'm':
-        srcDir = sys.argv[3]
-        taskExpand(srcDir, False, True)
-        massProcess()
-
-# Mass Weeding
-    elif mode == 'w':
-        minM = int(sys.argv[3])
-        maxM = int(sys.argv[4])
-        taskWeed(minM, maxM)
-        massProcess()
-
-# Directory Inspection
-    elif mode == 'i':
-        outfile = sys.argv[3]
-        taskInspect(outfile)
-        massProcess()
-
-    else:
-        usage()
-        sys.exit(1)
+# run the Mass Processing Routine
+    massProcess()
 
     sys.exit(0)
