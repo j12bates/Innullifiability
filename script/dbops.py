@@ -202,7 +202,8 @@ def getRecFname(dirname, idx):
 
     for rec in os.listdir(dirname):
         if rec.split('_')[0] == f"{idx:04d}":
-            return f"{dirname}/{rec}"
+            file = f"{dirname}/{rec}"
+            return decompress(file)
 
     return False
 
@@ -497,6 +498,11 @@ def massProcess():
         for i in range(JOBS_PER_NODE):
             th[node][i].join()
 
+    with jobIdxLock:
+        error = stop
+    if error:
+        return False
+
 # run end routines for tasks in sequence
     for task in tasks:
         if 'f_end' in task:
@@ -509,14 +515,12 @@ def massProcess():
     f.writelines([line + '\n' for line in outlines])
     f.close()
 
-    with jobIdxLock:
-        error = stop
+    os.system(f"rm {progFile}")
 
-    if not error:
-        os.system(f"rm {progFile}")
+    return True
 
-    return not error
-
+# TODO: verify tasks are valid before entering the configurations
+# like srcN + 1 = destN, minM <= maxM...
 # ====== EXPANSION TASK CONFIGURATION
 def taskExpand(srcDir, supers, mutate):
     global tasks, outlines
@@ -619,7 +623,11 @@ def interpretTask(argIdx):
         minM = int(taskArgs[2])
         maxM = int(taskArgs[3])
         maxRecSize = int(taskArgs[4])
-        createDir(N, minM, maxM, maxRecSize, destDir)
+
+        res = createDir(N, minM, maxM, maxRecSize, destDir)
+        if not res:
+            sys.exit(1)
+
         return 5
 
 # Mass Expansion Modes
@@ -681,6 +689,6 @@ if __name__ == '__main__':
             sys.exit(1)
 
 # run the Mass Processing Routine
-    massProcess()
+    res = massProcess()
 
-    sys.exit(0)
+    sys.exit(not res)
