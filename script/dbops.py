@@ -161,6 +161,7 @@ def getRange(fname):
 
     return (N, minM, maxM, fixed)
 
+# TODO: figure out integrating this with mass processing, multithreading
 # ====== CREATE DIRECTORY
 # automatically generate a directory of records with M-range
 def createDir(N, minM, maxM, maxRecSize, dirname):
@@ -203,7 +204,7 @@ def getRecFname(dirname, idx):
     for rec in os.listdir(dirname):
         if rec.split('_')[0] == f"{idx:04d}":
             file = f"{dirname}/{rec}"
-            return decompress(file)
+            return file
 
     return False
 
@@ -376,6 +377,8 @@ nextJobIdx = 0
 stop = False
 jobIdxLock = threading.Lock()
 
+recN = 0
+
 # these are global variables for task
 destDir = ""
 tasks = []
@@ -519,8 +522,28 @@ def massProcess():
 
     return True
 
-# TODO: verify tasks are valid before entering the configurations
-# like srcN + 1 = destN, minM <= maxM...
+# Read Directory Parameters from Log
+# (N, minM, maxM, swept)
+def readLog(dirname):
+    fname = f"{dirname}/log"
+    if not os.path.isfile(fname):
+        return None
+
+    f = open(fname, 'r')
+    lines = [line.strip() for line in f.readlines()]
+    f.close()
+
+# M-range
+    params = lines[0].split(' ')
+    N = int(params[1].split('_')[1])
+    minM = int(params[2].split('_')[1])
+    maxM = int(params[2].split('_')[2])
+
+# Swept status
+    swept = "SWEPT" in lines
+
+    return (N, minM, maxM, swept)
+
 # ====== EXPANSION TASK CONFIGURATION
 def taskExpand(srcDir, supers, mutate):
     global tasks, outlines
@@ -528,19 +551,15 @@ def taskExpand(srcDir, supers, mutate):
 # configure this task
     tasks.append({'f': expandJob, 'params': (srcDir, supers, mutate)})
 
-# read log from source
-    f = open(f"{srcDir}/log", 'r')
-    inlines = [line.strip() for line in f.readlines()]
-    f.close()
-
-# search for the (manually added) swept marker in source
-    swept = "SWEPT" in inlines
-
-# get source N, M-range
-    params = inlines[0].split(' ')
-    N = params[1].split('_')[1]
-    minM = params[2].split('_')[1]
-    maxM = params[2].split('_')[2]
+# check if parameters are fine
+    res = readLog(srcDir)
+    if not res:
+        print(f"Invalid Source Directory {srcDir}")
+        return False
+    (N, minM, maxM, swept) = res
+    if N + 1 != recN:
+        print(f"Task Parameters Invalid [Expand from {srcDir}]")
+        return False
 
 # set up new lines to output into the destination log
     logline = f"M_{minM}_{maxM} [from {srcDir}]"
@@ -560,6 +579,11 @@ def taskWeed(minM, maxM):
 
 # configure this task
     tasks.append({'f': weedJob, 'params': (minM, maxM)})
+
+# check if parameters are fine
+    if minM > maxM and maxM != 0:
+        print(f"Task Parameters Invalid [Weed in {minM}-{maxM}]")
+        return False
 
 # set up a new line to output into the destination log
     outlines = [f"WEED: M_{minM}_{maxM}"]
@@ -601,7 +625,7 @@ def usage():
     name = sys.argv[0]
     print("Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
-    print(f"CREATE  -- c N minM maxM maxRecSize")   # create a dir
+    print(f"CREATE  -- c N minM maxM maxRecSize [MUST BE FIRST]")   # create a dir
     print(f"EXPAND  -- x src")                      # expand dir to dir
     print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
     print(f"MUTATE  -- m src")                      # expand dir to dir (only mutations)
@@ -613,9 +637,15 @@ def usage():
 # interpret and configure a task from the command line arguments
 # returns number of arguments used, or 0 if invalid
 def interpretTask(argIdx):
+    global recN
+
     taskArgs = sys.argv[argIdx:]
     argsRemaining = len(taskArgs)
     mode = taskArgs[0]
+
+    res = readLog(destDir)
+    if res:
+        (recN, _, _, _) = res
 
 # Create a Directory
     if mode == 'c' and argsRemaining >= 5:
@@ -633,34 +663,35 @@ def interpretTask(argIdx):
 # Mass Expansion Modes
     elif mode == 'x' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        taskExpand(srcDir, True, True)
-        return 2
+        res = taskExpand(srcDir, True, True)
+        return 2 * res
 
     elif mode == 's' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        taskExpand(srcDir, True, False)
-        return 2
+        res = taskExpand(srcDir, True, False)
+        return 2 * res
 
     elif mode == 'm' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        taskExpand(srcDir, False, True)
-        return 2
+        res = taskExpand(srcDir, False, True)
+        return 2 * res
 
 # Mass Weeding
     elif mode == 'w' and argsRemaining >= 3:
         minM = int(taskArgs[1])
         maxM = int(taskArgs[2])
-        taskWeed(minM, maxM)
-        return 3
+        res = taskWeed(minM, maxM)
+        return 3 * res
 
 # Directory Inspection
     elif mode == 'i' and argsRemaining >= 2:
         outfile = taskArgs[1]
-        taskInspect(outfile)
-        return 2
+        res = taskInspect(outfile)
+        return 2 * res
 
 # Invalid Task Character
     else:
+        print(f"Invalid Task Character {mode}")
         return 0
 
 # ====== SCRIPT INVOCATION ROUTINE
@@ -670,6 +701,9 @@ if __name__ == '__main__':
         sys.exit(1)
 
     destDir = sys.argv[1]
+    if not os.path.isdir(destDir):
+        print(f"Nonexistent Target Directory {destDir}")
+        sys.exit(1)
 
 # there's a config in the invocation directory, read it in if it exists and then write one back
 # out with everything just 'cuz, then there might be special configs for the record directory
