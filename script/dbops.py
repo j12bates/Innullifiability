@@ -3,197 +3,17 @@
 # Copyright (c) 2024, Jacob Bates
 # SPDX-License-Identifier: BSD-2-Clause
 
-# CONSTANTS/CONFIGS
-
-# Hardware
-THREADS_PER_NODE = 6
-NODES = 1
-
-# Execution
-JOBS_PER_NODE = 2
-THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
-
-# Record Directory
-COMPRESSION = False
-NO_SUPERS_MARK = False
-
-# Path to Util Binaries
-BIN_DIR = "./bin"
-
 import math
 import os
 import subprocess
 import sys
 import threading
-import json
+from command import *
+from configs import *
 
 # TODO: ensure all errors are caught, all programs interrupt nicely and such, we want good behaviour
 
 # TODO: progress tracking on the individual record level, progress indicators (multiple levels?)
-
-# convert argument list (for subprocess) to shell command
-# basically just put quote-marks about arguments containing whitespace, and place explicit empty
-# strings
-def argsToCmd(args):
-    newArgs = []
-    for arg in args:
-        newArg = arg if (' ' not in arg and arg != "") else f"\"{arg}\""
-        newArgs.append(newArg)
-    return ' '.join(newArgs)
-
-# read in configurations from a JSON file
-# config files can have three segments, and any which are configured will be loaded in to update
-# what already exists. thus files can be loaded in sequentially to have a default which can be
-# superseded
-def readConfigs(confFile):
-    global THREADS_PER_NODE, NODES, COMPRESSION, NO_SUPERS_MARK, JOBS_PER_NODE, BIN_DIR
-    global THREADS_PER_JOB
-
-    if os.path.isfile(confFile):
-        with open(confFile) as raw:
-            configs = json.load(raw)
-        if 'hw' in configs:
-            THREADS_PER_NODE = configs['hw']['threadsPerNode']
-            NODES = configs['hw']['numaNodes']
-        if 'dir' in configs:
-            COMPRESSION = configs['dir']['compressionLevel']
-            NO_SUPERS_MARK = configs['dir']['oneBitMarking']
-        if 'exec' in configs:
-            JOBS_PER_NODE = configs['exec']['jobsPerNode']
-            BIN_DIR = configs['exec']['utilBinDir']
-
-    THREADS_PER_JOB = THREADS_PER_NODE // JOBS_PER_NODE + 1
-
-    return True
-
-# write configurations to a JSON file
-def writeConfigs(confFile):
-    configs = {}
-    configs['hw'] = {'threadsPerNode': THREADS_PER_NODE, 'numaNodes': NODES}
-    configs['dir'] = {'compressionLevel': COMPRESSION, 'oneBitMarking': NO_SUPERS_MARK}
-    configs['exec'] = {'jobsPerNode': JOBS_PER_NODE, 'utilBinDir': BIN_DIR}
-
-    f = open(confFile, 'w')
-    f.write(json.dumps(configs, indent=4) + '\n')
-    f.close()
-
-    return True
-
-# compute the size of a range (number of sets)
-def recSize(N, minM, maxM, fixed):
-    k = N - len(fixed)
-    return math.comb(maxM, k) - math.comb(max(0, minM - 1), k)
-
-# returns (N, minM, maxM, fixed), or False if no successor
-# This will take in the range info from the previous record, and figure out a successor range, as
-# large as possible while keeping to a size restriction.
-def nextRange(N, lastM, lastFixed, limitM, maxRecSize):
-    nextFixed = lastFixed
-    nextMinM = lastM + 1
-
-# if we've come to the end of the range, end here
-    if nextMinM > limitM:
-        return False
-
-# if this fixed value has run its course, break it back into an M-value and proceed
-    if len(lastFixed) != 0:
-        if nextMinM == lastFixed[0]:
-            nextFixed = nextFixed[1:]
-            return nextRange(N, nextMinM, nextFixed, limitM, maxRecSize)
-
-# if a range of one M-value would exceed the size limit, make it a fixed value instead and proceed
-# like it's a smaller set
-    if recSize(N, nextMinM, nextMinM, nextFixed) > maxRecSize:
-        nextFixed = [nextMinM] + lastFixed
-        return nextRange(N, 0, nextFixed, limitM, maxRecSize)
-
-# enumerate max M-values until we'd exceed the size limit
-    nextMaxM = nextMinM
-    for i in range(nextMinM, (nextFixed + [limitM + 1])[0]):
-        if recSize(N, nextMinM, i, nextFixed) <= maxRecSize:
-            nextMaxM = i
-        else:
-            break
-
-    return (N, nextMinM, nextMaxM, nextFixed)
-
-# create a blank record file from given range
-def createRec(N, minM, maxM, fixed, destDir, idx):
-    k = N - len(fixed)
-    fixedArr = [str(n) for n in fixed]
-    fname = f"{destDir}/{idx:04d}_rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
-
-    args = [f"{BIN_DIR}/create", str(k), str(minM), str(maxM), str(len(fixed)),
-            f"{' '.join(fixedArr)}", fname]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-
-    return None if fail else fname
-
-# take a record filename and extract the range information
-def getRange(fname):
-    not_a_rec = (0, 0, 0, [])
-
-# "directory/rec_N_minM-maxM_f1,f2.dat" -> ["rec_N_minM-maxM_f1,f2", "dat"]
-    segments = fname.split('/')[-1].split('.')
-    if len(segments) != 2:
-        return not_a_rec
-    if segments[1] != 'dat':
-        return not_a_rec
-
-# "rec_N_minM-maxM_f1,f2" -> ["rec", "N", "minM-maxM", "f1,f2"]
-    attrs = segments[0].split('_')
-    if len(attrs) != 5:
-        return not_a_rec
-    if attrs[1] != 'rec':
-        return not_a_rec
-
-    N = int(attrs[2])
-    fixed = [int(n) for n in attrs[4].split(',') if n != '']
-
-    MRange = attrs[3].split('-')
-    if len(MRange) != 2:
-        return not_a_rec
-    minM = int(MRange[0])
-    maxM = int(MRange[1])
-    if minM > maxM:
-        return not_a_rec
-
-    return (N, minM, maxM, fixed)
-
-# TODO: figure out integrating this with mass processing, multithreading
-# ====== CREATE DIRECTORY
-# automatically generate a directory of records with M-range
-def createDir(N, minM, maxM, maxRecSize, dirname):
-    os.mkdir(dirname)
-
-# generate successive ranges and create records until we get through the range we're given
-    idx = 0
-    fixed = []
-    (recMinM, recMaxM, limitM) = (0, minM - 1, maxM)
-    while True:
-        res = nextRange(N, recMaxM, fixed, limitM, maxRecSize)
-        if not res:
-            break
-        (N, recMinM, recMaxM, fixed) = res
-
-        file = createRec(N, recMinM, recMaxM, fixed, dirname, idx)
-        if not file:
-            return False
-
-        res = compress(file, THREADS_PER_NODE, 0)
-        if not res:
-            return False
-
-        idx += 1
-
-# create base log file
-    outlines = [f"INST: N_{N} M_{minM}_{maxM}"]
-    f = open(f"{dirname}/log", 'w')
-    f.writelines([line + '\n' for line in outlines])
-    f.close()
-
-    return True
 
 # ====== GET RECORD FILENAME BY INDEX
 # returns false if index is beyond bound or invalid
@@ -224,76 +44,6 @@ def countInANotInB(recA, recB):
         count += 1
 
     return count
-
-# TODO: get rid of the unused threads parameter
-# ====== COMMAND EXECUTION
-# command words for NUMA job
-def numajob(node):
-    return ["numactl", f"--cpunodebind={node}", f"--membind={node}", "--"]
-
-# decompress a compressed file
-# return decompressed filename, or False on error
-def decompress(file, threads, node):
-    segments = file.split('.')
-    if segments[-1] != "xz":
-        return file
-
-    args = numajob(node) + ["xz", "-T", str(threads), "-d", file]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-    if fail:
-        return False
-
-    file = '.'.join(segments[:-1])
-    return file
-
-# compress a non-compressed file
-# returns success boolean
-def compress(file, threads, node):
-    if COMPRESSION == False:
-        return True
-
-    args = numajob(node) + ["xz", f"-{COMPRESSION}", "-T", str(threads), file]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-    return not fail
-
-# run the expansion process, Generation util
-# returns success boolean
-def expand(src, dest, supers, mutate, threads, node):
-    (srcN, _, _, _) = getRange(src)
-    if not supers and not mutate:
-        return True
-
-    opts = '-' + ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
-    args = numajob(node) + [f"{BIN_DIR}/gen", opts, str(srcN), src, dest, str(threads)]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-    return not fail
-
-# run the weeding process, Weed util
-# returns success boolean
-def weed(dest, minM, maxM, threads, node):
-    (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{BIN_DIR}/weed", str(destN), dest,
-            str(minM), str(maxM), str(threads)]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-    return not fail
-
-# inspect a singular record, Evaluate util
-# returns number of sets, -1 on error
-def inspect(dest, node):
-    (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{BIN_DIR}/eval", "-s", str(destN), dest]
-    print(argsToCmd(args))
-    try:
-        out = subprocess.check_output(args, text=True)
-        count = int(out.split(' ')[0])
-    except e:
-        return -1
-    else:
-        return count
 
 # ====== JOBS
 # these jobs are called by worker threads, and they do an operation on a destination record.
@@ -625,7 +375,6 @@ def usage():
     name = sys.argv[0]
     print("Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
-    print(f"CREATE  -- c N minM maxM maxRecSize [MUST BE FIRST]")   # create a dir
     print(f"EXPAND  -- x src")                      # expand dir to dir
     print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
     print(f"MUTATE  -- m src")                      # expand dir to dir (only mutations)
@@ -647,21 +396,8 @@ def interpretTask(argIdx):
     if res:
         (recN, _, _, _) = res
 
-# Create a Directory
-    if mode == 'c' and argsRemaining >= 5:
-        N = int(taskArgs[1])
-        minM = int(taskArgs[2])
-        maxM = int(taskArgs[3])
-        maxRecSize = int(taskArgs[4])
-
-        res = createDir(N, minM, maxM, maxRecSize, destDir)
-        if not res:
-            sys.exit(1)
-
-        return 5
-
 # Mass Expansion Modes
-    elif mode == 'x' and argsRemaining >= 2:
+    if mode == 'x' and argsRemaining >= 2:
         srcDir = taskArgs[1]
         res = taskExpand(srcDir, True, True)
         return 2 * res
