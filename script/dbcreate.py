@@ -95,7 +95,6 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
 # ====== SCRIPT INVOCATION ROUTINE
 if __name__ == '__main__':
     if len(sys.argv) != 6:
-        usage()
         print(f"Usage: {sys.argv[0]} dest N minM maxM maxSize")
         sys.exit(1)
 

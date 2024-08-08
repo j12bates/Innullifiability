@@ -103,19 +103,26 @@ def weedJob(params, dest, threads, node):
     (minM, maxM) = params
     return weed(dest, minM, maxM, threads, node)
 
-# writes one record inspection result to output file
+# writes one record inspection result to the working file
 def inspectJob(params, dest, threads, node):
     (outfile) = params
 
+# count number of sets in the record
     count = inspect(dest, node)
     if count == -1:
         return False
-
     shortFname = dest.split('/')[-1]
-    line = f"{shortFname:<32} -- {count:>12}\n"
+    lines = [f"Rec {shortFname:<32} -- {count:>12}"]
 
-    f = open(outfile, 'a')
-    f.writelines([line])
+# count number of sets per M-value in the record
+    tableM = inspectByM(dest, node)
+    for M in tableM:
+        lines += [f"ZpartM {M:>4} {shortFname:<32} -- {tableM[M]:>12}"]
+
+# write this to the working file (preserved on task interruption), not the output file
+    workfile = f"{outfile}.working"
+    f = open(workfile, 'a')
+    f.writelines([line + '\n' for line in lines])
     f.close()
 
     return True
@@ -351,21 +358,22 @@ def taskInspect(outfile):
     f.close()
 
 # configure this task
-    tasks.append({'f': inspectJob, 'params': (outfile), 'f_end': sortFile})
+    tasks.append({'f': inspectJob, 'params': (outfile), 'f_end': finalizeInspection})
 
     return True
 
-# read in and sort lines (to order records by index), then overwrite
-def sortFile(params):
+# take the working file for inspection and translate it into a nice readable inspection file
+def finalizeInspection(params):
     (outfile) = params
+    workfile = f"{outfile}.working"
 
-    f = open(outfile, 'r')
+    f = open(workfile, 'r')
     lines = f.readlines()
     f.close()
     lines.sort()
 
     f = open(outfile, 'w')
-    f.writelines([line for line in lines])
+    f.writelines(lines)
     f.close()
 
     return True

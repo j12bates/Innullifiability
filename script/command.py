@@ -109,7 +109,27 @@ def inspect(dest, node):
     try:
         out = subprocess.check_output(args, text=True)
         count = int(out.split(' ')[0])
-    except e:
+    except:
         return -1
     else:
         return count
+
+# returns a dictionary of all valid M-values mapped to number of sets for each
+def inspectByM(dest, node):
+    (destN, minM, maxM, fixed) = getRange(dest)
+    if fixed:
+        minM = maxM = fixed[-1]
+    table = {}
+    for M in range(minM, maxM + 1):
+        args1 = numajob(node) + [f"{BIN_DIR}/eval", str(destN), dest]
+        args2 = ["grep", "-c", f" {M}$"]
+        print(argsToCmd(args1 + ["|"] + args2))
+
+        rawSets = subprocess.Popen(args1, stdout=subprocess.PIPE)
+        count = subprocess.run(args2,
+                stdin=rawSets.stdout, stdout=subprocess.PIPE, text=True)
+        rawSets.wait()
+
+        table[M] = int(count.stdout)
+
+    return table
