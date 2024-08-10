@@ -112,12 +112,13 @@ def inspectJob(params, dest, threads, node):
     if count == -1:
         return False
     shortFname = dest.split('/')[-1]
-    lines = [f"Rec {shortFname:<32} -- {count:>12}"]
+    lines = [f"Rec    ---- {shortFname:<32} -- {count:>12}"]
 
 # count number of sets per M-value in the record
     tableM = inspectByM(dest, node)
     for M in tableM:
-        lines += [f"ZpartM {M:>4} {shortFname:<32} -- {tableM[M]:>12}"]
+        count = tableM[M]
+        lines += [f"ZpartM {M:>4} {shortFname:<32} -- {count:>12}"]
 
 # write this to the working file (preserved on task interruption), not the output file
     workfile = f"{outfile}.working"
@@ -362,19 +363,57 @@ def taskInspect(outfile):
 
     return True
 
-# take the working file for inspection and translate it into a nice readable inspection file
+# take the working file for inspection and translate it into a nice readable output file
 def finalizeInspection(params):
     (outfile) = params
     workfile = f"{outfile}.working"
 
+# read in data from the working file, process through it all
     f = open(workfile, 'r')
-    lines = f.readlines()
+    lines = [line.strip() for line in f.readlines()]
     f.close()
-    lines.sort()
 
+    seenSignatures = []
+    finalLines = []
+    tableM = {}
+    for line in lines:
+        tokens = line.split()
+        signature = ' '.join(tokens[0:3])
+
+# we don't want to show a 'Rec' line twice or double-count sets... we could have line duplicates
+# from an interruption/resumption
+        if signature in seenSignatures:
+            continue
+        seenSignatures.append(signature)
+
+# record counts are good to go
+        if tokens[0] == "Rec":
+            finalLines.append(line)
+
+# sum together M-value counts across all records
+        elif tokens[0] == "ZpartM":
+            M = tokens[1]
+            count = int(tokens[4])
+            if not M in tableM:
+                tableM[M] = 0
+            tableM[M] += count
+
+# enter a total count line for each M-value concerned
+    for M in tableM:
+        count = tableM[M]
+        finalLines.append(f"M {M:>4} -- {count:>12}")
+
+# dividing lines
+    finalLines.append("A===== M-VALUE COUNTS ======")
+    finalLines.append("P===== RECORD COUNTS =======")
+
+# sort lines and write them to the final output file
+    finalLines.sort()
     f = open(outfile, 'w')
-    f.writelines(lines)
+    f.writelines([line + '\n' for line in finalLines])
     f.close()
+
+    os.system(f"rm {workfile}")
 
     return True
 
