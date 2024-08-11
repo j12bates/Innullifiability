@@ -344,15 +344,17 @@ def taskWeed(minM, maxM):
         return False
 
 # set up a new line to output into the destination log
-    outlines = [f"WEED: M_{minM}_{maxM}"]
+    logline = f"WEED: M_{minM}_{maxM}"
     if maxM == 0:
-        outlines[0] += " INDEF MAX"
+        logline += " INDEF MAX"
+    outlines += [logline]
 
     return True
 
 # ====== DIRECTORY INSPECTION TASK CONFIGURATION
-def taskInspect(outfile):
+def taskInspect(fileid):
     global tasks, outlines
+    outfile = f"{destDir}/insp-{fileid}.txt"
 
 # clear the output file
     f = open(outfile, 'w')
@@ -426,7 +428,7 @@ def usage():
     print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
     print(f"MUTATE  -- m src")                      # expand dir to dir (only mutations)
     print(f"WEED    -- w minM maxM")                # weed dir
-    print(f"INSPECT -- i outfile")                  # inspect dir
+    print(f"INSPECT -- i fileID")                   # inspect dir
 
     return True
 
@@ -468,8 +470,8 @@ def interpretTask(argIdx):
 
 # Directory Inspection
     elif mode == 'i' and argsRemaining >= 2:
-        outfile = taskArgs[1]
-        res = taskInspect(outfile)
+        fileid = taskArgs[1]
+        res = taskInspect(fileid)
         return 2 * res
 
 # Invalid Task Character
