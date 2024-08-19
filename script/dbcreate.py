@@ -6,7 +6,7 @@
 import math
 import sys
 from command import *
-from configs import *
+import configs
 
 # compute the size of a range (number of sets)
 def recSize(N, minM, maxM, fixed):
@@ -52,7 +52,7 @@ def createRec(N, minM, maxM, fixed, destDir, idx):
     fixedArr = [str(n) for n in fixed]
     fname = f"{destDir}/{idx:04d}_rec_{N}_{minM}-{maxM}_{','.join(fixedArr)}.dat"
 
-    args = [f"{BIN_DIR}/create", str(k), str(minM), str(maxM), str(len(fixed)),
+    args = [f"{configs.BIN_DIR}/create", str(k), str(minM), str(maxM), str(len(fixed)),
             f"{' '.join(fixedArr)}", fname]
     print(argsToCmd(args))
     fail = subprocess.call(args)
@@ -98,8 +98,8 @@ if __name__ == '__main__':
         print(f"Usage: {sys.argv[0]} dest N minM maxM maxSize")
         sys.exit(1)
 
-    readConfigs("config.json")
-    writeConfigs("config.json")
+    configs.readConfigs("config.json")
+    configs.writeConfigs("config.json")
 
     dirname = sys.argv[1]
     N = int(sys.argv[2])
