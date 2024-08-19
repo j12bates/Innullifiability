@@ -1,5 +1,5 @@
 import subprocess
-from configs import *
+import configs
 
 # COMMANDS
 
@@ -52,12 +52,12 @@ def numajob(node):
 
 # decompress a compressed file
 # return decompressed filename, or False on error
-def decompress(file, threads, node):
+def decompress(file, node):
     segments = file.split('.')
     if segments[-1] != "xz":
         return file
 
-    args = numajob(node) + ["xz", "-T", str(threads), "-d", file]
+    args = numajob(node) + ["xz", "-T", str(configs.THREADS_PER_JOB), "-d", file]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     if fail:
@@ -68,34 +68,36 @@ def decompress(file, threads, node):
 
 # compress a non-compressed file
 # returns success boolean
-def compress(file, threads, node):
-    if COMPRESSION == False:
+def compress(file, node):
+    cmpLevel = configs.COMPRESSION
+    if cmpLevel == False:
         return True
 
-    args = numajob(node) + ["xz", f"-{COMPRESSION}", "-T", str(threads), file]
+    args = numajob(node) + ["xz", f"-{cmpLevel}", "-T", str(configs.THREADS_PER_JOB), file]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
 
 # run the expansion process, Generation util
 # returns success boolean
-def expand(src, dest, supers, mutate, threads, node):
+def expand(src, dest, supers, mutate, node):
     (srcN, _, _, _) = getRange(src)
     if not supers and not mutate:
         return True
 
-    opts = '-' + ('b' if NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
-    args = numajob(node) + [f"{BIN_DIR}/gen", opts, str(srcN), src, dest, str(threads)]
+    opts = '-' + ('b' if configs.NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
+    args = numajob(node) + [f"{configs.BIN_DIR}/gen", opts, str(srcN), src, dest,
+            str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
 
 # run the weeding process, Weed util
 # returns success boolean
-def weed(dest, minM, maxM, threads, node):
+def weed(dest, minM, maxM, node):
     (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{BIN_DIR}/weed", str(destN), dest,
-            str(minM), str(maxM), str(threads)]
+    args = numajob(node) + [f"{configs.BIN_DIR}/weed", str(destN), dest, str(minM), str(maxM),
+            str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
@@ -104,7 +106,7 @@ def weed(dest, minM, maxM, threads, node):
 # returns number of sets, -1 on error
 def inspect(dest, node):
     (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{BIN_DIR}/eval", "-s", str(destN), dest]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest]
     print(argsToCmd(args))
     try:
         out = subprocess.check_output(args, text=True)
@@ -121,7 +123,7 @@ def inspectByM(dest, node):
         minM = maxM = fixed[-1]
     table = {}
     for M in range(minM, maxM + 1):
-        args1 = numajob(node) + [f"{BIN_DIR}/eval", str(destN), dest]
+        args1 = numajob(node) + [f"{configs.BIN_DIR}/eval", str(destN), dest]
         args2 = ["grep", "-c", f" {M}$"]
         print(argsToCmd(args1 + ["|"] + args2))
 

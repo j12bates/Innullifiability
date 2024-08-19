@@ -78,7 +78,7 @@ def createDir(N, minM, maxM, maxRecSize, dirname):
         if not file:
             return False
 
-        res = compress(file, THREADS_PER_NODE, 0)
+        res = compress(file, 0)
         if not res:
             return False
 

@@ -8,8 +8,9 @@ import os
 import subprocess
 import sys
 import threading
+
 from command import *
-from configs import *
+import configs
 
 # TODO: ensure all errors are caught, all programs interrupt nicely and such, we want good behaviour
 
@@ -51,7 +52,7 @@ def countInANotInB(recA, recB):
 # the same argument format.
 
 # expand a directory completely into a single record file
-def expandJob(params, dest, threads, node):
+def expandJob(params, dest, node):
     (srcDir, supers, mutate) = params
 
     srcIdx = 0
@@ -90,7 +91,7 @@ def expandJob(params, dest, threads, node):
 
 # run the appropriate command
         res = expand(src, dest, supers and not skip_supers,
-                     mutate and not skip_mutate, threads, node)
+                     mutate and not skip_mutate, node)
         if not res:
             return False
 
@@ -99,12 +100,12 @@ def expandJob(params, dest, threads, node):
     return True
 
 # perform a weeding of a single record
-def weedJob(params, dest, threads, node):
+def weedJob(params, dest, node):
     (minM, maxM) = params
-    return weed(dest, minM, maxM, threads, node)
+    return weed(dest, minM, maxM, node)
 
 # writes one record inspection result to the working file
-def inspectJob(params, dest, threads, node):
+def inspectJob(params, dest, node):
     (outfile) = params
 
 # count number of sets in the record
@@ -161,7 +162,7 @@ def massWorker(node, wkr):
                 break
 
 # decompress if necessary
-        dest = decompress(dest, THREADS_PER_JOB, node)
+        dest = decompress(dest, node)
         if not dest:
             return False
 
@@ -171,11 +172,11 @@ def massWorker(node, wkr):
             f = task['f']
             params = task['params']
             if res:
-                res = f(params, dest, THREADS_PER_JOB, node)
+                res = f(params, dest, node)
 
 # re-compress if/as configured
         if res:
-            res = compress(dest, THREADS_PER_JOB, node)
+            res = compress(dest, node)
 
 # set up for the next job, mark this as done (we might have to break), save progress
         with jobIdxLock:
@@ -195,7 +196,7 @@ def massProgDump():
     outlines = []
     with jobIdxLock:
         outlines = [str(nextJobIdx)]
-        for node in range(NODES):
+        for node in range(configs.NODES):
             outlines += [' '.join([str(idx) for idx in workerJobIdxs[node]])]
 
 # dump to progress file
@@ -215,7 +216,7 @@ def massProgLoad():
 # enter data into global variables
     with jobIdxLock:
         nextJobIdx = int(inlines[0])
-        for node in range(NODES):
+        for node in range(configs.NODES):
             workerJobIdxs[node] = [int(s) for s in inlines[node + 1].split(' ')]
 
 # ====== MASS PROCESSING
@@ -224,9 +225,10 @@ def massProgLoad():
 # mass expansion or mass weeding.
 def massProcess():
     global th, workerJobIdxs, nextJobIdx, stop, jobIdxLock, destDir
-    th = [[0 for _ in range(JOBS_PER_NODE)] for _ in range(NODES)]
-    workerJobIdxs = [[NODES * wkr + node for wkr in range(JOBS_PER_NODE)] for node in range(NODES)]
-    nextJobIdx = NODES * JOBS_PER_NODE
+    nodes, wkrsEach = configs.NODES, configs.JOBS_PER_NODE
+    th = [[0 for _ in range(wkrsEach)] for _ in range(nodes)]
+    workerJobIdxs = [[nodes * wkr + node for wkr in range(wkrsEach)] for node in range(nodes)]
+    nextJobIdx = nodes * wkrsEach
     stop = False
 
 # if a progress file exists, give option to load it and resume
@@ -249,14 +251,14 @@ def massProcess():
     massProgDump()
 
 # we're just creating a bunch of job threads. nothing special... then we join them
-    for node in range(NODES):
-        for i in range(JOBS_PER_NODE):
+    for node in range(nodes):
+        for i in range(wkrsEach):
             th[node][i] = threading.Thread(target=massWorker,
                     args=(node, i))
             th[node][i].start()
 
-    for node in range(NODES):
-        for i in range(JOBS_PER_NODE):
+    for node in range(nodes):
+        for i in range(wkrsEach):
             th[node][i].join()
 
     with jobIdxLock:
@@ -422,7 +424,7 @@ def finalizeInspection(params):
 # script usage message
 def usage():
     name = sys.argv[0]
-    print("Usage: {name} dest [task1] [task2] ...")
+    print(f"Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
     print(f"EXPAND  -- x src")                      # expand dir to dir
     print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
@@ -492,9 +494,9 @@ if __name__ == '__main__':
 
 # there's a config in the invocation directory, read it in if it exists and then write one back
 # out with everything just 'cuz, then there might be special configs for the record directory
-    readConfigs("config.json")
-    writeConfigs("config.json")
-    readConfigs(f"{destDir}/config.json")
+    configs.readConfigs("config.json")
+    configs.writeConfigs("config.json")
+    configs.readConfigs(f"{destDir}/config.json")
 
     nextArg = 2
 
