@@ -123,33 +123,22 @@ def inspectByM(dest, node):
     if fixed:
         minM = maxM = fixed[-1]
     table = {}
-    MRange = range(minM, maxM + 1)
+    MRange = list(range(minM, maxM + 1))
 
-# if we'll be doing this repetitively, save to a file in memory and read from it instead of
-# scanning the record every time
-    setListFname = f"/tmp/insp-setlist-{dest.split('/')[-1]}.txt"
+# generate a list of all the sets, while feeding them to a program to count each M-value
     argsSetList = numajob(node) + [f"{configs.BIN_DIR}/eval", str(destN), dest]
-    if len(MRange) > 2:
-        f = open(setListFname, "w")
-        print(argsToCmd(argsSetList + [">", setListFname]))
-        fail = subprocess.call(argsSetList, stdout=f)
-        f.close()
-        argsSetList = ["cat", setListFname]
+    argsCount = [f"{configs.BIN_DIR}/count"] + list(map(str, MRange))
+    print(argsToCmd(argsSetList + ["|"] + argsCount))
 
-# for each M-value, filter the list for it
-    for M in MRange:
-        argsFilter = ["grep", "-c", f" {M}$"]
-        print(argsToCmd(argsSetList + ["|"] + argsFilter))
+    setList = subprocess.Popen(argsSetList, stdout=subprocess.PIPE)
+    count = subprocess.run(argsCount,
+            stdin=setList.stdout, stdout=subprocess.PIPE, text=True)
+    setList.wait()
 
-        rawSets = subprocess.Popen(argsSetList, stdout=subprocess.PIPE)
-        count = subprocess.run(argsFilter,
-                stdin=rawSets.stdout, stdout=subprocess.PIPE, text=True)
-        rawSets.wait()
-
-        table[M] = int(count.stdout)
-
-# remove the memory file if we made it
-    if len(MRange) > 2:
-        os.system(f"rm {setListFname}")
+# form this into a table of M-value vs. count
+    strCounts = count.stdout.split(' ')
+    for i in range(len(MRange)):
+        M = MRange[i]
+        table[M] = int(strCounts[i])
 
     return table

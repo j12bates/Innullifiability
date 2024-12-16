@@ -8,6 +8,7 @@ OBJ		:= obj
 TARGET	:= bin
 
 SRC		:= util
+SRC_X	:= extra
 LIB		:= lib
 
 OBJ_IFACE	:= $(OBJ)/iface.o
@@ -31,19 +32,25 @@ WEED		:= $(TARGET)/weed
 EVAL		:= $(TARGET)/eval
 CREATE		:= $(TARGET)/create
 
+SRC_COUNT	:= $(SRC_X)/count.c
+COUNT		:= $(TARGET)/count
+
 UTILS		:= $(GEN) $(WEED) $(EVAL) $(CREATE)
+EXTRA		:= $(COUNT)
 
 .PHONY: all out debug clean utils dirs
 
 all: out
 
 out: CCFLAGS += $(OPFLAGS)
-out: utils
+out: utils extra
 
 debug: CCFLAGS += $(DBFLAGS)
-debug: utils
+debug: utils extra
 
 utils: dirs $(UTILS)
+
+extra: $(EXTRA)
 
 dirs:
 	mkdir -p $(OBJ) $(TARGET)
@@ -59,5 +66,10 @@ $(WEED): $(DEP_WEED) $(SRC_WEED)
 $(EVAL): $(DEP_EVAL) $(SRC_EVAL)
 $(CREATE): $(DEP_CREATE) $(SRC_CREATE)
 
+$(COUNT): $(SRC_COUNT)
+
 $(UTILS): $(DEP_UTIL)
+	$(CC) $(CCFLAGS) $^ -o $@
+
+$(EXTRA):
 	$(CC) $(CCFLAGS) $^ -o $@
