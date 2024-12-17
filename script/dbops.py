@@ -107,16 +107,18 @@ def weedJob(params, dest, node):
 # writes one record inspection result to the working file
 def inspectJob(params, dest, node):
     (outfile) = params
-
-# count number of sets in the record
-    count = inspect(dest, node)
-    if count == -1:
-        return False
     shortFname = dest.split('/')[-1]
+
+# perform an inspection
+    tableM = inspectByM(dest, node)
+    if tableM == None:
+        return False
+
+# write a line for total count
+    count = sum(tableM.values())
     lines = [f"Rec    ---- {shortFname:<32} -- {count:>12}"]
 
-# count number of sets per M-value in the record
-    tableM = inspectByM(dest, node)
+# write a line for each M-value
     for M in tableM:
         count = tableM[M]
         lines += [f"ZpartM {M:>4} {shortFname:<32} -- {count:>12}"]

@@ -103,20 +103,6 @@ def weed(dest, minM, maxM, node):
     fail = subprocess.call(args)
     return not fail
 
-# inspect a singular record, Evaluate util
-# returns number of sets, -1 on error
-def inspect(dest, node):
-    (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest]
-    print(argsToCmd(args))
-    try:
-        out = subprocess.check_output(args, text=True)
-        count = int(out.split(' ')[0])
-    except:
-        return -1
-    else:
-        return count
-
 # returns a dictionary of all valid M-values mapped to number of sets for each
 def inspectByM(dest, node):
     (destN, minM, maxM, fixed) = getRange(dest)
@@ -130,13 +116,17 @@ def inspectByM(dest, node):
     argsCount = [f"{configs.BIN_DIR}/count"] + list(map(str, MRange))
     print(argsToCmd(argsSetList + ["|"] + argsCount))
 
-    setList = subprocess.Popen(argsSetList, stdout=subprocess.PIPE)
-    count = subprocess.run(argsCount,
-            stdin=setList.stdout, stdout=subprocess.PIPE, text=True)
-    setList.wait()
+    try:
+        setList = subprocess.Popen(argsSetList, stdout=subprocess.PIPE)
+        count = subprocess.run(argsCount,
+                stdin=setList.stdout, stdout=subprocess.PIPE, text=True)
+        setList.wait()
+        strCounts = count.stdout.split(' ')
+
+    except:
+        return None
 
 # form this into a table of M-value vs. count
-    strCounts = count.stdout.split(' ')
     for i in range(len(MRange)):
         M = MRange[i]
         table[M] = int(strCounts[i])
