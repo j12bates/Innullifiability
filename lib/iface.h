@@ -50,6 +50,7 @@ typedef enum ParamType {
     PARAM_CT,
     PARAM_SIZE,
     PARAM_VAL,
+    PARAM_VAL_LIST,
     PARAM_FNAME,
     PARAM_STR
 } Param;

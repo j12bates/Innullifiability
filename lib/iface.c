@@ -149,6 +149,32 @@ int argParse(const Param *params, int reqd, const char *usage,
         }
         break;
 
+    // This is a space-separated list of nonzero whole numbers (don't
+    // put a non-numeric char separated by spaces else it'll end)
+    case PARAM_VAL_LIST:
+        {
+            unsigned long *p = va_arg(ap, unsigned long *);
+            char *list = argv[i];
+            for (int j = 0; ; j++)
+            {
+                // Read a number, validate format
+                unsigned long val = strtoul(list, &endptr, 0);
+                if (*endptr != ' ' && *endptr != '\0') errno = EINVAL;
+                if (val == 0 && list != endptr) errno = EINVAL;
+                if (errno) {
+                    fprintf(stderr, "argv[%d] ", i);
+                    perror("Validation");
+                    goto invalid;
+                }
+                if (list == endptr) break;
+
+                // Store, set up for next one
+                p[j] = val;
+                list = endptr;
+            }
+        }
+        break;
+
     // For string parameters, just point to the argument
     case PARAM_FNAME:
     case PARAM_STR:
