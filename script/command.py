@@ -109,24 +109,17 @@ def inspectByM(dest, node):
     if fixed:
         minM = maxM = fixed[-1]
     table = {}
-    MRange = list(range(minM, maxM + 1))
+    MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
+    filters = ' '.join([str(M) for M in MRange])
 
-# generate a list of all the sets, while feeding them to a program to count each M-value
-    argsSetList = numajob(node) + [f"{configs.BIN_DIR}/eval", str(destN), dest]
-    argsCount = [f"{configs.BIN_DIR}/count"] + list(map(str, MRange))
-    print(argsToCmd(argsSetList + ["|"] + argsCount))
-
-    try:
-        setList = subprocess.Popen(argsSetList, stdout=subprocess.PIPE)
-        count = subprocess.run(argsCount,
-                stdin=setList.stdout, stdout=subprocess.PIPE, text=True)
-        setList.wait()
-        strCounts = count.stdout.split(' ')
-
-    except:
-        return None
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, "1", filters]
+    print(argsToCmd(args))
+    count = subprocess.run(args, capture_output = True, text = True)
+    if count.returncode:
+        return False
 
 # form this into a table of M-value vs. count
+    strCounts = count.stdout.split('\n')[0].split(' ')[2:]
     for i in range(len(MRange)):
         M = MRange[i]
         table[M] = int(strCounts[i])

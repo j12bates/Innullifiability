@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 #include <pthread.h>
 
@@ -37,8 +38,7 @@ volatile size_t *countv = NULL;
 
 // Filtering: arrays for fixed values and high-value filters, and a
 // thread-safe array for counting matches
-size_t filterMatch[1024] = {0};
-pthread_mutex_t filterLock = PTHREAD_MUTEX_INITIALIZER;
+volatile _Atomic size_t filterMatch[1024] = {0};
 
 size_t filterCt = 0;
 unsigned long filterValue[1024] = {0};
@@ -179,11 +179,8 @@ void countSet(const unsigned long *set, size_t size, char bits)
 
     // Match against the M-value filters
     for (size_t i = 0; i < filterCt; i++)
-        if (set[size - filterFixedCt - 1] == filterValue[i]) {
-            pthread_mutex_lock(&filterLock);
-            filterMatch[i]++;
-            pthread_mutex_unlock(&filterLock);
-        }
+        if (set[size - filterFixedCt - 1] == filterValue[i])
+            atomic_fetch_add(filterMatch + i, 1);
 
     // Print set to standard output if required
 print:
