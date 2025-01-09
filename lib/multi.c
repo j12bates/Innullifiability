@@ -63,12 +63,48 @@ int multiExpand(const unsigned long *set, size_t srcSize,
 }
 
 // Insert Values into a Set
-// hoping this one can be fully in-place, without the need to allocate
-// more memory on each subcall, that'd be quite a lot. so i may need
-// extra params like indices, may not need M-values
+// This function will insert values into a set to generate a range of
+// supersets of a certain order. We start at a given index in the set
+// and end on a particular value. So we start by shifting the tail end
+// of the set rightwards, so we can insert values. We scan across all
+// our values, giving each one a chance. We advance when needed. At the
+// end we shift any remaining tail back to where it started, so we have
+// the original set back. This process is done recursively for higher-
+// order supersets.
 void insert(unsigned long *super, size_t size, size_t subcalls,
-        unsigned long minM, unsigned long maxM,
+        unsigned long idxStart, size_t valEnd,
         void (*out)(const unsigned long *, size_t))
 {
+    // Shift our tail to the right so we have a spot to insert
+    for (size_t i = size - subcalls - 1; i > idxStart; i--)
+        super[i] = super[i - 1];
+
+    // Insert values starting from the successor to what's on our left
+    size_t idx = idxStart;
+    unsigned long val = 1;
+    if (idx > 0) val = super[idx - 1] + 1;
+
+    // Try to insert every value up until our range ends
+    for (; val <= valEnd - subcalls; val++)
+    {
+        // Insert Value
+        super[idx] = val;
+
+        // If we've reached the next index, skip and advance
+        if (idx < size) if (super[idx + 1] == val) {
+            idx++;
+            continue;
+        }
+
+        // Either recurse or output the complete superset
+        if (subcalls > 0) insert(super, size, subcalls - 1,
+            idx + 1, valEnd, out);
+        else out(super, size);
+    }
+
+    // Shift the remaining tail back to get rid of our insertion spot
+    for (size_t i = idx; i < size - subcalls - 1; i++)
+        super[i] = super[i + 1];
+
     return;
 }
