@@ -7,8 +7,8 @@
 #include <stdbool.h>
 
 // Helper Function Declarations
-void insert(unsigned long *, size_t, size_t,
-        unsigned long, unsigned long,
+void insert(unsigned long *, size_t, int,
+        size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 
 // Produce Expansions of a Set to a Specific Size
@@ -35,16 +35,19 @@ int multiExpand(const unsigned long *set, size_t srcSize,
     // If no output, skip all this work
     if (out == NULL) return 0;
 
-    // Number of Values to Insert
-    size_t inserts = destSize - srcSize;
+    // Total Values to Insert
+    int inserts = destSize - srcSize;
 
-    // We're gonna look at the fixed values segment
-    // First count until we reach those values
+    // First count until we reach a value in the M or Fixed Range
     size_t i = 0;
-    for (; i < srcSize; i++) if (set[i] >= fixedv[0]) break;
-    size_t insertsFixed = fixedc - (srcSize - i);
+    for (; i < srcSize; i++) if (set[i] >= minM) break;
 
-    // Then verify all the values up there are actually allowed
+    // Check if this value is in the M-range
+    bool inMRange = false;
+    if (set[i] <= maxM) inMRange = ++i;
+
+    // Countinue counting and verify that those fixed values are allowed
+    size_t segIdx = i;
     for (size_t fixedIdx = 0; fixedIdx < fixedc; fixedIdx++) {
         if (fixed[fixedIdx] == set[i]) i++;
         else if (set[i] < fixed[fixedIdx]) return 0;
@@ -52,17 +55,47 @@ int multiExpand(const unsigned long *set, size_t srcSize,
     }
     if (i != srcSize) return 0;
 
-    // we can't remove values so there is nothing
-    if (insertsFixed > inserts) return 0;
+    // Calculate how many fixed value insertions we're doing
+    int insertsFixed = fixedc - (size - segIdx);
 
-    // now we just create an array with all the fixed values at the top.
-    // for each allowed M-value, call a function that does all possible
-    // insertions on the non-M variable segment, outputting.
+    // Create the array for the superset and copy in the values for the
+    // variable segment
+    unsigned long *super = calloc(destSize, sizeof(unsigned long));
+    if (super == NULL) return -1;
+    for (size_t i = 0; i < segIdx; i++) super[i] = set[i];
+
+    // If our max value in the variable segment is already in the
+    // M-range, we can just do supersets of this alone
+    if (inMRange)
+    {
+        // Copy the values for the fixed segment
+        for (size_t i = 0; i < fixedc; i++)
+            super[segIdx + i] = fixedv[i];
+
+        // do it
+        insert(super, destSize, inserts - insertsFixed, 0, maxM, out);
+    }
+
+    // Otherwise, we must manually insert M-values
+    else
+    {
+        // Copy the values for the fixed segment, leaving one spot
+        for (size_t i = 0; i < fixedc; i++)
+            super[segIdx + i + 1] = fixedv[i];
+
+        // Iterate through the values in the M-range
+        for (unsigned long valM = minM; valM <= maxM; valM++) {
+            super[segIdx] = valM;
+            insert(super, destSize, inserts - insertsFixed - 1,
+                    0, valM - 1, out);
+        }
+    }
 
     return 0;
 }
 
 // Insert Values into a Set
+
 // This function will insert values into a set to generate a range of
 // supersets of a certain order. We start at a given index in the set
 // and end on a particular value. So we start by shifting the tail end
@@ -71,12 +104,16 @@ int multiExpand(const unsigned long *set, size_t srcSize,
 // end we shift any remaining tail back to where it started, so we have
 // the original set back. This process is done recursively for higher-
 // order supersets.
-void insert(unsigned long *super, size_t size, size_t subcalls,
-        unsigned long idxStart, size_t valEnd,
+void insert(unsigned long *super, size_t size, int inserts,
+        size_t idxStart, unsigned long valEnd,
         void (*out)(const unsigned long *, size_t))
 {
+    // If no more insertions, output complete set
+    if (inserts == 0) out(super, size);
+    else if (inserts < 0) return;
+
     // Shift our tail to the right so we have a spot to insert
-    for (size_t i = size - subcalls - 1; i > idxStart; i--)
+    for (size_t i = size - inserts; i > idxStart; i--)
         super[i] = super[i - 1];
 
     // Insert values starting from the successor to what's on our left
@@ -85,7 +122,7 @@ void insert(unsigned long *super, size_t size, size_t subcalls,
     if (idx > 0) val = super[idx - 1] + 1;
 
     // Try to insert every value up until our range ends
-    for (; val <= valEnd - subcalls; val++)
+    for (; val <= valEnd - inserts + 1; val++)
     {
         // Insert Value
         super[idx] = val;
@@ -96,14 +133,12 @@ void insert(unsigned long *super, size_t size, size_t subcalls,
             continue;
         }
 
-        // Either recurse or output the complete superset
-        if (subcalls > 0) insert(super, size, subcalls - 1,
-            idx + 1, valEnd, out);
-        else out(super, size);
+        // Recurse for another insertion, starting from the next value
+        insert(super, size, inserts - 1, idx + 1, valEnd, out);
     }
 
     // Shift the remaining tail back to get rid of our insertion spot
-    for (size_t i = idx; i < size - subcalls - 1; i++)
+    for (size_t i = idx; i < size - inserts; i++)
         super[i] = super[i + 1];
 
     return;
