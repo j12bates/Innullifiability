@@ -6,8 +6,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <errno.h>
+
+#include "multi.h"
+
 // Helper Function Declarations
-void insert(unsigned long *, size_t, int,
+static void insert(unsigned long *, size_t, int,
         size_t, unsigned long,
         void (*)(const unsigned long *, size_t));
 
@@ -21,12 +25,12 @@ int multiExpand(const unsigned long *set, size_t srcSize,
     // Validate Input Set: values are positive and ascending
     errno = EINVAL;
     if (set[0] < 1) return -1;
-    for (size_t i = 1; i < size; i++)
+    for (size_t i = 1; i < srcSize; i++)
         if (set[i] <= set[i - 1]) return -1;
 
     // Validate Sizes, Fixed Values
-    if (destSize > srcSize) return -1;
-    if (fixedc > 0) if (fixedv[0] <= minM) return -1;
+    if (destSize < srcSize) return -1;
+    if (fixedc > 0 && fixedv[0] <= minM) return -1;
     for (size_t i = 1; i < fixedc; i++)
         if (fixedv[i] <= fixedv[i - 1]) return -1;
     errno = 0;
@@ -38,25 +42,21 @@ int multiExpand(const unsigned long *set, size_t srcSize,
     // Total Values to Insert
     int inserts = destSize - srcSize;
 
-    // First count until we reach a value in the M or Fixed Range
+    // First count until we reach a value in the Fixed Range
     size_t i = 0;
-    for (; i < srcSize; i++) if (set[i] >= minM) break;
-
-    // Check if this value is in the M-range
-    bool inMRange = false;
-    if (set[i] <= maxM) inMRange = ++i;
+    for (; i < srcSize; i++) if (set[i] > maxM) break;
 
     // Countinue counting and verify that those fixed values are allowed
     size_t segIdx = i;
     for (size_t fixedIdx = 0; fixedIdx < fixedc; fixedIdx++) {
-        if (fixed[fixedIdx] == set[i]) i++;
-        else if (set[i] < fixed[fixedIdx]) return 0;
         if (i == srcSize) break;
+        if (fixedv[fixedIdx] == set[i]) i++;
+        else if (set[i] < fixedv[fixedIdx]) return 0;
     }
     if (i != srcSize) return 0;
 
     // Calculate how many fixed value insertions we're doing
-    int insertsFixed = fixedc - (size - segIdx);
+    int insertsFixed = fixedc - (srcSize - segIdx);
 
     // Create the array for the superset and copy in the values for the
     // variable segment
@@ -66,13 +66,13 @@ int multiExpand(const unsigned long *set, size_t srcSize,
 
     // If our max value in the variable segment is already in the
     // M-range, we can just do supersets of this alone
-    if (inMRange)
+    if (segIdx > 0 && set[segIdx - 1] >= minM)
     {
         // Copy the values for the fixed segment
         for (size_t i = 0; i < fixedc; i++)
             super[segIdx + i] = fixedv[i];
 
-        // do it
+        // Perform Insertions
         insert(super, destSize, inserts - insertsFixed, 0, maxM, out);
     }
 
@@ -84,7 +84,9 @@ int multiExpand(const unsigned long *set, size_t srcSize,
             super[segIdx + i + 1] = fixedv[i];
 
         // Iterate through the values in the M-range
-        for (unsigned long valM = minM; valM <= maxM; valM++) {
+        for (unsigned long valM = minM; valM <= maxM; valM++)
+        {
+            // Manually Insert, Perform Insertions
             super[segIdx] = valM;
             insert(super, destSize, inserts - insertsFixed - 1,
                     0, valM - 1, out);
