@@ -3,8 +3,19 @@
 // Copyright (c) 2025, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
+// This program is for expanding sets by way of inserting values to
+// create supersets. It can start from a set of any size and expand into
+// sets of any size. Like the other expand program, sets and
+// configuration can be input, and the supersets are output through a
+// function pointer, and input sets are required to and output sets are
+// guaranteed to be in ascending order.
+
+// In addition, this program supports the variable and fixed segment
+// model for set ranges, guaranteeing output sets will fit in the
+// specified M-range (for variable) and fixed value list, highly
+// optimizing an output-to-record.
+
 #include <stdlib.h>
-#include <stdbool.h>
 
 #include <errno.h>
 
@@ -93,6 +104,8 @@ int multiExpand(const unsigned long *set, size_t srcSize,
         }
     }
 
+    free(super);
+
     return 0;
 }
 
@@ -101,8 +114,8 @@ int multiExpand(const unsigned long *set, size_t srcSize,
 // This function will insert values into a set to generate a range of
 // supersets of a certain order. We start at a given index in the set
 // and end on a particular value. So we start by shifting the tail end
-// of the set rightwards, so we can insert values. We scan across all
-// our values, giving each one a chance. We advance when needed. At the
+// of the set rightwards, so we can insert values. We iterate over all
+// the values we could insert, advancing our index on collision. At the
 // end we shift any remaining tail back to where it started, so we have
 // the original set back. This process is done recursively for higher-
 // order supersets.
@@ -112,7 +125,7 @@ void insert(unsigned long *super, size_t size, int inserts,
 {
     // If no more insertions, output complete set
     if (inserts == 0) out(super, size);
-    else if (inserts < 0) return;
+    if (inserts <= 0) return;
 
     // Shift our tail to the right so we have a spot to insert
     for (size_t i = size - inserts; i > idxStart; i--)
@@ -130,7 +143,7 @@ void insert(unsigned long *super, size_t size, int inserts,
         super[idx] = val;
 
         // If we've reached the next index, skip and advance
-        if (idx < size) if (super[idx + 1] == val) {
+        if (idx < size - 1 && super[idx + 1] == val) {
             idx++;
             continue;
         }
