@@ -1,6 +1,6 @@
 // ============================ GENERATION =============================
 
-// Copyright (c) 2023, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This program takes in two records, a source and a destination, and it
@@ -173,12 +173,15 @@ int main(int argc, char **argv)
     else {
         size_t fixedSize = sr_getFixedSize(src);
         unsigned long *fixed = calloc(fixedSize, sizeof(unsigned long));
+        CK_PTR(fixed);
         for (size_t i = 0; i < fixedSize; i++)
             fixed[i] = sr_getFixedValue(src, i);
 
         int res = sr_alloc(dest, srcSize + 1 - fixedSize,
                 sr_getMinM(src), sr_getMaxM(src), fixedSize, fixed);
         CK_RES(res);
+
+        free(fixed);
     }
 
     // If we have fixed values, the highest one is our M-range

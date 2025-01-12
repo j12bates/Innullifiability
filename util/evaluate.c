@@ -1,6 +1,6 @@
 // ============================= EVALUATE ==============================
 
-// Copyright (c) 2023, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This program takes in a record and displays the value representations
@@ -129,10 +129,12 @@ int main(int argc, char **argv)
         }
     }
 
+    // Total Up all the Sets
     size_t count = 0;
     for (size_t i = 0; i < threads; i++) count += countv[i];
     free((void *) countv);
 
+    // Print the Counts: Each Filter (if any), and Total
     if (disp) printf("\n");
     if (filterCt) printf("filters -- ");
     for (size_t i = 0; i < filterCt; i++)
@@ -140,6 +142,7 @@ int main(int argc, char **argv)
     if (filterCt) printf("\n");
     printf("total -- %ld\n", count);
 
+    // Unlink Record
     sr_release(rec);
 
     return 0;
