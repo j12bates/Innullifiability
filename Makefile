@@ -14,20 +14,24 @@ LIB		:= lib
 OBJ_IFACE	:= $(OBJ)/iface.o
 OBJ_SETREC	:= $(OBJ)/setRec.o
 OBJ_EXPAND	:= $(OBJ)/expand.o
+OBJ_MULTI	:= $(OBJ)/multi.o
 OBJ_NULTEST	:= $(OBJ)/nulTest.o
 
 SRC_GEN		:= $(SRC)/generation.c
+SRC_MSUP	:= $(SRC)/multisup.c
 SRC_WEED	:= $(SRC)/weed.c
 SRC_EVAL	:= $(SRC)/evaluate.c
 SRC_CREATE	:= $(SRC)/create.c
 
 DEP_UTIL	:= $(OBJ_IFACE) $(OBJ_SETREC)
 DEP_GEN		:= $(OBJ_EXPAND)
+DEP_MSUP	:= $(OBJ_MULTI)
 DEP_WEED	:= $(OBJ_NULTEST)
 DEP_EVAL	:=
 DEP_CREATE	:=
 
 GEN			:= $(TARGET)/gen
+MSUP		:= $(TARGET)/msup
 WEED		:= $(TARGET)/weed
 EVAL		:= $(TARGET)/eval
 CREATE		:= $(TARGET)/create
@@ -35,7 +39,7 @@ CREATE		:= $(TARGET)/create
 SRC_COUNT	:= $(SRC_X)/count.c
 COUNT		:= $(TARGET)/count
 
-UTILS		:= $(GEN) $(WEED) $(EVAL) $(CREATE)
+UTILS		:= $(GEN) $(MSUP) $(WEED) $(EVAL) $(CREATE)
 EXTRA		:= $(COUNT)
 
 .PHONY: all out debug clean utils dirs
@@ -43,7 +47,7 @@ EXTRA		:= $(COUNT)
 all: out
 
 out: CCFLAGS += $(OPFLAGS)
-out: utils extra
+out: utils
 
 debug: CCFLAGS += $(DBFLAGS)
 debug: utils extra
@@ -62,6 +66,7 @@ $(OBJ)/%.o: $(LIB)/%.c
 	$(CC) $(CCFLAGS) -c $< -o $@
 
 $(GEN): $(DEP_GEN) $(SRC_GEN)
+$(MSUP): $(DEP_MSUP) $(SRC_MSUP)
 $(WEED): $(DEP_WEED) $(SRC_WEED)
 $(EVAL): $(DEP_EVAL) $(SRC_EVAL)
 $(CREATE): $(DEP_CREATE) $(SRC_CREATE)
