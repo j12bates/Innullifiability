@@ -99,6 +99,27 @@ def expandJob(params, dest, node):
 
     return True
 
+# perform special supersets on a complete directory into a single record file
+def splSupJob(params, dest, node):
+    (srcDir) = params
+
+    srcIdx = 0
+    while True:
+
+# obtain next source record
+        src = getRecFname(srcDir, srcIdx)
+        if not src:
+            break
+
+# run the appropriate command
+        res = splSup(src, dest, node)
+        if not res:
+            return False
+
+        srcIdx += 1
+
+    return True
+
 # perform a weeding of a single record
 def weedJob(params, dest, node):
     (minM, maxM) = params
@@ -310,18 +331,24 @@ def readLog(dirname):
 def taskExpand(srcDir, supers, mutate):
     global tasks, outlines
 
-# configure this task
-    tasks.append({'f': expandJob, 'params': (srcDir, supers, mutate)})
-
-# check if parameters are fine
+# load source directory information
     res = readLog(srcDir)
     if not res:
         print(f"Invalid Source Directory {srcDir}")
         return False
     (N, minM, maxM, swept) = res
-    if N + 1 != recN:
+
+# special case: only supersets and source is more than one size below
+    if supers and not mutate and N + 1 < recN:
+        return taskSplSup(srcDir)
+
+# general case: continue, but we better have source be one size below
+    elif N + 1 != recN:
         print(f"Task Parameters Invalid [Expand from {srcDir}]")
         return False
+
+# configure this task
+    tasks.append({'f': expandJob, 'params': (srcDir, supers, mutate)})
 
 # set up new lines to output into the destination log
     logline = f"M_{minM}_{maxM} [from {srcDir}]"
@@ -332,6 +359,25 @@ def taskExpand(srcDir, supers, mutate):
         outlines += ["XSUP: " + logline]
     if mutate:
         outlines += ["XMUT: " + logline]
+
+    return True
+
+# ====== SPECIAL SUPERSETS TASK CONFIGURATION
+def taskSplSup(srcDir):
+    global tasks, outlines
+
+# load source directory information
+    res = readLog(srcDir)
+    if not res:
+        print(f"Invalid Source Directory {srcDir}")
+        return False
+    (N, _, _, _) = res
+
+# configure this task
+    tasks.append({'f': splSupJob, 'params': (srcDir)})
+
+# set up a new line to output into the destination log
+    outlines += ["SPSS: [from {srcDir}] WARN: not thorough"]
 
     return True
 
@@ -428,11 +474,11 @@ def usage():
     name = sys.argv[0]
     print(f"Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
-    print(f"EXPAND  -- x src")                      # expand dir to dir
-    print(f"SUPERS  -- s src")                      # expand dir to dir (only supersets)
-    print(f"MUTATE  -- m src")                      # expand dir to dir (only mutations)
-    print(f"WEED    -- w minM maxM")                # weed dir
-    print(f"INSPECT -- i fileID")                   # inspect dir
+    print(f"EXPAND  -- x src")
+    print(f"MUTATE  -- m src")
+    print(f"SUPERS  -- s src (can be of lower size than predecessor)")
+    print(f"WEED    -- w minM maxM")
+    print(f"INSPECT -- i fileID")
 
     return True
 

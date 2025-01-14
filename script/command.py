@@ -93,6 +93,17 @@ def expand(src, dest, supers, mutate, node):
     fail = subprocess.call(args)
     return not fail
 
+# run the special supersets process, General Multiple Supersets util
+# returns success boolean
+def splSup(src, dest, node):
+    (srcN, _, _, _) = getRange(src)
+    (destN, _, _, _) = getRange(dest)
+    args = numajob(node) + [f"{configs.BIN_DIR}/msup", str(srcN), src, str(destN), dest,
+            str(configs.THREADS_PER_JOB)]
+    print(argsToCmd(args))
+    fail = subprocess.call(args)
+    return not fail
+
 # run the weeding process, Weed util
 # returns success boolean
 def weed(dest, minM, maxM, node):

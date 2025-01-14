@@ -1,6 +1,7 @@
 *.out
 bin/
 obj/
+script/__pycache__/
 
 *.o
 *.dat
