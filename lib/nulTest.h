@@ -1,4 +1,4 @@
-// ================== EXHAUSTIVE NULLIFIABILITY TEST ==================
+// ================== EXHAUSTIVE NULLIFIABILITY TEST ===================
 
 // See more info about this function in the source file `nulTest.c'.
 
