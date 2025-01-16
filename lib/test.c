@@ -5,16 +5,23 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+
+#include <errno.h>
 #include <limits.h>
+
+// Helper Function Declarations
+static int recursiveTest(const unsigned long *, size_t,
+        unsigned long, unsigned long, size_t, size_t);
+static int checkSubsets(const unsigned long *, size_t,
+        size_t, size_t);
+static int bisect(unsigned long, unsigned long,
+        unsigned long, unsigned long, size_t);
 
 // Test a Set's Nullifiability
 // Returns 1 on Nullifiable, 0 on Innullifiable, -1 on Error
 int test(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM)
 {
-    int recursiveTest(const unsigned long *, size_t,
-            unsigned long, unsigned long, size_t, size_t);
-
 #ifndef NO_VALIDATE
     // Validate Input Set
     errno = EINVAL;
@@ -57,14 +64,14 @@ int recursiveTest(const unsigned long *set, size_t size,
 
     // Iterate through all the possible pairs of values
     for (size_t pairA = 0; pairA < size - 1; pairA++)
-        for (size_t pairB = pairA; pairB < size; pairB++)
+        for (size_t pairB = pairA + 1; pairB < size; pairB++)
     {
         // Fill in the reduction with all the other values, leaving the
         // spot at the beginning to start inserting replacements
         size_t idx = 1;
         for (size_t i = 0; i < size; i++)
             if (i == pairA || i == pairB) continue;
-            else reduction[idx] = set[i];
+            else reduction[idx++] = set[i];
 
         // This isn't going to work if we have a poking value
         if (maxM != 0 && reduction[size - 2] > maxM) continue;
@@ -107,7 +114,8 @@ int recursiveTest(const unsigned long *set, size_t size,
         }
 
         // Insert Each Replacement Value
-        size_t i = 0, idx = 0;
+        idx = 0;
+        size_t i = 0;
         while (i < replc)
         {
             // Advance our insertion index if needed and try again
@@ -126,7 +134,7 @@ int recursiveTest(const unsigned long *set, size_t size,
                 if (maxM != 0 && reduction[size - 2] > maxM) continue;
 
                 // Check New Subsets
-                if (subsN && checkSubsets(reduction, size - 1, subsN,
+                if (subN && checkSubsets(reduction, size - 1, subN,
                         idx)) {
                     free(reduction);
                     return 1;
@@ -134,7 +142,7 @@ int recursiveTest(const unsigned long *set, size_t size,
 
                 // Check the Reduction Itself, carry any error
                 int res = recursiveTest(reduction, size - 1, 0, 0,
-                        baseN, subsN);
+                        baseN, subN);
                 if (res) {
                     free(reduction);
                     return res;
@@ -156,11 +164,15 @@ nullif:
 
 // Check All Subsets of a Certain Size Containing a New Value
 int checkSubsets(const unsigned long *set, size_t size,
-        size_t subsN, size_t newIdx)
+        size_t subN, size_t newIdx)
 {
-    if (subsN == 1) return set[newIdx] == 0;
-    else if (subsN == 2) return set[newIdx] == set[newIdx + 1]
-            || set[newIdx] == set[newIdx - 1];
+    if (subN == 1) return set[newIdx] == 0;
+    else if (subN == 2) {
+        bool pair = false;
+        if (newIdx + 1 < size) pair |= (set[newIdx] == set[newIdx + 1]);
+        if (newIdx > 0) pair |= (set[newIdx] == set[newIdx - 1]);
+        return pair;
+    }
     // TODO: N = 3, N = 4 case
     return 0;
 }
