@@ -7,6 +7,35 @@
 #include <stdbool.h>
 #include <limits.h>
 
+// Test a Set's Nullifiability
+// Returns 1 on Nullifiable, 0 on Innullifiable, -1 on Error
+int test(const unsigned long *set, size_t size,
+        unsigned long minM, unsigned long maxM)
+{
+    int recursiveTest(const unsigned long *, size_t,
+            unsigned long, unsigned long, size_t, size_t);
+
+#ifndef NO_VALIDATE
+    // Validate Input Set
+    errno = EINVAL;
+    if (set[0] < 1) return -1;
+    for (size_t i = 1; i < size; i++)
+        if (set[i - 1] >= set[i]) return -1;
+    errno = 0;
+#endif
+
+    // The parameters we're using
+    unsigned long baseN = 3, subN = 2;
+
+    // Check Subsets
+    for (size_t i = 0; i <= subN; i++)
+        for (size_t idx = 0; idx < size; idx++)
+            if (checkSubsets(set, size, i, idx)) return 1;
+
+    // Now just recursively test!
+    return recursiveTest(set, size, minM, maxM, baseN, subN);
+}
+
 // Recursively Test an Mset's Nullifiability
 // Returns 1 on Nullifiable, 0 on Innullifiable, -1 on Error
 
@@ -18,6 +47,10 @@ int recursiveTest(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM,
         size_t baseN, size_t subN)
 {
+    // Base Case
+    if (size <= baseN) return bisect(set[0], set[1 % size],
+            set[2 % size], set[3 % size], size);
+
     // Allocate Space for Reduction
     unsigned long *reduction = calloc(size - 1, sizeof(unsigned long));
     if (reduction == NULL) return -1;
@@ -92,11 +125,20 @@ int recursiveTest(const unsigned long *set, size_t size,
                 if (reduction[size - 2] < minM) continue;
                 if (maxM != 0 && reduction[size - 2] > maxM) continue;
 
-                // Check New Subsets, then check the Reduction itself
-                if checkSubsets(reduction, size - 1, subsN, idx)
-                    goto nullif;
-                if recursiveTest(reduction, size - 1, 0, 0,
-                        baseN, subsN) goto nullif;
+                // Check New Subsets
+                if (subsN && checkSubsets(reduction, size - 1, subsN,
+                        idx)) {
+                    free(reduction);
+                    return 1;
+                }
+
+                // Check the Reduction Itself, carry any error
+                int res = recursiveTest(reduction, size - 1, 0, 0,
+                        baseN, subsN);
+                if (res) {
+                    free(reduction);
+                    return res;
+                }
 
                 // Advance to the next value
                 i++;
@@ -116,5 +158,23 @@ nullif:
 int checkSubsets(const unsigned long *set, size_t size,
         size_t subsN, size_t newIdx)
 {
+    if (subsN == 1) return set[newIdx] == 0;
+    else if (subsN == 2) return set[newIdx] == set[newIdx + 1]
+            || set[newIdx] == set[newIdx - 1];
+    // TODO: N = 3, N = 4 case
+    return 0;
+}
+
+// Check a Set's Bisectability
+int bisect(unsigned long a_1, unsigned long a_2,
+        unsigned long a_3, unsigned long a_4, size_t size)
+{
+    if (size == 1) return a_1 == 0;
+    else if (size == 2) return a_1 == a_2;
+    else if (size == 3) {
+        if (a_1 + a_2 == a_3) return 1;
+        if (a_1 * a_2 == a_3) return 1;
+    }
+    // TODO: N = 4 case
     return 0;
 }
