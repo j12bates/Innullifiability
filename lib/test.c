@@ -17,17 +17,17 @@ static int checkSubsets(const unsigned long *, size_t,
 static int bisect(unsigned long, unsigned long,
         unsigned long, unsigned long, size_t);
 
-// Test a Set's Nullifiability
+// Test an Mset's Nullifiability
 // Returns 1 on Nullifiable, 0 on Innullifiable, -1 on Error
 int test(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM)
 {
 #ifndef NO_VALIDATE
-    // Validate Input Set
+    // Validate Input Mset
     errno = EINVAL;
     if (set[0] < 1) return -1;
     for (size_t i = 1; i < size; i++)
-        if (set[i - 1] >= set[i]) return -1;
+        if (set[i - 1] > set[i]) return -1;
     errno = 0;
 #endif
 
@@ -170,6 +170,7 @@ nullif:
 }
 
 // Check All Subsets of a Certain Size Containing a New Value
+// If newIdx >= size, any subset
 int checkSubsets(const unsigned long *set, size_t size,
         size_t subN, size_t newIdx)
 {
@@ -177,88 +178,96 @@ int checkSubsets(const unsigned long *set, size_t size,
             unsigned long, size_t, int (*)(unsigned long, unsigned long,
             unsigned long, unsigned long, size_t));
 
-    // We're doing subsets containing a specific value
-    if (newIdx < size)
-    {
-        // N = 1: a zero
-        if (subN == 1) return set[newIdx] == 0;
+    // N = 1: a zero, guaranteed at beginning
+    if (subN == 1) {
+        if (newIdx < size) return set[newIdx] == 0;
+        else return set[0] == 0;
+    }
 
-        // N = 2: double values, guaranteed consecutive
-        else if (subN == 2) {
-            if (newIdx + 1 < size)
-                return set[newIdx] == set[newIdx + 1];
-        }
+    // N = 2: double values, guaranteed consecutive
+    else if (subN == 2) {
+        if (newIdx + 1 < size) return set[newIdx] == set[newIdx + 1];
+        else for (size_t idxA = 0; idxA < size - 1; idxA++)
+            if (set[idxA] == set[idxA + 1]) return 1;
+    }
 
-        // N = 3: check manually
-        else if (subN == 3) {
-            for (size_t idxA = 0; idxA < size - 1; idxA++)
-                for (size_t idxB = idxA + 1; idxB < size; idxB++)
-            {
-                if (idxA == newIdx || idxB == newIdx) continue;
-                return insertSort(set[idxA], set[idxB], 0,
-                        set[newIdx], 3, &bisect);
-            }
+    // N = 3: check manually
+    else if (subN == 3) {
+        for (size_t idxA = 0; idxA < size - 2; idxA++)
+            for (size_t idxB = idxA + 1; idxB < size - 1; idxB++)
+                for (size_t idxC = idxB + 1; idxC < size; idxC++)
+        {
+            if (idxA != newIdx && idxB != newIdx && idxC != newIdx
+                    && newIdx < size) continue;
+            return bisect(set[idxA], set[idxB], set[idxC], 0, 3);
         }
     }
 
-    // We're doing any subsets
-    else
-    {
-        // N = 1: a zero, guaranteed at beginning
-        if (subN == 1) return set[0] == 0;
-
-        // N = 2: double values, guaranteed consecutive
-        else if (subN == 2) {
-            for (size_t i = 0; i < size - 1; i++)
-                if (set[i] == set[i + 1]) return 1;
-        }
-
-        // N = 3: check manually
-        else if (subN == 3) {
-            for (size_t idxA = 0; idxA < size - 2; idxA++)
-                for (size_t idxB = idxA + 1; idxB < size - 1; idxB++)
-                    for (size_t idxC = idxB + 1; idxC < size; idxC++)
-            {
-                return bisect(set[idxA], set[idxB], set[idxC], 0, 3);
-            }
+    // N = 4: check manually
+    else if (subN == 4) {
+        for (size_t idxA = 0; idxA < size - 2; idxA++)
+            for (size_t idxB = idxA + 1; idxB < size - 1; idxB++)
+                for (size_t idxC = idxB + 1; idxC < size - 1; idxC++)
+                    for (size_t idxD = idxC + 1; idxD < size; idxD++)
+        {
+            if (idxA != newIdx && idxB != newIdx && idxC != newIdx
+                    && idxD != newIdx && newIdx < size) continue;
+            return bisect(set[idxA], set[idxB], set[idxC], set[idxD],
+                    4);
         }
     }
-    // TODO: N = 4 case
+
     return 0;
-}
-
-int insertSort(unsigned long a_1, unsigned long a_2, unsigned long a_3,
-        unsigned long x, size_t size, int (*out)(unsigned long,
-        unsigned long, unsigned long, unsigned long, size_t))
-{
-    unsigned long a_4;
-    if (x > a_3 && size > 3) a_4 = x;
-    else {
-        a_4 = a_3;
-        if (x > a_2 && size > 2) a_3 = x;
-        else {
-            a_3 = a_2;
-            if (x > a_1 && size > 1) a_2 = x;
-            else {
-                a_2 = a_1;
-                a_1 = x;
-            }
-        }
-    }
-
-    return out(a_1, a_2, a_3, a_4, size);
 }
 
 // Check a Set's Bisectability
 int bisect(unsigned long a_1, unsigned long a_2,
         unsigned long a_3, unsigned long a_4, size_t size)
 {
+    // N = 1: a zero
     if (size == 1) return a_1 == 0;
+
+    // N = 2: double values
     else if (size == 2) return a_1 == a_2;
+
+    // N = 3: two formulations
     else if (size == 3) {
         if (a_1 + a_2 == a_3) return 1;
-        if (a_1 * a_2 == a_3) return 1;
+        else if (a_1 * a_2 == a_3) return 1;
     }
-    // TODO: N = 4 case
+
+    // N = 4: nineteen formulations
+    else if (size == 4)
+    {
+        // Totally Additive/Multiplicative Formulations
+        if (a_1 + a_4 == a_2 + a_3) return 1;
+        else if (a_1 + a_2 + a_3 == a_4) return 1;
+        else if (a_1 * a_4 == a_2 * a_3) return 1;
+        else if (a_1 * a_2 * a_3 == a_4) return 1;
+
+        // Plus-Times Formulations
+        else if (a_2 + a_3 == a_1 * a_4) return 1;
+        else if (a_1 + a_4 == a_2 * a_3) return 1;
+        else if (a_2 + a_4 == a_1 * a_3) return 1;
+        else if (a_3 + a_4 == a_1 * a_2) return 1;
+
+        // Minus-Times Formulations
+        else if (a_4 - a_1 == a_2 * a_3) return 1;
+        else if (a_4 - a_2 == a_1 * a_3) return 1;
+        else if (a_4 - a_3 == a_1 * a_2) return 1;
+
+        // Plus-Divide Formulations
+        else if ((a_1 + a_2) * a_3 == a_4) return 1;
+        else if ((a_1 + a_3) * a_2 == a_4) return 1;
+        else if ((a_2 + a_3) * a_1 == a_4) return 1;
+
+        // Minus-Divide Formulations
+        else if ((a_2 - a_1) * a_3 == a_4) return 1;
+        else if ((a_3 - a_1) * a_2 == a_4) return 1;
+        else if ((a_3 - a_2) * a_1 == a_4) return 1;
+        else if ((a_4 - a_2) * a_1 == a_3) return 1;
+        else if ((a_4 - a_3) * a_1 == a_2) return 1;
+    }
+
     return 0;
 }
