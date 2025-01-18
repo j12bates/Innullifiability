@@ -486,7 +486,7 @@ int mark(Rec *rec, unsigned long minm,
 ssize_t query(const Rec *rec,
         unsigned long minm, unsigned long maxm, size_t varSize,
         const unsigned long *fixedv, size_t fixedSize,
-        size_t offset, size_t skip, char mask, char bits,
+        size_t tid, size_t tct, char mask, char bits,
         size_t *progress, size_t period, OutFun *out)
 {
     // Number of Sets
@@ -497,18 +497,30 @@ ssize_t query(const Rec *rec,
     unsigned long *values = calloc(size, sizeof(unsigned long));
     if (values == NULL) return -1;
 
+    // Compute Iteration Parameters
+    size_t total = TOTAL(minm, maxm, varSize);
+#ifndef QUERY_SEGMENTED
+    size_t begin = tid, end = total, skip = tct;
+#else
+    size_t begin = total * tid / tct;
+    size_t end = total * (tid + 1) / tct;
+    size_t skip = 1;
+#endif
+
     // The representation of the first allocated set, including fixed
-    // values, adjusted to our starting point
+    // values
     indexToSet(values, varSize - 1, 0);
     values[varSize - 1] = minm;
     for (size_t i = 0; i < fixedSize; i++)
         values[varSize + i] = fixedv[i];
-    incSetValues(values, size, offset);
 
-    // Loop over every Nth set, checking, outputting, and updating
+    // Now Adjust to our Starting Point
+    size_t zeroLexIdx = setToIndex(values, varSize + fixedSize);
+    indexToSet(values, varSize + fixedSize, zeroLexIdx + begin);
+
+    // Iterate over our sets, checking, outputting, and updating
     // progress
-    size_t total = TOTAL(minm, maxm, varSize);
-    for (size_t i = offset; i < total; i += skip)
+    for (size_t i = begin; i < end; i += skip)
     {
         bool match = false;
 
@@ -534,12 +546,12 @@ ssize_t query(const Rec *rec,
         incSetValues(values, varSize, skip);
 
         // Update Progress every so often
-        if (progress != NULL) if (i / skip % period == 0)
-            *progress = i / skip;
+        if (progress != NULL) if ((i - begin) / skip % period == 0)
+            *progress = (i - begin) / skip;
     }
 
     // Final progress update
-    if (progress != NULL) *progress = (total - offset - 1) / skip + 1;
+    if (progress != NULL) *progress = (end - begin - 1) / skip + 1;
 
     free(values);
 
