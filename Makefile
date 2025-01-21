@@ -15,7 +15,7 @@ OBJ_IFACE	:= $(OBJ)/iface.o
 OBJ_SETREC	:= $(OBJ)/setRec.o
 OBJ_EXPAND	:= $(OBJ)/expand.o
 OBJ_MULTI	:= $(OBJ)/multi.o
-OBJ_NULTEST	:= $(OBJ)/nulTest.o
+OBJ_NULTEST	:= $(OBJ)/exTest.o
 
 SRC_GEN		:= $(SRC)/generation.c
 SRC_MSUP	:= $(SRC)/multisup.c

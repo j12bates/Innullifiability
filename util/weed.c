@@ -23,7 +23,7 @@
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
-#include "../lib/nulTest.h"
+#include "../lib/exTest.h"
 
 // Set Record
 SR_Base *rec = NULL;
@@ -189,11 +189,11 @@ void testElim(const unsigned long *set, size_t size, char bits)
     int res;
 
     // Run the Test
-    res = nulTest(set, size, minm, maxm);
+    res = exTest(set, size, minm, maxm);
     CK_RES(res);
 
     // Eliminate if Nullifiable
-    if (res == 0) {
+    if (res) {
         res = sr_mark(rec, set, size, NULLIF);
         CK_RES(res);
     }

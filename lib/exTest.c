@@ -19,7 +19,7 @@ static int bisect(unsigned long, unsigned long,
 
 // Test an Mset's Nullifiability
 // Returns 1 on Nullifiable, 0 on Innullifiable, -1 on Error
-int test(const unsigned long *set, size_t size,
+int exTest(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM)
 {
 #ifndef NO_VALIDATE
@@ -32,7 +32,7 @@ int test(const unsigned long *set, size_t size,
 #endif
 
     // The parameters we're using
-    unsigned long baseN = 3, subN = 2;
+    unsigned long baseN = 4, subN = 2;
 
     // Check Subsets
     for (size_t i = 1; i <= subN; i++)
@@ -199,7 +199,7 @@ int checkSubsets(const unsigned long *set, size_t size,
         {
             if (idxA != newIdx && idxB != newIdx && idxC != newIdx
                     && newIdx < size) continue;
-            return bisect(set[idxA], set[idxB], set[idxC], 0, 3);
+            if (bisect(set[idxA], set[idxB], set[idxC], 0, 3)) return 1;
         }
     }
 
@@ -212,8 +212,8 @@ int checkSubsets(const unsigned long *set, size_t size,
         {
             if (idxA != newIdx && idxB != newIdx && idxC != newIdx
                     && idxD != newIdx && newIdx < size) continue;
-            return bisect(set[idxA], set[idxB], set[idxC], set[idxD],
-                    4);
+            if (bisect(set[idxA], set[idxB], set[idxC], set[idxD], 4))
+                    return 1;
         }
     }
 
