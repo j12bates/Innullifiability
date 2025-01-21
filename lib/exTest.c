@@ -11,7 +11,8 @@
 
 // Helper Function Declarations
 static int recursiveTest(const unsigned long *, size_t,
-        unsigned long, unsigned long, size_t, size_t);
+        unsigned long, unsigned long, size_t, size_t,
+        unsigned long, size_t);
 static int checkSubsets(const unsigned long *, size_t,
         size_t, size_t);
 static int bisect(unsigned long, unsigned long,
@@ -39,7 +40,7 @@ int exTest(const unsigned long *set, size_t size,
         if (checkSubsets(set, size, i, size)) return 1;
 
     // Now just recursively test!
-    return recursiveTest(set, size, minM, maxM, baseN, subN);
+    return recursiveTest(set, size, minM, maxM, baseN, subN, 0, size);
 }
 
 // Recursively Test an Mset's Nullifiability
@@ -51,7 +52,8 @@ int exTest(const unsigned long *set, size_t size,
 // subN, until the base case length baseN is reached.
 int recursiveTest(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM,
-        size_t baseN, size_t subN)
+        size_t baseN, size_t subN,
+        unsigned long minOrig, size_t idxNew)
 {
     // Base Case
     if (size <= baseN)
@@ -73,6 +75,15 @@ int recursiveTest(const unsigned long *set, size_t size,
     for (size_t pairA = 0; pairA < size - 1; pairA++)
         for (size_t pairB = pairA + 1; pairB < size; pairB++)
     {
+        // Get the values of that pair
+        unsigned long a = set[pairA];
+        unsigned long b = set[pairB];
+
+        // If this pair is one we could've operated on last time, skip
+        // it if it's comprised of a lesser value (only do parallel
+        // operations in ascending order by smaller value)
+        if (a < minOrig && pairA != idxNew && pairB != idxNew) continue;
+
         // Fill in the reduction with all the other values, leaving the
         // spot at the beginning to start inserting replacements
         size_t idx = 1;
@@ -82,10 +93,6 @@ int recursiveTest(const unsigned long *set, size_t size,
 
         // This isn't going to work if we have a poking value
         if (maxM != 0 && reduction[size - 2] > maxM) continue;
-
-        // Get the values of that pair
-        unsigned int a = set[pairA];
-        unsigned int b = set[pairB];
 
         // This will be our list of replacement values for the pair
         unsigned long replv[4] = {0};
@@ -149,7 +156,7 @@ int recursiveTest(const unsigned long *set, size_t size,
 
                 // Check the Reduction Itself, carry any error
                 int res = recursiveTest(reduction, size - 1, 0, 0,
-                        baseN, subN);
+                        baseN, subN, a, idx);
                 if (res) {
                     free(reduction);
                     return res;
