@@ -3,6 +3,21 @@
 // Copyright (c) 2025, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
+// This library implements an exhaustive reduction-based test. It is
+// primarily used to test sets' nullifiability, but can be generalized
+// to other reduction-based properties, like unifiability. Tests of set
+// properties, like bisectability, are implemented for sizes up to 4.
+
+// The recursive test can be configured to have a base-case of any
+// implemented size. It has the option of progressively testing subsets,
+// at each iteration, in case it can come across an easy nullification
+// early. The test can also be ranged, restricting its search to
+// reductions that are part of a certain range.
+
+// The test also is optimized to avoid testing with a pair of operations
+// redundantly, doing them in different orders but with the same set
+// elements.
+
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -33,7 +48,7 @@ int exTest(const unsigned long *set, size_t size,
 #endif
 
     // The parameters we're using
-    unsigned long baseN = 4, subN = 2;
+    unsigned long baseN = 4, subN = 4;
 
     // Check Subsets
     for (size_t i = 1; i <= subN; i++)
@@ -212,8 +227,8 @@ int checkSubsets(const unsigned long *set, size_t size,
 
     // N = 4: check manually
     else if (subN == 4) {
-        for (size_t idxA = 0; idxA < size - 2; idxA++)
-            for (size_t idxB = idxA + 1; idxB < size - 1; idxB++)
+        for (size_t idxA = 0; idxA < size - 3; idxA++)
+            for (size_t idxB = idxA + 1; idxB < size - 2; idxB++)
                 for (size_t idxC = idxB + 1; idxC < size - 1; idxC++)
                     for (size_t idxD = idxC + 1; idxD < size; idxD++)
         {
