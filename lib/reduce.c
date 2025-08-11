@@ -34,56 +34,70 @@ int reduce(const unsigned long *set, size_t srcSize,
 // reductions without care, if that maeks sense
 int subsGeneral(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool inRange,
-        size_t repeat,
-        int (*out)(const unsigned long *, size_t, size_t))
+        size_t destSize,
+        int (*out)(const unsigned long *, size_t))
 {
-    // Allocate Space for Reduction
-    unsigned long *reduction = calloc(size - 1, sizeof(unsigned long));
-    if (reduction == NULL) return -1;
-
     // If the max value is ineligible, we can only remove it
     unsigned long a_n = set[size - 1];
-    if ((a_n >= minM && a_n <= maxM) != inRange) goto greatest;
+    if ((a_n >= minM && a_n <= maxM) != inRange)
+        if (size > destSize) goto greatest;
+        else return 0;
 
-    // The first subset will be missing the first value
-    for (size_t i = 1; i < size; i++) reduction[i - 1] = set[i];
-    unsigned long missing = set[0];
+    // Allocate Space for Reduction
+    unsigned long *reduction = calloc(destSize, sizeof(unsigned long));
+    if (reduction == NULL) return -1;
 
-    // Iteratively take out values and place them back to create the
-    // other subsets
-    for (size_t i = 0; i < size - 1; i++) {
-        int res = out(reduction, size - 1, size - 1);
-        if (res) goto exit;
-        if (repeat) {
-            res = subsGeneral(reduction, size - 1, 0, 0, false,
-                    repeat - 1, out);
-            if (res) goto error;
-        }
-        unsigned long temp = reduction[i];
-        reduction[i] = missing;
-        missing = temp;
-    }
+    // Construct Subsets, not touching the max value
+    int res;
+    res = remove(set, size, 0, size - 1, reduction, destSize, 0, out);
+    if (res) goto exit;
 
-    // For removing the max value, check the new max to ensure it's
-    // eligible
+    // For removing the max value, simply replicate this process with a
+    // smaller size
+    free(reduction);
 greatest:
-    unsigned long a_pre_n = reduction[size - 2];
-    if ((a_pre_n >= minM && a_pre_n <= maxM) == inRange) {
-        int res = out(reduction, size - 1, size - 1);
-        if (repeat && !res) {
-            res = subsGeneral(reduction, size - 1, 0, 0, false,
-                    repeat - 1, out);
-            if (res) goto error;
-        }
-    }
+    return subsGeneral(set, size - 1, minM, maxM, inRange, destSize,
+            out);
 
 exit:
     free(reduction);
     return 0;
+}
 
-error:
-    free(reduction);
-    return -1;
+// Remove Set Values Recursively
+
+// Set indices starting from startIdx and up to but not including endIdx
+// will be held on to in sequence. Values will be placed into the
+// reduction starting at destIdx.
+int remove(const unsigned long *set, size_t size,
+        size_t startIdx, size_t endIdx,
+        unsigned long *reduction, size_t destSize, size_t destIdx,
+        int (*out)(const unsigned long *, size_t))
+{
+    // How many values to remove: as many are left in the set minus as
+    // many slots remain in our reduction
+    size_t removals = (size - startIdx) - (destSize - destIdx);
+
+    // If no more removals, fill in with the remaining set values and
+    // output the resulting subset
+    int res = 0;
+    if (!removals) {
+        for (size_t i = 0; i < destSize - destIdx; i++)
+            reduction[destIdx + i] = set[startIdx + i];
+        res = out(reduction, destSize);
+    }
+
+    // Otherwise, hold values from the original set one at a time before
+    // placing them in the reduction, recursing each time to perform any
+    // further removals
+    else for (size_t i = startIdx; i <= endIdx - removals; i++) {
+        res = remove(set, size, i + 1, endIdx,
+                reduction, destSize, destIdx, out);
+        if (res) break;
+        reduction[destIdx++] = set[i];
+    }
+
+    return res;
 }
 
 // Recursively Generate Set Reductions, Relative to a Range First-Order
