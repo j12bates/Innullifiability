@@ -12,36 +12,31 @@
 #include "reduce.h"
 
 // Helper Function Declarations
-int reduceGeneral(const unsigned long *, size_t,
-        unsigned long, unsigned long, bool,
-        size_t, unsigned long, size_t,
-        int (*)(const unsigned long *, size_t, size_t));
 int remove(const unsigned long *, size_t,
         size_t, size_t,
         unsigned long *, size_t, size_t,
         int (*)(const unsigned long *, size_t));
+int recursiveReduce(const unsigned long *, size_t,
+        unsigned long, unsigned long, bool,
+        size_t, unsigned long, size_t,
+        int (*)(const unsigned long *, size_t, size_t));
 
-// Produce Set Reductions
-int reduce(const unsigned long *set, size_t srcSize,
-        unsigned long minM, unsigned long maxM, bool inRange,
-        int mode, size_t destSize,
-        int (*out)(const unsigned long *, size_t, size_t))
-{
-    return reduceGeneral(set, srcSize, minM, maxM, inRange,
-            srcSize - destSize - 1, 0, srcSize, out);
-}
+// TODO: change `size' to `srcSize'
 
-// Generate Subsets Relative to a Range
+// Produce Subsets Relative to a Range
+// Return Values
+// 0    - Completed or Exited
+// -1   - Error
 int subset(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t destSize, int (*out)(const unsigned long *, size_t))
 {
 #ifndef NO_VALIDATE
-    // Validate Input Set: values are positive and ascending
+    // Validate Input Set: values are positive and non-descending
     errno = EINVAL;
     if (set[0] < 1) return -1;
     for (size_t i = 1; i < size; i++)
-        if (set[i] <= set[i - 1]) return -1;
+        if (set[i] < set[i - 1]) return -1;
 
     // Validate Sizes
     if (destSize == 0) return -1;
@@ -49,9 +44,12 @@ int subset(const unsigned long *set, size_t size,
     errno = 0;
 #endif
 
-    // If the max value is ineligible, we can only remove it
+    // If the max value isn't eligible, we can only remove it
     unsigned long a_n = set[size - 1];
     if ((a_n >= minM && a_n <= maxM) != inRange) goto greatest;
+
+    // If we've got nothing to remove, only output our (eligible) set
+    if (size == destSize) return out(set, size), 0;
 
     // Allocate Space for Reduction
     unsigned long *reduction = calloc(destSize, sizeof(unsigned long));
@@ -61,16 +59,41 @@ int subset(const unsigned long *set, size_t size,
     int res = remove(set, size, 0, size - 1,
             reduction, destSize, 0, out);
     free(reduction);
-    if (res) goto exit;
+    if (res) return 0;
 
     // For removing the max value, simply replicate this process with a
     // smaller size
 greatest:
-    if (size > destSize) return subset(set, size - 1,
+    if (destSize < size) return subset(set, size - 1,
             minM, maxM, inRange, destSize, out);
-
-exit:
     return 0;
+}
+
+// Produce Set Contractions, Relative to a Range First-Order
+// Return Values
+// 0    - Completed or Exited
+// 1    - Enumeration was Incomplete (due to wrap-around potential)
+// -1   - Error
+int contraction(const unsigned long *set, size_t srcSize,
+        unsigned long minM, unsigned long maxM, bool inRange,
+        size_t destSize,
+        int (*out)(const unsigned long *, size_t, size_t))
+{
+#ifndef NO_VALIDATE
+    // Validate Input Set: values are positive and non-descending
+    errno = EINVAL;
+    if (set[0] < 1) return -1;
+    for (size_t i = 1; i < srcSize; i++)
+        if (set[i] < set[i - 1]) return -1;
+
+    // Validate Sizes
+    if (destSize == 0) return -1;
+    if (destSize >= srcSize) return -1;
+    errno = 0;
+#endif
+
+    return recursiveReduce(set, srcSize, minM, maxM, inRange,
+            srcSize - destSize - 1, 0, srcSize, out);
 }
 
 // ============ Helper Functions
@@ -85,6 +108,7 @@ exit:
 // recursing to copy set values to the right, with any more needed
 // removals, before finally inserting the value and moving to the next
 // one. The iteration will stop short of the ending original set index.
+// There must be at least one value to remove.
 int remove(const unsigned long *set, size_t size,
         size_t startIdx, size_t endIdx,
         unsigned long *reduction, size_t destSize, size_t destIdx,
@@ -94,20 +118,19 @@ int remove(const unsigned long *set, size_t size,
     // many slots remain in our reduction
     size_t removals = (size - startIdx) - (destSize - destIdx);
 
-    // If no more removals, fill in with the remaining set values and
-    // output the resulting subset
-    int res = 0;
-    if (!removals) {
+    // If there is only one more removal, insert values to start with
+    // our starting value removed, then do our normal iterative holding
+    if (removals == 1)
         for (size_t i = 0; i < destSize - destIdx; i++)
-            reduction[destIdx + i] = set[startIdx + i];
-        res = out(reduction, destSize);
-    }
+            reduction[destIdx + i] = set[startIdx + i + 1];
 
-    // Otherwise, hold values from the original set one at a time before
-    // placing them in the reduction, recursing each time to perform
-    // value insertions (and removals) to the right
-    else for (size_t i = startIdx; i <= endIdx - removals; i++) {
-        res = remove(set, size, i + 1, endIdx,
+    // Hold values from the original set one at a time before placing
+    // them in the reduction, recursing each time to perform value
+    // insertions (and removals) to the right
+    int res = 0;
+    for (size_t i = startIdx; i <= endIdx - removals; i++) {
+        if (removals == 1) res = out(reduction, destSize);
+        else res = remove(set, size, i + 1, endIdx,
                 reduction, destSize, destIdx, out);
         if (res) break;
         reduction[destIdx++] = set[i];
@@ -116,11 +139,8 @@ int remove(const unsigned long *set, size_t size,
     return res;
 }
 
-// Recursively Generate Set Reductions, Relative to a Range First-Order
-// Return Values
-// 0    - Completed or Exited
-// 1    - Enumeration was Incomplete (due to wrap-around potential)
-// -1   - Error
+// Recursively Generate Set Contractions, Relative to a Range
+// First-Order
 
 // Input mset must be in ascending order. First-order reductions that
 // are eligible with the given M-range (inside or outside, as
@@ -137,11 +157,11 @@ int remove(const unsigned long *set, size_t size,
 
 // Due to limitations with integer storage, some multiplication
 // operations given sufficiently large sets cannot be performed, and so
-// these sets are not computed, but the process will return a special
-// code to indicate the omission. For nullifiability purposes, this is
-// of little concern as there would have to be two really high products
+// these sets are not computed, but the process will return a code of 1
+// to indicate the omission. For nullifiability purposes, this is of
+// little concern as there would have to be two really high products
 // somehow being close enough.
-int reduceGeneral(const unsigned long *set, size_t size,
+int recursiveReduce(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t repeat, unsigned long minOrig, size_t idxNew,
         int (*out)(const unsigned long *, size_t, size_t))
@@ -208,38 +228,33 @@ int reduceGeneral(const unsigned long *set, size_t size,
 
         // Insert Each Replacement Value
         idx = 0;
-        size_t i = 0;
-        while (i < replc)
+        for (size_t i = 0; i < replc; i++)
         {
-            // Advance our insertion index if needed and try again
-            if (idx + 1 < size - 1 && replv[i] > reduction[idx + 1]) {
+            // Advance our insertion index as needed, shifting values
+            // leftward
+            while (idx + 1 < size - 1 && replv[i] > reduction[idx + 1])
+            {
                 reduction[idx] = reduction[idx + 1];
-                idx++;
+                idx++;  // this could be one line. it's not undefined!
             }
 
-            // Otherwise, insert our replacement, and we have a
-            // reduction
-            else {
-                reduction[idx] = replv[i];
+            // Now insert our replacement, and we have a reduction
+            reduction[idx] = replv[i];
 
-                // If our M-value isn't relative to the range the way
-                // we want, skip this
-                unsigned long M = reduction[size - 2];
-                if ((M >= minM && M <= maxM) != inRange) continue;
+            // If our M-value isn't relative to the range the way we
+            // want, skip this
+            unsigned long M = reduction[size - 2];
+            if ((M >= minM && M <= maxM) != inRange) continue;
 
-                // Output/Recursion Calls
-                int res;
-                res = out(reduction, size - 1, idx);
-                if (res) goto exit;
-                if (repeat) {
-                    res = reduceGeneral(reduction, size - 1, 0, 0,
-                            false, repeat - 1, a, idx, out);
-                    if (res == 1) incomplete = true;
-                    else if (res) goto error;
-                }
-
-                // Advance to the next value
-                i++;
+            // Output/Recursion Calls
+            int res;
+            res = out(reduction, size - 1, idx);
+            if (res) goto exit;
+            if (repeat) {
+                res = recursiveReduce(reduction, size - 1, 0, 0, false,
+                        repeat - 1, a, idx, out);
+                if (res == 1) incomplete = true;
+                else if (res) goto error;
             }
         }
     }
