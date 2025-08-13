@@ -3,6 +3,29 @@
 // Copyright (c) 2025, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
+// This program is for reducing sets, by way of contractions or subsets.
+// Sets can have multiplicities in their values, but they must be in
+// non-descending order. The program implements methods for both
+// reduction methods, outputting reduced sets through a function
+// pointer. Contractions are also outputted with the inserted value's
+// index, as an additional function argument, meaning the output
+// function types aren't identical for both methods.
+
+// Subsets are implemented to produce subsets of any size not greater
+// than the input size, and will output sets relative to (either inside
+// or outside, as configured) a given M-range. Contractions however will
+// produce only first-order reductions relative to the M-range, before
+// recursing on those (if the target size is lower) to produce greater-
+// order reductions, and all reductions are output. This is more useful
+// for nullifiability purposes as sometimes it is more efficient to
+// progressively check subsets while reducing.
+
+// The implementations try and generate reductions in-place in memory
+// when possible, moving numbers around as opposed to wiping and
+// rewriting each time. This is largely the case for subsets, but not
+// feasible for iterating between pairs of values when doing
+// contractions.
+
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -21,13 +44,11 @@ int recursiveReduce(const unsigned long *, size_t,
         size_t, unsigned long, size_t,
         int (*)(const unsigned long *, size_t, size_t));
 
-// TODO: change `size' to `srcSize'
-
 // Produce Subsets Relative to a Range
 // Return Values
 // 0    - Completed or Exited
 // -1   - Error
-int subset(const unsigned long *set, size_t size,
+int subset(const unsigned long *set, size_t srcSize,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t destSize, int (*out)(const unsigned long *, size_t))
 {
@@ -35,28 +56,28 @@ int subset(const unsigned long *set, size_t size,
     // Validate Input Set: values are positive and non-descending
     errno = EINVAL;
     if (set[0] < 1) return -1;
-    for (size_t i = 1; i < size; i++)
+    for (size_t i = 1; i < srcSize; i++)
         if (set[i] < set[i - 1]) return -1;
 
     // Validate Sizes
     if (destSize == 0) return -1;
-    if (destSize > size) return -1;
+    if (destSize > srcSize) return -1;
     errno = 0;
 #endif
 
-    // If the max value isn't eligible, we can only remove it
-    unsigned long a_n = set[size - 1];
+    // If the max value is ineligible, we can only remove it
+    unsigned long a_n = set[srcSize - 1];
     if ((a_n >= minM && a_n <= maxM) != inRange) goto greatest;
 
     // If we've got nothing to remove, only output our (eligible) set
-    if (size == destSize) return out(set, size), 0;
+    if (srcSize == destSize) return out(set, srcSize), 0;
 
     // Allocate Space for Reduction
     unsigned long *reduction = calloc(destSize, sizeof(unsigned long));
     if (reduction == NULL) return -1;
 
     // Construct Subsets, not touching the max value
-    int res = remove(set, size, 0, size - 1,
+    int res = remove(set, srcSize, 0, srcSize - 1,
             reduction, destSize, 0, out);
     free(reduction);
     if (res) return 0;
@@ -64,7 +85,7 @@ int subset(const unsigned long *set, size_t size,
     // For removing the max value, simply replicate this process with a
     // smaller size
 greatest:
-    if (destSize < size) return subset(set, size - 1,
+    if (destSize < srcSize) return subset(set, srcSize - 1,
             minM, maxM, inRange, destSize, out);
     return 0;
 }
@@ -109,17 +130,21 @@ int contraction(const unsigned long *set, size_t srcSize,
 // removals, before finally inserting the value and moving to the next
 // one. The iteration will stop short of the ending original set index.
 // There must be at least one value to remove.
-int remove(const unsigned long *set, size_t size,
+int remove(const unsigned long *set, size_t srcSize,
         size_t startIdx, size_t endIdx,
         unsigned long *reduction, size_t destSize, size_t destIdx,
         int (*out)(const unsigned long *, size_t))
 {
     // How many values to remove: as many are left in the set minus as
     // many slots remain in our reduction
-    size_t removals = (size - startIdx) - (destSize - destIdx);
+    size_t removals = (srcSize - startIdx) - (destSize - destIdx);
 
-    // If there is only one more removal, insert values to start with
-    // our starting value removed, then do our normal iterative holding
+    // OPTIMIZATION: Insert the tail before the final iterative step, as
+    // opposed to recursing one more time and doing a tail insertion for
+    // every output subset
+
+    // If there is only one more removal, insert the tail with our
+    // starting value removed, then do our normal iterative holding
     if (removals == 1)
         for (size_t i = 0; i < destSize - destIdx; i++)
             reduction[destIdx + i] = set[startIdx + i + 1];
@@ -130,7 +155,7 @@ int remove(const unsigned long *set, size_t size,
     int res = 0;
     for (size_t i = startIdx; i <= endIdx - removals; i++) {
         if (removals == 1) res = out(reduction, destSize);
-        else res = remove(set, size, i + 1, endIdx,
+        else res = remove(set, srcSize, i + 1, endIdx,
                 reduction, destSize, destIdx, out);
         if (res) break;
         reduction[destIdx++] = set[i];
@@ -148,12 +173,6 @@ int remove(const unsigned long *set, size_t size,
 // values. If specified, further reductions of those sets will also be
 // outputted by the same means. If the output function returns a nonzero
 // value at any time, this process will exit.
-
-// The process is optimized in a way to avoid outputting some multiple-
-// reductions more than once: if successive reduction step operations
-// are each using elements from the set given initially, they could
-// theoretically take place in any order, so for this procedure we
-// constrain them to take place in ascending order by smaller value.
 
 // Due to limitations with integer storage, some multiplication
 // operations given sufficiently large sets cannot be performed, and so
@@ -180,9 +199,13 @@ int recursiveReduce(const unsigned long *set, size_t size,
         unsigned long a = set[pairA];
         unsigned long b = set[pairB];
 
+        // OPTIMIZATION: 'parallel' pairs of successive operations (ones
+        // that can be done in either order, as all values were in the
+        // original set) will be restricted to being done in ascending
+        // order by the smaller value
+
         // If this pair is one we could've operated on last time, skip
-        // it if it's comprised of a lesser value (only do parallel
-        // operations in ascending order by smaller value)
+        // it if it's comprised of a lesser value
         if (a < minOrig && pairA != idxNew && pairB != idxNew) continue;
 
         // Fill in the reduction with all the other values, leaving the
@@ -267,4 +290,3 @@ error:
     free(reduction);
     return -1;
 }
-
