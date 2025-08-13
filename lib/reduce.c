@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include <errno.h>
 #include <limits.h>
 
 #include "reduce.h"
@@ -15,6 +16,10 @@ int reduceGeneral(const unsigned long *, size_t,
         unsigned long, unsigned long, bool,
         size_t, unsigned long, size_t,
         int (*)(const unsigned long *, size_t, size_t));
+int remove(const unsigned long *, size_t,
+        size_t, size_t,
+        unsigned long *, size_t, size_t,
+        int (*)(const unsigned long *, size_t));
 
 // Produce Set Reductions
 int reduce(const unsigned long *set, size_t srcSize,
@@ -26,49 +31,60 @@ int reduce(const unsigned long *set, size_t srcSize,
             srcSize - destSize - 1, 0, srcSize, out);
 }
 
-// Recursively Generate Subsets, Relative to a Range First-Order
-
-// bro what? why did i make this recursive??? this should be done
-// iteratively and have the range apply at the end. range constraints on
-// the first step only makes sense for reductions as we do further
-// reductions without care, if that maeks sense
-int subsGeneral(const unsigned long *set, size_t size,
+// Generate Subsets Relative to a Range
+int subset(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool inRange,
-        size_t destSize,
-        int (*out)(const unsigned long *, size_t))
+        size_t destSize, int (*out)(const unsigned long *, size_t))
 {
+#ifndef NO_VALIDATE
+    // Validate Input Set: values are positive and ascending
+    errno = EINVAL;
+    if (set[0] < 1) return -1;
+    for (size_t i = 1; i < size; i++)
+        if (set[i] <= set[i - 1]) return -1;
+
+    // Validate Sizes
+    if (destSize == 0) return -1;
+    if (destSize > size) return -1;
+    errno = 0;
+#endif
+
     // If the max value is ineligible, we can only remove it
     unsigned long a_n = set[size - 1];
-    if ((a_n >= minM && a_n <= maxM) != inRange)
-        if (size > destSize) goto greatest;
-        else return 0;
+    if ((a_n >= minM && a_n <= maxM) != inRange) goto greatest;
 
     // Allocate Space for Reduction
     unsigned long *reduction = calloc(destSize, sizeof(unsigned long));
     if (reduction == NULL) return -1;
 
     // Construct Subsets, not touching the max value
-    int res;
-    res = remove(set, size, 0, size - 1, reduction, destSize, 0, out);
+    int res = remove(set, size, 0, size - 1,
+            reduction, destSize, 0, out);
+    free(reduction);
     if (res) goto exit;
 
     // For removing the max value, simply replicate this process with a
     // smaller size
-    free(reduction);
 greatest:
-    return subsGeneral(set, size - 1, minM, maxM, inRange, destSize,
-            out);
+    if (size > destSize) return subset(set, size - 1,
+            minM, maxM, inRange, destSize, out);
 
 exit:
-    free(reduction);
     return 0;
 }
 
+// ============ Helper Functions
+
 // Remove Set Values Recursively
 
-// Set indices starting from startIdx and up to but not including endIdx
-// will be held on to in sequence. Values will be placed into the
-// reduction starting at destIdx.
+// This function in effect iteratively removes values from a set to
+// create subsets of a given order. We're given some starting index for
+// the reduction set, and one for the original set. We will 'remove'
+// original set values to the right of the starting index iteratively,
+// one at a time, by simply not inserting them into the reduction,
+// recursing to copy set values to the right, with any more needed
+// removals, before finally inserting the value and moving to the next
+// one. The iteration will stop short of the ending original set index.
 int remove(const unsigned long *set, size_t size,
         size_t startIdx, size_t endIdx,
         unsigned long *reduction, size_t destSize, size_t destIdx,
@@ -88,8 +104,8 @@ int remove(const unsigned long *set, size_t size,
     }
 
     // Otherwise, hold values from the original set one at a time before
-    // placing them in the reduction, recursing each time to perform any
-    // further removals
+    // placing them in the reduction, recursing each time to perform
+    // value insertions (and removals) to the right
     else for (size_t i = startIdx; i <= endIdx - removals; i++) {
         res = remove(set, size, i + 1, endIdx,
                 reduction, destSize, destIdx, out);

@@ -5,6 +5,10 @@
 #ifndef REDUCE_H
 #define REDUCE_H
 
+#include <stdbool.h>
 
+int subset(const unsigned long *, size_t,
+        unsigned long, unsigned long, bool,
+        size_t, int (*)(const unsigned long *, size_t));
 
 #endif

@@ -1,13 +1,15 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../lib/expand.h"
+#include "../lib/reduce.h"
 
 void expandPrint(const unsigned long *, size_t);
-void printSet(const unsigned long *, size_t);
+int printSet(const unsigned long *, size_t);
 
 const unsigned long minM = 13;
 const unsigned long maxM = 15;
+const unsigned long destSize = 4;
 
 int main(int argc, char **argv)
 {
@@ -25,27 +27,20 @@ void expandPrint(const unsigned long *set, size_t size)
 {
     int res;
 
-    printf("Supersets: ");
-    res = expand(set, size, minM, maxM, EXPAND_SUPERS, &printSet);
-    printf("\n");
-    if (res) perror("Thing");
-
-    printf("Additive Mutations: ");
-    res = expand(set, size, minM, maxM, EXPAND_MUT_ADD, &printSet);
-    printf("\n");
-    if (res) perror("Thing");
-
-    printf("Multiplicative Mutations: ");
-    res = expand(set, size, minM, maxM, EXPAND_MUT_MUL, &printSet);
+    printf("Subsets: ");
+    res = subset(set, size, minM, maxM, true, destSize, &printSet);
     printf("\n");
     if (res) perror("Thing");
 
     return;
 }
 
-void printSet(const unsigned long *set, size_t size)
+
+int printSet(const unsigned long *set, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         printf("%c%d", i == 0 ? '(' : ',', set[i]);
     printf("%c ", ')');
+
+    return 0;
 }
