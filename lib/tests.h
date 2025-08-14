@@ -1,13 +1,17 @@
-// ====================== GENERAL EXHAUSTIVE TEST ======================
+// =============================== TESTS ===============================
 
-// See more info about this function in the source file `exTest.c'.
+// See more info about this function in the source file `tests.c'.
 
-#ifndef TEST_H
-#define TEST_H
+#ifndef TESTS_H
+#define TESTS_H
 
 #include <stdlib.h>
 
-int exTest(const unsigned long *, size_t,
-        unsigned long, unsigned long);
+int bisectSubs(const unsigned long *, size_t, size_t, size_t);
+
+int bisect(unsigned long, unsigned long,
+        unsigned long, unsigned long, size_t);
+
+int success(unsigned long, unsigned long, unsigned long, size_t);
 
 #endif
