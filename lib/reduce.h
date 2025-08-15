@@ -14,6 +14,6 @@ int subset(const unsigned long *, size_t,
 int contraction(const unsigned long *, size_t,
         unsigned long, unsigned long, bool,
         size_t,
-        int (*)(const unsigned long *, size_t, size_t));
+        int (*)(const unsigned long *, size_t, size_t), int *);
 
 #endif

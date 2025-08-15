@@ -35,14 +35,14 @@
 #include "reduce.h"
 
 // Helper Function Declarations
-int remove(const unsigned long *, size_t,
+static int remove(const unsigned long *, size_t,
         size_t, size_t,
         unsigned long *, size_t, size_t,
         int (*)(const unsigned long *, size_t));
-int recursiveReduce(const unsigned long *, size_t,
+static int recursiveReduce(const unsigned long *, size_t,
         unsigned long, unsigned long, bool,
         size_t, unsigned long, size_t,
-        int (*)(const unsigned long *, size_t, size_t));
+        int (*)(const unsigned long *, size_t, size_t), int *);
 
 // Produce Subsets Relative to a Range
 // Return Values
@@ -98,7 +98,7 @@ greatest:
 int contraction(const unsigned long *set, size_t srcSize,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t destSize,
-        int (*out)(const unsigned long *, size_t, size_t))
+        int (*out)(const unsigned long *, size_t, size_t), int *c)
 {
 #ifndef NO_VALIDATE
     // Validate Input Set: values are positive and non-descending
@@ -113,8 +113,11 @@ int contraction(const unsigned long *set, size_t srcSize,
     errno = 0;
 #endif
 
-    return recursiveReduce(set, srcSize, minM, maxM, inRange,
-            srcSize - destSize - 1, 0, srcSize, out);
+    int res = recursiveReduce(set, srcSize, minM, maxM, inRange,
+            srcSize - destSize - 1, 0, srcSize, out, c);
+
+    if (res == 2) res = 0;
+    return res;
 }
 
 // ============ Helper Functions
@@ -172,18 +175,19 @@ int remove(const unsigned long *set, size_t srcSize,
 // specified) are outputted along with the indices of the replacement
 // values. If specified, further reductions of those sets will also be
 // outputted by the same means. If the output function returns a nonzero
-// value at any time, this process will exit.
+// value at any time, this process will exit, placing that value at the
+// specified pointer unless it's null, and returning a code of 2.
 
 // Due to limitations with integer storage, some multiplication
 // operations given sufficiently large sets cannot be performed, and so
 // these sets are not computed, but the process will return a code of 1
 // to indicate the omission. For nullifiability purposes, this is of
 // little concern as there would have to be two really high products
-// somehow being close enough.
+// somehow being close enough, an incredibly unlikely situation.
 int recursiveReduce(const unsigned long *set, size_t size,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t repeat, unsigned long minOrig, size_t idxNew,
-        int (*out)(const unsigned long *, size_t, size_t))
+        int (*out)(const unsigned long *, size_t, size_t), int *c)
 {
     bool incomplete = false;
 
@@ -270,21 +274,27 @@ int recursiveReduce(const unsigned long *set, size_t size,
             if ((M >= minM && M <= maxM) != inRange) continue;
 
             // Output/Recursion Calls
-            int res;
-            res = out(reduction, size - 1, idx);
-            if (res) goto exit;
+            int res = out(reduction, size - 1, idx);
+            if (res) {
+                if (c != NULL) *c = res;
+                goto exit;
+            }
             if (repeat) {
                 res = recursiveReduce(reduction, size - 1, 0, 0, false,
-                        repeat - 1, a, idx, out);
+                        repeat - 1, a, idx, out, c);
                 if (res == 1) incomplete = true;
+                else if (res == 2) goto exit;
                 else if (res) goto error;
             }
         }
     }
 
-exit:
     free(reduction);
     return 0 + incomplete;
+
+exit:
+    free(reduction);
+    return 2;
 
 error:
     free(reduction);

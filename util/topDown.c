@@ -1,6 +1,6 @@
-// =============================== WEED ================================
+// ======================== TOP-DOWN PROCESSING ========================
 
-// Copyright (c) 2023, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This program takes in a record, and 'weeds out' all the remaining
@@ -22,8 +22,9 @@
 #include <unistd.h>
 
 #include "../lib/iface.h"
+#include "../lib/reduce.h"
 #include "../lib/setRec.h"
-#include "../lib/exTest.h"
+#include "../lib/tests.h"
 
 // Set Record
 SR_Base *rec = NULL;
@@ -33,6 +34,9 @@ size_t total;
 
 // Initial Reduction M-range
 unsigned long minm = 0, maxm = 0;
+bool inRange = true;
+bool testSubs = true;
+size_t progrSize = 4;
 
 // Number of Threads
 size_t threads = 1;
@@ -75,6 +79,18 @@ int main(int argc, char **argv)
     if (threads < 1) {
         fprintf(stderr, "Error: Must use at least 1 thread\n");
         return 1;
+    }
+
+    // If our set size is smaller than the implemented base cases,
+    // automatically test subsets of all sizes (if required)
+    if (size <= 4) progrSize = size - 1;
+
+    // Interpret a 'maxm' of 0 to mean no upper limit, so outside the
+    // complementary 0-to-'minm' range
+    if (maxm == 0) {
+        if (minm > 0) maxm = minm - 1;
+        minm = 0;
+        inRange = false;
     }
 
     // Block Progress Signal
@@ -164,6 +180,59 @@ int main(int argc, char **argv)
     return 0;
 }
 
+// Individual Set Nullifiability Testing/Marking
+void testElim(const unsigned long *set, size_t size, char bits)
+{
+    // The code 'c': bit 1 is bisectability, bit 2 is superset
+    int res = 1, c = 0;
+    int progrAndBase(const unsigned long *, size_t, size_t);
+
+    // Perform Preliminary Subset Tests
+    if (testSubs) for (size_t i = 1; i <= progrSize; i++)
+        c |= 2 * bisectSubs(set, size, i, size);
+
+    // If we're at the base-case, simply do the test. The subsets will
+    // have been automatically tested
+    if (size == 3) c |= bisect(set[0], set[1], set[2], 0, 3);
+    else if (size == 4) c |= bisect(set[0], set[1], set[2], set[3], 4);
+
+    // Exhaustively run the test on recursively-generated contractions
+    // for larger sizes
+    else if (!c) {
+        res = contraction(set, size, minm, maxm, inRange, 4,
+                &progrAndBase, &c);
+        CK_RES(res);
+    }
+
+    // Mark the appropriate bits in the record
+    int mark    = ((!res && !c) || size <= 4) * (TESTED_BISECT)
+                | !!(c & 1) * (TESTED_BISECT | BISECT | NULLIF)
+                | !!(c & 2) * (ONLY_SUP | NULLIF);
+    res = sr_mark(rec, set, size, mark);
+    CK_RES(res);
+
+    return;
+}
+
+// Progressive and Base-Case Tests
+int progrAndBase(const unsigned long *set, size_t size, size_t newIdx)
+{
+    bool bisectable = false, superset = false;
+
+    // Perform Progressive New Subset Tests
+    if (testSubs && progrSize < size)
+        superset = bisectSubs(set, size, progrSize, newIdx);
+
+    // Base-Case Test and Subset Tests
+    if (size == 4) {
+        bisectable = bisect(set[0], set[1], set[2], set[3], 4);
+        if (testSubs) for (size_t i = progrSize + 1; i < 4; i++)
+            superset |= bisectSubs(set, size, i, size);
+    }
+
+    return bisectable + 2 * superset;
+}
+
 // Thread Function for Testing Sets
 void *threadOp(void *arg)
 {
@@ -183,30 +252,12 @@ void *threadOp(void *arg)
     return NULL;
 }
 
-// Individual Set Testing/Elimination
-void testElim(const unsigned long *set, size_t size, char bits)
-{
-    int res;
-
-    // Run the Test
-    res = exTest(set, size, minm, maxm);
-    CK_RES(res);
-
-    // Eliminate if Nullifiable
-    if (res) {
-        res = sr_mark(rec, set, size, NULLIF);
-        CK_RES(res);
-    }
-
-    return;
-}
-
 // Thread Function for Intercepting Signals
 void *threadHandler(void *arg)
 {
     // Unblock the signal and just wait
     pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
-    while (1) pause();
+    while (true) pause();
 
     return NULL;
 }
