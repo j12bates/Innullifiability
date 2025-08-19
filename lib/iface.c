@@ -1,6 +1,6 @@
 // ========================== UTIL INTERFACE ===========================
 
-// Copyright (c) 2023, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
 // Some common functions used by the utility programs. Particularly File
@@ -172,6 +172,14 @@ int argParse(const Param *params, int reqd, const char *usage,
                 p[j] = val;
                 list = endptr;
             }
+        }
+        break;
+
+    // Character parameter
+    case PARAM_CHAR:
+        {
+            char *c = va_arg(ap, char *);
+            *c = argv[i][0];
         }
         break;
 

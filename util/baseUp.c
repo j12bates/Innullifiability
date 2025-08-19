@@ -32,9 +32,11 @@ SR_Base *dest = NULL;
 size_t srcSize, destSize;
 char *srcFname, *destFname;
 
-// Source Set Bits
-char supMask = NULLIF, supBits = NULLIF;
-char mutMask = BISECT | ONLY_SUP, mutBits = BISECT;
+// What Source Sets
+bool sup = true, mut = true;
+char supMode, mutMode;
+char supMask = 0, supBits = BISECT;
+char mutMask = 0, mutBits = BISECT;
 
 // Destination Range
 unsigned long minM, maxM;
@@ -49,7 +51,8 @@ size_t *tidxv = NULL;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s srcSize src.dat destSize dest.dat [threads]\n";
+        "Usage: %s srcSize src.dat destSize dest.dat "
+        "supMode mutMode [threads]\n";
 
 int main(int argc, char **argv)
 {
@@ -57,12 +60,26 @@ int main(int argc, char **argv)
 
     // Parse Arguments, Show Usage on Invalid
     {
-        const Param params[6] = {PARAM_SIZE, PARAM_FNAME,
-                PARAM_SIZE, PARAM_FNAME, PARAM_CT, PARAM_END};
+        const Param params[8] = {PARAM_SIZE, PARAM_FNAME,
+                PARAM_SIZE, PARAM_FNAME, PARAM_CHAR, PARAM_CHAR,
+                PARAM_CT, PARAM_END};
 
-        CK_IFACE_FN(argParse(params, 4, usage, argc, argv,
-                &srcSize, &srcFname, &destSize, &destFname, &threads));
+        CK_IFACE_FN(argParse(params, 6, usage, argc, argv,
+                &srcSize, &srcFname, &destSize, &destFname,
+                &supMode, &mutMode, &threads));
     }
+
+    // Interpret Mode Characters
+    if (supMode == 'n') supBits |= ONLY_SUP;
+    else if (supMode == 'b') supMask = BISECT;
+    else if (supMode == 'p') supMask = BISECT | ONLY_SUP;
+    else sup = false;
+
+    if (srcSize + 1 != destSize) mut = false;
+    else if (mutMode == 'n') mutBits |= ONLY_SUP;
+    else if (mutMode == 'b') mutMask = BISECT;
+    else if (mutMode == 'p') mutMask = BISECT | ONLY_SUP;
+    else mut = false;
 
     // Validate Thread Count
     if (threads < 1) {
@@ -144,12 +161,14 @@ void *threadOp(void *arg)
     size_t mod = (size_t *) arg - tidxv;
 
     // Query the Record to Perform Superset Expansion
-    res = sr_query_parallel(src, supMask, supBits,
-            threads, mod, NULL, &handleSup);
-    CK_RES(res);
+    if (sup) {
+        res = sr_query_parallel(src, supMask, supBits,
+                threads, mod, NULL, &handleSup);
+        CK_RES(res);
+    }
 
-    // Query the Record to Perform Mutation Expansion, if applicable
-    if (srcSize + 1 == destSize) {
+    // Query the Record to Perform Mutation Expansion
+    if (mut) {
         res = sr_query_parallel(src, mutMask, mutBits,
                 threads, mod, NULL, &handleMut);
         CK_RES(res);
