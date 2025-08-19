@@ -1,4 +1,4 @@
-// ===================== GENERAL MULTIPLE SUPERSET =====================
+// ======================== BASE-UP PROCESSING =========================
 
 // Copyright (c) 2025, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
@@ -21,14 +21,20 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include "../lib/expand.h"
 #include "../lib/iface.h"
 #include "../lib/multi.h"
+#include "../lib/setRec.h"
 
 // Set Records
 SR_Base *src = NULL;
 SR_Base *dest = NULL;
 size_t srcSize, destSize;
 char *srcFname, *destFname;
+
+// Source Set Bits
+char supMask = NULLIF, supBits = NULLIF;
+char mutMask = BISECT | ONLY_SUP, mutBits = BISECT;
 
 // Destination Range
 unsigned long minM, maxM;
@@ -130,34 +136,82 @@ int main(int argc, char **argv)
 // Thread Function for Performing Expansion
 void *threadOp(void *arg)
 {
-    void handleExpand(const unsigned long *, size_t, char);
+    void handleSup(const unsigned long *, size_t, char);
+    void handleMut(const unsigned long *, size_t, char);
+    ssize_t res;
 
     // Get Thread Number
     size_t mod = (size_t *) arg - tidxv;
 
-    // Perform multiple expansion on every nullifiable set
-    ssize_t res = sr_query_parallel(src, NULLIF, NULLIF,
-            threads, mod, NULL, &handleExpand);
+    // Query the Record to Perform Superset Expansion
+    res = sr_query_parallel(src, supMask, supBits,
+            threads, mod, NULL, &handleSup);
     CK_RES(res);
+
+    // Query the Record to Perform Mutation Expansion, if applicable
+    if (srcSize + 1 == destSize) {
+        res = sr_query_parallel(src, mutMask, mutBits,
+                threads, mod, NULL, &handleMut);
+        CK_RES(res);
+    }
 
     return NULL;
 }
 
-// Individual Source Set Expansion Function
-void handleExpand(const unsigned long *set, size_t size, char bits)
-{
-    void elim(const unsigned long *, size_t);
+void elimSup(const unsigned long *, size_t);
+void elimBisect(const unsigned long *, size_t);
+void elimSupBisect(const unsigned long *, size_t);
+void (*elim[3])(const unsigned long *, size_t)
+    = {&elimSup, &elimBisect, &elimSupBisect};
 
-    multiExpand(set, size, minM, maxM, fixedc, fixedv, destSize, &elim);
+// Individual Source Set Expansion Functions
+
+void handleMut(const unsigned long *set, size_t size, char bits)
+{
+    // This library requires absolute set maximum
+    unsigned long noFixedSeg_minM = minM;
+    unsigned long noFixedSeg_maxM = maxM;
+    if (fixedc) noFixedSeg_minM = noFixedSeg_maxM = fixedv[fixedc - 1];
+
+    // Mutation preserves bisectability and the property of being a
+    // superset, so we will mark appropriately
+    int setMarkIdx = !!(bits & ONLY_SUP) + 2 * !!(bits & BISECT) - 1;
+    expand(set, size, noFixedSeg_minM, noFixedSeg_maxM,
+            EXPAND_MUT_ADD | EXPAND_MUT_MUL, elim[setMarkIdx]);
 
     return;
 }
 
-// Individual Destination Set Elimination Function
-void elim(const unsigned long *set, size_t size)
+void handleSup(const unsigned long *set, size_t size, char bits)
 {
-    // Mark this set as Nullifiable/Superset
+    multiExpand(set, size, minM, maxM, fixedc, fixedv,
+            destSize, &elimSup);
+
+    return;
+}
+
+// Individual Destination Set Elimination (Marking) Functions
+
+void elimSup(const unsigned long *set, size_t size)
+{
     int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP);
+    CK_RES(res);
+
+    return;
+}
+
+void elimBisect(const unsigned long *set, size_t size)
+{
+    int res = sr_mark(dest, set, size, NULLIF | BISECT | TESTED_BISECT);
+    CK_RES(res);
+
+    return;
+}
+
+void elimSupBisect(const unsigned long *set, size_t size)
+{
+    int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP
+            | BISECT | TESTED_BISECT);
     CK_RES(res);
 
     return;
