@@ -35,7 +35,7 @@ size_t total;
 // Initial Reduction M-range
 unsigned long minm = 0, maxm = 0;
 bool inRange = true;
-bool testSubs = true;
+bool testSubs = false;
 size_t progrSize = 4;
 
 // Number of Threads
@@ -47,15 +47,16 @@ char *progFname = NULL;
 sigset_t progmask;
 
 // Options
-bool verbose;
 bool progExport;
 bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-vxi] recSize rec.dat [minm maxm threads "
+        "Usage: %s [-wcxi] recSize rec.dat [minm maxm threads "
                 "[prog.out]]\n"
-        "   -v      Verbose: Display Progress Messages\n"
+        "   -w      Weak Testing: Test for Bisectable Subsets and Stop "
+                "on Positive Result\n"
+        "   -c      Reduce into the Complement of the M-Range Given\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
 
@@ -71,8 +72,8 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &minm, &maxm, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("vxi", true, usage, argc, argv,
-                &verbose, &progExport, &intProg));
+        CK_IFACE_FN(optHandle("wcxi", true, usage, argc, argv,
+                &testSubs, &inRange, &progExport, &intProg));
     }
 
     // Validate Thread Count
@@ -125,15 +126,6 @@ int main(int argc, char **argv)
 
     // ============ Iteratively Perform Test
 
-    // Print Information about Execution
-    if (verbose)
-    {
-        fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
-                size, sr_getMinM(rec), sr_getMaxM(rec));
-        fprintf(stderr, "Testing Unmarked Sets with %zu Threads\n",
-                threads);
-    }
-
     // Launch Threads to do the Computing
     {
         void *threadOp(void *);
@@ -171,9 +163,7 @@ int main(int argc, char **argv)
     }
 
     // ============ Export and Cleanup
-    if (verbose) fprintf(stderr, "Writing Output Record...");
     CK_IFACE_FN(openExport(rec, fname));
-    if (verbose) fprintf(stderr, "Done\n");
 
     sr_release(rec);
 
@@ -181,30 +171,47 @@ int main(int argc, char **argv)
 }
 
 // Individual Set Nullifiability Testing/Marking
+
+// Set comes here direct from the record.
 void testElim(const unsigned long *set, size_t size, char bits)
 {
     // The code 'c': bit 1 is bisectability, bit 2 is superset
     int res = 1, c = 0;
     int progrAndBase(const unsigned long *, size_t, size_t);
+    int testElimSub(const unsigned long *, size_t);
 
     // Perform Preliminary Subset Tests
-    if (testSubs) for (size_t i = 1; i <= progrSize; i++)
+    if (testSubs) for (size_t i = 3; i <= progrSize; i++)
         c |= 2 * bisectSubs(set, size, i, size);
+    if (c) goto mark;
 
     // If we're at the base-case, simply do the test. The subsets will
     // have been automatically tested
     if (size == 3) c |= bisect(set[0], set[1], set[2], 0, 3);
     else if (size == 4) c |= bisect(set[0], set[1], set[2], set[3], 4);
 
-    // Exhaustively run the test on recursively-generated contractions
-    // for larger sizes
-    else if (!c) {
+    // Larger sizes require reduction
+    else if (!c)
+    {
+        // If we're testing subsets, we must consider the subset
+        // reductions in-range
+        if (testSubs) {
+            res = subset(set, size, minm, maxm, inRange, size - 1,
+                    &testElimSub);
+            CK_RES(res);
+            if (c = res) goto mark;
+        }
+
+        // Exhaustively run the test on recursively-generated
+        // contractions
         res = contraction(set, size, minm, maxm, inRange, 4,
                 &progrAndBase, &c);
         CK_RES(res);
     }
 
-    // Mark the appropriate bits in the record
+mark:
+    // Mark the appropriate bits in the record. If 'res' is zero, that
+    // must mean the contractions were fully enumerated and tested
     int mark    = ((!res && !c) || size <= 4) * (TESTED_BISECT)
                 | !!(c & 1) * (TESTED_BISECT | BISECT | NULLIF)
                 | !!(c & 2) * (ONLY_SUP | NULLIF);
@@ -214,7 +221,28 @@ void testElim(const unsigned long *set, size_t size, char bits)
     return;
 }
 
+// Testing a First-Order Subset
+int testElimSub(const unsigned long *set, size_t size)
+{
+    int c = 0;
+    int progrAndBase(const unsigned long *, size_t, size_t);
+
+    // If we're at the base-case, simply do the test. There are no new
+    // subsets compared to before the reduction
+    if (size == 4) return bisect(set[0], set[1], set[2], set[3], 4);
+
+    // Otherwise, exhaustively test
+    int res = contraction(set, size, minm, maxm, inRange, 4,
+            &progrAndBase, &c);
+    CK_RES(res);
+
+    return res;
+}
+
 // Progressive and Base-Case Tests
+
+// This is where recursive contraction outputs all the sets to be
+// tested.
 int progrAndBase(const unsigned long *set, size_t size, size_t newIdx)
 {
     bool bisectable = false, superset = false;
@@ -244,8 +272,13 @@ void *threadOp(void *arg)
     // Get Thread Number
     size_t mod = prog - progv;
 
+    // Test all sets whose bisectability is unconfirmed, or for a weak
+    // test, test only completely unmarked sets
+    char mask = TESTED_BISECT;
+    if (testSubs) mask |= ONLY_SUP;
+
     // For every unmarked set, run exhaustive test
-    ssize_t res = sr_query_parallel(rec, NULLIF, 0,
+    ssize_t res = sr_query_parallel(rec, mask, 0,
             threads, mod, prog, &testElim);
     CK_RES(res);
 

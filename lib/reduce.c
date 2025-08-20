@@ -46,8 +46,9 @@ static int recursiveReduce(const unsigned long *, size_t,
 
 // Produce Subsets Relative to a Range
 // Return Values
-// 0    - Completed or Exited
+// 0    - Completed Without Exit
 // -1   - Error
+// ?    - Exit code determined by output function
 int subset(const unsigned long *set, size_t srcSize,
         unsigned long minM, unsigned long maxM, bool inRange,
         size_t destSize, int (*out)(const unsigned long *, size_t))
@@ -70,7 +71,7 @@ int subset(const unsigned long *set, size_t srcSize,
     if ((a_n >= minM && a_n <= maxM) != inRange) goto greatest;
 
     // If we've got nothing to remove, only output our (eligible) set
-    if (srcSize == destSize) return out(set, srcSize), 0;
+    if (srcSize == destSize) return out(set, srcSize);
 
     // Allocate Space for Reduction
     unsigned long *reduction = calloc(destSize, sizeof(unsigned long));
@@ -80,7 +81,7 @@ int subset(const unsigned long *set, size_t srcSize,
     int res = remove(set, srcSize, 0, srcSize - 1,
             reduction, destSize, 0, out);
     free(reduction);
-    if (res) return 0;
+    if (res) return res;
 
     // For removing the max value, simply replicate this process with a
     // smaller size
@@ -132,7 +133,9 @@ int contraction(const unsigned long *set, size_t srcSize,
 // recursing to copy set values to the right, with any more needed
 // removals, before finally inserting the value and moving to the next
 // one. The iteration will stop short of the ending original set index.
-// There must be at least one value to remove.
+// There must be at least one value to remove. If the output function
+// returns a nonzero value, the process will immediately exit and return
+// that value.
 int remove(const unsigned long *set, size_t srcSize,
         size_t startIdx, size_t endIdx,
         unsigned long *reduction, size_t destSize, size_t destIdx,
