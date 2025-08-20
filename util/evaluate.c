@@ -30,6 +30,10 @@ char *fname;
 // Whether to List Out Sets
 bool disp;
 
+// Set Selection
+char mode;
+char mask = 0, bits = BISECT;
+
 // Number of Threads
 size_t threads = 1;
 
@@ -48,7 +52,8 @@ unsigned long filterFixed[4] = {0};
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-s] recSize rec.dat [threads [filters [fixed]]]\n"
+        "Usage: %s [-s] recSize rec.dat mode "
+                "[threads [filters [fixed]]]\n"
         "   -s      Short: No Printing Sets\n";
 
 int main(int argc, char **argv)
@@ -57,11 +62,12 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_CT,
-                PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
+        const Param params[7] = {PARAM_SIZE, PARAM_FNAME, PARAM_CHAR,
+                PARAM_CT, PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
 
-        CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
-               &size, &fname, &threads, &filterValue, &filterFixed));
+        CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
+               &size, &fname, &mode,
+               &threads, &filterValue, &filterFixed));
 
         CK_IFACE_FN(optHandle("s", false, usage, argc, argv, &disp));
     }
@@ -74,6 +80,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "Sets not printed under multithreading\n");
         disp = false;
     }
+
+    // Interpret Mode Character
+    if (mode == 'n') bits |= ONLY_SUP;
+    else if (mode == 'b') mask = BISECT;
+    else if (mode == 'p') mask = BISECT | ONLY_SUP;
+    else if (mode == 'i') mask = BISECT | ONLY_SUP, bits = 0;
+    else return 0;
 
     // Count Fixed Values
     unsigned long pFixed = 0;
@@ -160,7 +173,7 @@ void *threadOp(void *arg)
     size_t mod = count - countv;
 
     // For every unmarked set, count it and print
-    ssize_t res = sr_query_parallel(rec, NULLIF, 0,
+    ssize_t res = sr_query_parallel(rec, mask, bits,
             threads, mod, NULL, &countSet);
     CK_RES(res);
 

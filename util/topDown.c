@@ -47,15 +47,19 @@ char *progFname = NULL;
 sigset_t progmask;
 
 // Options
+bool testAllUntested;
 bool progExport;
 bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-wcxi] recSize rec.dat [minm maxm threads "
+        "Usage: %s [-uscxi] recSize rec.dat [minm maxm threads "
                 "[prog.out]]\n"
-        "   -w      Weak Testing: Test for Bisectable Subsets and Stop "
-                "on Positive Result\n"
+        "By default, the program tests any unmarked sets for "
+                "bisectability only.\n"
+        "   -u      Test all Sets with Unknown Bisectability\n"
+        "   -s      Weak: Test for Bisectable Subsets, Stopping on "
+                "Positive Result\n"
         "   -c      Reduce into the Complement of the M-Range Given\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
@@ -72,8 +76,9 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &minm, &maxm, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("wcxi", true, usage, argc, argv,
-                &testSubs, &inRange, &progExport, &intProg));
+        CK_IFACE_FN(optHandle("uscxi", true, usage, argc, argv,
+                &testAllUntested, &testSubs, &inRange,
+                &progExport, &intProg));
     }
 
     // Validate Thread Count
@@ -275,7 +280,7 @@ void *threadOp(void *arg)
     // Test all sets whose bisectability is unconfirmed, or for a weak
     // test, test only completely unmarked sets
     char mask = TESTED_BISECT;
-    if (testSubs) mask |= ONLY_SUP;
+    if (testSubs || !testAllUntested) mask |= ONLY_SUP;
 
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, mask, 0,
