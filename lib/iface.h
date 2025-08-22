@@ -10,11 +10,11 @@
 
 #include "setRec.h"
 
-#define NULLIF 1 << 0
-#define ONLY_SUP 1 << 1
-#define BISECT 1 << 2
-#define TESTED_BISECT 1 << 4
-#define MARKED NULLIF | ONLY_SUP
+#define NULLIF (1 << 0)
+#define ONLY_SUP (1 << 1)
+#define BISECT (1 << 2)
+#define TESTED_BISECT (1 << 4)
+#define MARKED (NULLIF | ONLY_SUP)
 
 #define FAULT() \
     do { \

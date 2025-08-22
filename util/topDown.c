@@ -34,9 +34,12 @@ size_t total;
 
 // Initial Reduction M-range
 unsigned long minm = 0, maxm = 0;
-bool inRange = true;
+bool inRange = false;
 bool testSubs = false;
 size_t progrSize = 4;
+
+// What sets to test?
+char mask = TESTED_BISECT | ONLY_SUP;
 
 // Number of Threads
 size_t threads = 1;
@@ -48,19 +51,20 @@ sigset_t progmask;
 
 // Options
 bool testAllUntested;
+bool reTest;
 bool progExport;
 bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-uscxi] recSize rec.dat [minm maxm threads "
+        "Usage: %s [-usrxi] recSize rec.dat [minm maxm threads "
                 "[prog.out]]\n"
         "By default, the program tests any unmarked sets for "
-                "bisectability only.\n"
-        "   -u      Test all Sets with Unknown Bisectability\n"
-        "   -s      Weak: Test for Bisectable Subsets, Stopping on "
-                "Positive Result\n"
-        "   -c      Reduce into the Complement of the M-Range Given\n"
+                "bisectability only,\n"
+        "assuming thorough expansion from the given M-range.\n"
+        "   -u      Test all Sets with Unknown Bisectability (Strong)\n"
+        "   -s      Test Subsets, Stopping on Positive Result (Weak)\n"
+        "   -r      Re-Test Any Sets Marked as Non-Bisectable\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
 
@@ -76,8 +80,8 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &minm, &maxm, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("uscxi", true, usage, argc, argv,
-                &testAllUntested, &testSubs, &inRange,
+        CK_IFACE_FN(optHandle("usrxi", true, usage, argc, argv,
+                &testAllUntested, &testSubs, &reTest,
                 &progExport, &intProg));
     }
 
@@ -91,13 +95,13 @@ int main(int argc, char **argv)
     // automatically test subsets of all sizes (if required)
     if (size <= 4) progrSize = size - 1;
 
-    // Interpret a 'maxm' of 0 to mean no upper limit, so outside the
-    // complementary 0-to-'minm' range
-    if (maxm == 0) {
-        if (minm > 0) maxm = minm - 1;
-        minm = 0;
-        inRange = false;
+    // Set up the set selector bitmask
+    if (testAllUntested && testSubs) {
+        fprintf(stderr, "Error: Options -us are Mutually Exclusive\n");
+        return 1;
     }
+    if (testAllUntested) mask = TESTED_BISECT;
+    if (reTest) mask = (mask & ~TESTED_BISECT) | BISECT;
 
     // Block Progress Signal
     sigemptyset(&progmask);
@@ -217,7 +221,7 @@ void testElim(const unsigned long *set, size_t size, char bits)
 mark:
     // Mark the appropriate bits in the record. If 'res' is zero, that
     // must mean the contractions were fully enumerated and tested
-    int mark    = ((!res && !c) || size <= 4) * (TESTED_BISECT)
+    char mark   = ((!res && !c) || size <= 4) * (TESTED_BISECT)
                 | !!(c & 1) * (TESTED_BISECT | BISECT | NULLIF)
                 | !!(c & 2) * (ONLY_SUP | NULLIF);
     res = sr_mark(rec, set, size, mark);
@@ -276,11 +280,6 @@ void *threadOp(void *arg)
 
     // Get Thread Number
     size_t mod = prog - progv;
-
-    // Test all sets whose bisectability is unconfirmed, or for a weak
-    // test, test only completely unmarked sets
-    char mask = TESTED_BISECT;
-    if (testSubs || !testAllUntested) mask |= ONLY_SUP;
 
     // For every unmarked set, run exhaustive test
     ssize_t res = sr_query_parallel(rec, mask, 0,
