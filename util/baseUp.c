@@ -23,7 +23,6 @@
 
 #include "../lib/expand.h"
 #include "../lib/iface.h"
-#include "../lib/multi.h"
 #include "../lib/setRec.h"
 
 // Set Records
@@ -195,15 +194,15 @@ void handleMut(const unsigned long *set, size_t size, char bits)
     // Mutation preserves bisectability and the property of being a
     // superset, so we will mark appropriately
     int setMarkIdx = !!(bits & ONLY_SUP) + 2 * !!(bits & BISECT) - 1;
-    expand(set, size, noFixedSeg_minM, noFixedSeg_maxM,
-            EXPAND_MUT_ADD | EXPAND_MUT_MUL, elim[setMarkIdx]);
+    mutate(set, size, noFixedSeg_minM, noFixedSeg_maxM, true, true,
+            elim[setMarkIdx]);
 
     return;
 }
 
 void handleSup(const unsigned long *set, size_t size, char bits)
 {
-    multiExpand(set, size, minM, maxM, fixedc, fixedv,
+    supers(set, size, minM, maxM, fixedc, fixedv,
             destSize, &elimSup);
 
     return;
