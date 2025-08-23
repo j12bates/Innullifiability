@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include "../lib/expand.h"
@@ -30,6 +31,7 @@ SR_Base *src = NULL;
 SR_Base *dest = NULL;
 size_t srcSize, destSize;
 char *srcFname, *destFname;
+size_t srcTotal;
 
 // What Source Sets
 bool sup = true, mut = true;
@@ -45,13 +47,20 @@ unsigned long *fixedv;
 // Number of Threads
 size_t threads = 1;
 
-// Thread Index Things
-size_t *tidxv = NULL;
+// Progress
+volatile size_t *progv = NULL;
+char *progFname = NULL;
+sigset_t progmask;
+
+// Progress Options
+bool progExport;
+bool progUnmarked;
+bool intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s srcSize src.dat destSize dest.dat "
-        "supMode mutMode [threads]\n";
+        "Usage: %s [-xui] srcSize src.dat destSize dest.dat "
+                "supMode mutMode [threads [prog.out]]\n";
 
 int main(int argc, char **argv)
 {
@@ -59,13 +68,16 @@ int main(int argc, char **argv)
 
     // Parse Arguments, Show Usage on Invalid
     {
-        const Param params[8] = {PARAM_SIZE, PARAM_FNAME,
+        const Param params[9] = {PARAM_SIZE, PARAM_FNAME,
                 PARAM_SIZE, PARAM_FNAME, PARAM_CHAR, PARAM_CHAR,
-                PARAM_CT, PARAM_END};
+                PARAM_CT, PARAM_FNAME, PARAM_END};
 
         CK_IFACE_FN(argParse(params, 6, usage, argc, argv,
                 &srcSize, &srcFname, &destSize, &destFname,
-                &supMode, &mutMode, &threads));
+                &supMode, &mutMode, &threads, &progFname));
+
+        CK_IFACE_FN(optHandle("xui", true, usage, argc, argv,
+                &progExport, &progUnmarked, &intProg));
     }
 
     // Interpret Mode Characters
@@ -86,6 +98,29 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Block Progress Signal
+    sigemptyset(&progmask);
+    sigaddset(&progmask, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &progmask, NULL);
+
+    // Set up Handler for Progress
+    {
+        void progHandler(int);
+        struct sigaction act = {0};
+
+        act.sa_handler = &progHandler;
+        sigaction(SIGUSR1, &act, NULL);
+    }
+
+    // Set up Handler for Interrupt
+    {
+        void intHandler(int);
+        struct sigaction act = {0};
+
+        act.sa_handler = &intHandler;
+        sigaction(SIGINT, &act, NULL);
+    }
+
     // ============ Import Records
 
     // Initialize Records
@@ -97,6 +132,7 @@ int main(int argc, char **argv)
     // Import Records from Files
     CK_IFACE_FN(openImport(src, srcFname));
     CK_IFACE_FN(openImport(dest, destFname));
+    srcTotal = sr_getTotal(src);
 
     // Get All Range Information
     minM = sr_getMinM(dest);
@@ -112,18 +148,24 @@ int main(int argc, char **argv)
     // Use threads to do all the computing
     {
         void *threadOp(void *);
+        void *threadHandler(void *);
 
         // Arrays for Threads and Args
         pthread_t th[threads];
-        tidxv = calloc(threads, sizeof(size_t));
-        CK_PTR(tidxv);
+        progv = calloc(threads, sizeof(size_t));
+        CK_PTR(progv);
 
         // Iteratively Create Threads
         for (size_t i = 0; i < threads; i++) {
             errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) (tidxv + i));
+                    (void *) (progv + i));
             CK_NO(errno);
         }
+
+        // Create Signal Handler Thread
+        pthread_t handler;
+        errno = pthread_create(&handler, NULL, &threadHandler, NULL);
+        CK_NO(errno);
 
         // Iteratively Join Threads
         for (size_t i = 0; i < threads; i++) {
@@ -131,8 +173,12 @@ int main(int argc, char **argv)
             CK_NO(errno);
         }
 
-        free((void *) tidxv); // no, I don't know why cast to void ptr
-        tidxv = NULL;
+        // Cancel Handler Thread
+        errno = pthread_cancel(handler);
+        CK_NO(errno);
+
+        free((void *) progv); // no, I don't know why cast to void ptr
+        progv = NULL;
     }
 
     // ============ Export and Cleanup
@@ -156,20 +202,23 @@ void *threadOp(void *arg)
     void handleMut(const unsigned long *, size_t, char);
     ssize_t res;
 
+    // Argument is a Reference for Progress Output
+    size_t *prog = (size_t *) arg;
+
     // Get Thread Number
-    size_t mod = (size_t *) arg - tidxv;
+    size_t mod = prog - progv;
 
     // Query the Record to Perform Superset Expansion
     if (sup) {
         res = sr_query_parallel(src, supMask, supBits,
-                threads, mod, NULL, &handleSup);
+                threads, mod, prog, &handleSup);
         CK_RES(res);
     }
 
     // Query the Record to Perform Mutation Expansion
     if (mut) {
         res = sr_query_parallel(src, mutMask, mutBits,
-                threads, mod, NULL, &handleMut);
+                threads, mod, prog, &handleMut);
         CK_RES(res);
     }
 
@@ -231,6 +280,59 @@ void elimSupBisect(const unsigned long *set, size_t size)
     int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP
             | BISECT | TESTED_BISECT);
     CK_RES(res);
+
+    return;
+}
+
+// ============ PROGRESS/SIGNALS
+
+// Thread Function for Intercepting Signals
+void *threadHandler(void *arg)
+{
+    // Unblock the signal and just wait
+    pthread_sigmask(SIG_UNBLOCK, &progmask, NULL);
+    while (true) pause();
+
+    return NULL;
+}
+
+// Progress Signal Handler
+void progHandler(int signo)
+{
+    if (signo != SIGUSR1) return;
+
+    // Sum of Progress
+    size_t prog = 0;
+    for (size_t i = 0; i < threads; i++) prog += progv[i];
+
+    // Count Unmarked Sets in Output if Specified
+    ssize_t remainingOutput = 0;
+    if (progUnmarked) {
+        remainingOutput = sr_query(dest, NULLIF, 0, NULL, NULL);
+        CK_RES(remainingOutput);
+    }
+
+    // Push Progress Update
+    if (progFname != NULL)
+        if (pushProg(prog, srcTotal, remainingOutput, progFname))
+            FAULT();
+
+    // Export Destination if Specified
+    if (progExport) CK_IFACE_FN(openExport(dest, destFname));
+
+    return;
+}
+
+// Interrupt Handler
+void intHandler(int signo)
+{
+    if (signo != SIGINT) return;
+
+    // Generate Progress Update if Specified
+    if (intProg) progHandler(SIGUSR1);
+
+    // Exit the program
+    safeExit();
 
     return;
 }
