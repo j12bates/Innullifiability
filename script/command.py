@@ -79,37 +79,27 @@ def compress(file, node):
     fail = subprocess.call(args)
     return not fail
 
-# run the expansion process, Generation util
+# run the expansion process, Base-Up util
 # returns success boolean
 def expand(src, dest, supers, mutate, node):
     (srcN, _, _, _) = getRange(src)
+    (destN, _, _, _) = getRange(dest)
     if not supers and not mutate:
         return True
 
-    opts = '-' + ('b' if configs.NO_SUPERS_MARK else '') + ('s' if supers else '') + ('m' if mutate else '')
-    args = numajob(node) + [f"{configs.BIN_DIR}/gen", opts, str(srcN), src, dest,
-            str(configs.THREADS_PER_JOB)]
+    args = numajob(node) + [f"{configs.BIN_DIR}/baseUp", str(srcN), src, str(destN), dest,
+            'p' if supers else '-', 'p' if mutate else '-', str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
 
-# run the special supersets process, General Multiple Supersets util
+# run the reduction process, Top-Down util
 # returns success boolean
-def splSup(src, dest, node):
-    (srcN, _, _, _) = getRange(src)
+def reduce(dest, minM, maxM, weak, node):
     (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{configs.BIN_DIR}/msup", str(srcN), src, str(destN), dest,
-            str(configs.THREADS_PER_JOB)]
-    print(argsToCmd(args))
-    fail = subprocess.call(args)
-    return not fail
-
-# run the weeding process, Weed util
-# returns success boolean
-def weed(dest, minM, maxM, node):
-    (destN, _, _, _) = getRange(dest)
-    args = numajob(node) + [f"{configs.BIN_DIR}/weed", str(destN), dest, str(minM), str(maxM),
-            str(configs.THREADS_PER_JOB)]
+    opts = '-' + ('s' if weak else '')
+    args = numajob(node) + [f"{configs.BIN_DIR}/topDown", opts, str(destN), dest,
+            str(minM), str(maxM), str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
@@ -123,7 +113,7 @@ def inspectByM(dest, node):
     MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
     filters = ' '.join([str(M) for M in MRange])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, "1", filters]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, "i", "1", filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:

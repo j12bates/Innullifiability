@@ -53,9 +53,21 @@ def countInANotInB(recA, recB):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, node):
-    (srcDir, supers, mutate) = params
+    (srcDir) = params
+    mutate = True
+    supers = True
 
     srcIdx = 0
+
+# value insertion count
+    (srcN, _, _, _) = getRange(getRecFname(srcDir, srcIdx))
+    (destN, _, _, _) = getRange(dest)
+    inserts = destN - srcN
+
+# mutate applicability: can't do multiple
+    if inserts > 1:
+        mutate = False
+
     while True:
         skip_supers = []
         skip_mutate = []
@@ -70,8 +82,9 @@ def expandJob(params, dest, node):
         unmetReqd = countInANotInB(dest, src)
         poking = countInANotInB(src, dest)
 
-# supersets can't remove any poking values, and can only fill in one unmet required value
-        if unmetReqd > 1:
+# supersets can't remove any poking values, and can only fill in as many unmet required values as
+# it's inserting
+        if unmetReqd > inserts:
             skip_supers += ["UNMET"]
         if poking > 0:
             skip_supers += ["POKING"]
@@ -99,31 +112,10 @@ def expandJob(params, dest, node):
 
     return True
 
-# perform special supersets on a complete directory into a single record file
-def splSupJob(params, dest, node):
-    (srcDir) = params
-
-    srcIdx = 0
-    while True:
-
-# obtain next source record
-        src = getRecFname(srcDir, srcIdx)
-        if not src:
-            break
-
-# run the appropriate command
-        res = splSup(src, dest, node)
-        if not res:
-            return False
-
-        srcIdx += 1
-
-    return True
-
-# perform a weeding of a single record
-def weedJob(params, dest, node):
-    (minM, maxM) = params
-    return weed(dest, minM, maxM, node)
+# perform reductive testing on a single record
+def reduceJob(params, dest, node):
+    (minM, maxM, weak) = params
+    return reduce(dest, minM, maxM, weak, node)
 
 # writes one record inspection result to the working file
 def inspectJob(params, dest, node):
@@ -327,8 +319,8 @@ def readLog(dirname):
 
     return (N, minM, maxM, swept)
 
-# ====== EXPANSION TASK CONFIGURATION
-def taskExpand(srcDir, supers, mutate):
+# ====== EXPANSIVE TASK CONFIGURATION
+def taskExpand(srcDir):
     global tasks, outlines
 
 # load source directory information
@@ -338,65 +330,36 @@ def taskExpand(srcDir, supers, mutate):
         return False
     (N, minM, maxM, swept) = res
 
-# special case: only supersets and source is more than one size below
-    if supers and not mutate and N + 1 < recN:
-        return taskSplSup(srcDir)
-
-# general case: continue, but we better have source be one size below
-    elif N + 1 != recN:
+# check if directory is valid to expand
+    if N >= recN:
         print(f"Task Parameters Invalid [Expand from {srcDir}]")
         return False
 
 # configure this task
-    tasks.append({'f': expandJob, 'params': (srcDir, supers, mutate)})
-
-# set up new lines to output into the destination log
-    logline = f"M_{minM}_{maxM} [from {srcDir}]"
-    if not swept:
-        logline += " WARN: source not marked SWEPT"
-
-    if supers:
-        outlines += ["XSUP: " + logline]
-    if mutate:
-        outlines += ["XMUT: " + logline]
-
-    return True
-
-# ====== SPECIAL SUPERSETS TASK CONFIGURATION
-def taskSplSup(srcDir):
-    global tasks, outlines
-
-# load source directory information
-    res = readLog(srcDir)
-    if not res:
-        print(f"Invalid Source Directory {srcDir}")
-        return False
-    (N, _, _, _) = res
-
-# configure this task
-    tasks.append({'f': splSupJob, 'params': (srcDir)})
+    tasks.append({'f': expandJob, 'params': (srcDir)})
 
 # set up a new line to output into the destination log
-    outlines += ["SPSS: [from {srcDir}] WARN: not thorough"]
+    logline = f"EXPD: N_{N} M_{minM}_{maxM} [from {srcDir}]"
+    if not swept:
+        logline += " WARN: source not marked SWEPT"
+    outlines += [logline]
 
     return True
 
-# ====== WEEDING TASK CONFIGURATION
-def taskWeed(minM, maxM):
+# ====== REDUCTIVE TASK CONFIGURATION
+def taskReduce(minM, maxM, weak):
     global tasks, outlines
 
 # configure this task
-    tasks.append({'f': weedJob, 'params': (minM, maxM)})
+    tasks.append({'f': reduceJob, 'params': (minM, maxM, weak)})
 
 # check if parameters are fine
-    if minM > maxM and maxM != 0:
+    if minM > maxM:
         print(f"Task Parameters Invalid [Weed in {minM}-{maxM}]")
         return False
 
 # set up a new line to output into the destination log
-    logline = f"WEED: M_{minM}_{maxM}"
-    if maxM == 0:
-        logline += " INDEF MAX"
+    logline = f"RTST: M_{minM}_{maxM}{' WEAK' if weak else ''}"
     outlines += [logline]
 
     return True
@@ -475,9 +438,7 @@ def usage():
     print(f"Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
     print(f"EXPAND  -- x src")
-    print(f"MUTATE  -- m src")
-    print(f"SUPERS  -- s src (can be of lower size than predecessor)")
-    print(f"WEED    -- w minM maxM")
+    print(f"REDUCE  -- r minM maxM")
     print(f"INSPECT -- i fileID")
 
     return True
@@ -495,27 +456,17 @@ def interpretTask(argIdx):
     if res:
         (recN, _, _, _) = res
 
-# Mass Expansion Modes
+# Mass Expansive Processing
     if mode == 'x' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        res = taskExpand(srcDir, True, True)
+        res = taskExpand(srcDir)
         return 2 * res
 
-    elif mode == 's' and argsRemaining >= 2:
-        srcDir = taskArgs[1]
-        res = taskExpand(srcDir, True, False)
-        return 2 * res
-
-    elif mode == 'm' and argsRemaining >= 2:
-        srcDir = taskArgs[1]
-        res = taskExpand(srcDir, False, True)
-        return 2 * res
-
-# Mass Weeding
-    elif mode == 'w' and argsRemaining >= 3:
+# Mass Reductive Processing
+    elif mode == 'r' and argsRemaining >= 3:
         minM = int(taskArgs[1])
         maxM = int(taskArgs[2])
-        res = taskWeed(minM, maxM)
+        res = taskReduce(minM, maxM, True)
         return 3 * res
 
 # Directory Inspection
