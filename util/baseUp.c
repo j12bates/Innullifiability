@@ -1,17 +1,50 @@
 // ======================== BASE-UP PROCESSING =========================
 
-// Copyright (c) 2025, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This program is another one for conducting an expansion, except it is
-// generalized to any source and destination set size. So if we want to
-// expand a record of length-6 sets into one of length-8 sets directly,
-// without having to deal with a monstrous load of length-7 riffraff, we
-// can do it this way. Only supersets are implemented, not multiple-
-// mutations.
+// This program does expansive, base-up work in searching for
+// innullifiable sets. It takes in two records, a source and
+// destination, and scans across the source, expanding nullifiable sets
+// to mark off many nullifiable sets in the destination.
 
-// This program does not implement any form of progress tracking as it
-// isn't necessary for the Database Script.
+// In our ideal expansion strategy, we will be taking precarious sets of
+// all sizes and marking off their supersets. If we're able to do this
+// with all precarious sets up to the destination M-range, then we will
+// be left with only sets who are themselves either precarious or
+// innullifiable. For this reason, this program implements superset
+// expansion from any smaller set size, not just N - 1.
+
+// To finish off the search, we test sets by their bisectability. Any
+// remaining bisectable sets are precarious, and by definition any
+// innullifiable sets aren't. But any precarious sets are guaranteed to
+// have a precarious contraction, so we can similarly expand out any
+// precarious sets of length N - 1 by mutations, marking off any sets
+// that have them as contractions.
+
+// We can't practically gather together all the sets that could possibly
+// be the guaranteed contraction of a set in our target space, so
+// additional testing must be done. However, if our mutative expansion
+// was thorough, we know that contraction can't be in the source
+// M-range, so we can have our test ignore contractions in that space.
+
+// In some cases, it may be infeasible to even gather all precarious
+// sets up to our target M-range. That process might require excessive
+// testing. So in the cases where our ideal strategy makes no
+// guarantees, we ought to still be able to mark out as many sets as
+// possible. So the program can be configured to generally expand
+// bisectable sets rather than just precarious ones, or even all
+// nullifiable sets in the source space.
+
+// This and the Top-Down program have the ability to have their progress
+// tracked. When sent SIGUSR1, the programs will output a small progress
+// update to whatever filename is passed in, ideally a named pipe. Here
+// progress is measured by how far through the record we've scanned
+// through: in Base-Up, this is the source record of sets we're
+// expanding; in Top-Down, this is the destination record we're testing.
+// In Base-Up it can optionally also provide the number of sets still
+// unmarked in the destination, in case at some point it would be more
+// efficient to start the testing stage.
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -60,7 +93,16 @@ bool intProg;
 // Usage Format String
 const char *usage =
         "Usage: %s [-xui] srcSize src.dat destSize dest.dat "
-                "supMode mutMode [threads [prog.out]]\n";
+                "supMode mutMode [threads [prog.out]]\n"
+        "supMode and mutMode:\n"
+        "   'n'     Expand All Nullifible Sets\n"
+        "   'b'       '     '  Bisectable Sets\n"
+        "   'p'       '     '  Precarious Sets\n"
+        "   '-'     Do not expand by this method\n"
+        "Progress Updates:\n"
+        "   -x      Export Current Output Record\n"
+        "   -u      Include Count of Remaining Unmarked Sets\n"
+        "   -i      Generate Progress Update on Interrupt\n";
 
 int main(int argc, char **argv)
 {

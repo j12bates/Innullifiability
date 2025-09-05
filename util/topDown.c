@@ -3,14 +3,43 @@
 // Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
-// This program takes in a record, and 'weeds out' all the remaining
-// unmarked nullifiable sets. It will iteratively apply the exhaustive
-// test and mark any sets that fail. It can also weed on a specific
-// range for the initial reduction, meaning it'll only proceed to work
-// on sets it's reduced to that M-range on the first go. This can be
-// likened to performing a thorough expansion on a weeded record with a
-// specific M-range, and in fact it has the same effect: every set that
-// can be reduced to anything nullifiable in that range gets marked.
+// This program does reductive, top-down work in searching for
+// innullifiable sets. It takes in one destination record, and it scans
+// across, reductively testing sets whose nullifiability isn't known.
+
+// After performing an ideal expansion, marking off all non-precarious
+// sets, there is no reason to test for bisectable subsets, so this
+// program by default tests bisectability only. Usually we don't care
+// that we know the bisectability of every set, including the supersets,
+// so we only perform the test by default on unmarked sets, not a
+// superset and not an already known mutation.
+
+// If the ideal expansion was infeasible though, we can instead perform
+// a 'weak' test, which also tests subsets for bisectability. This test
+// will mark off the set by whatever it found first. We can think of
+// this as a general nullifiability test, no expansion assumed.
+
+// On the other hand, if we care about the bisectability of every single
+// set, we can perform a 'strong' test, which will test every set whose
+// bisectability isn't known. Generally it's a good idea to run any kind
+// of mutative expansion on any bisectable sets we have, as this would
+// otherwise require testing the entire record.
+
+// In general, a nullifiable set is guaranteed to have a nullifiable
+// first-order contraction. If we did a thorough mutative expansion, we
+// know that guaranteed precarious contraction of any remaining
+// nullifiable set is either not in that range, or a non-set (something
+// with double-values). In the case of the ideal expansion, the non-set
+// possibility is already taken care of by expanding all precarious 3-
+// sets, and in the weak test case, this is taken care of by testing all
+// 3-subsets at the start. We can simply configure the test to discard
+// first-order contractions that fall within the expanded range, to not
+// waste time testing them further.
+
+// In some case where a mistake was made in configuring the expanded
+// range, there is an option to ignore any marking of known
+// bisectability, and simply re-test any set that isn't already marked
+// as being bisectable.
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -59,12 +88,13 @@ bool intProg;
 const char *usage =
         "Usage: %s [-usrxi] recSize rec.dat [minm maxm threads "
                 "[prog.out]]\n"
-        "By default, the program tests any unmarked sets for "
+        "By default, the program tests any totally unmarked sets for "
                 "bisectability only,\n"
-        "assuming thorough expansion from the given M-range.\n"
+        "assuming thorough mutative expansion from the given M-range.\n"
         "   -u      Test all Sets with Unknown Bisectability (Strong)\n"
         "   -s      Test Subsets, Stopping on Positive Result (Weak)\n"
         "   -r      Re-Test Any Sets Marked as Non-Bisectable\n"
+        "Progress Updates:\n"
         "   -x      Export Current Output Record on Progress Update\n"
         "   -i      Generate Progress Update on Interrupt\n";
 
@@ -202,15 +232,6 @@ void testElim(const unsigned long *set, size_t size, char bits)
     // Larger sizes require reduction
     else if (!c)
     {
-        // If we're testing subsets, we must consider the subset
-        // reductions in-range
-        if (testSubs) {
-            res = subset(set, size, minm, maxm, inRange, size - 1,
-                    &testElimSub);
-            CK_RES(res);
-            if (c = res) goto mark;
-        }
-
         // Exhaustively run the test on recursively-generated
         // contractions
         res = contraction(set, size, minm, maxm, inRange, 4,
