@@ -5,8 +5,8 @@
 # Copyright (c) 2023, Jacob Bates
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Store intermediary records in a shared memory tmpfile
-tempf=$(mktemp /dev/shm/rec.XXXXXX)
+# All record names will be stored in an array
+declare -a tempf
 
 # Make a named pipe for progress updates
 progf=$(mktemp -u /tmp/prog.XXXXXX)
@@ -18,6 +18,7 @@ th=$3
 output=$4
 
 utilpath=./bin
+classic=0
 
 usage="Usage: $0 target-size target-maxval [threads [output]]"
 usage1="All but <output> are positive integers"
@@ -44,8 +45,11 @@ done
 }
 
 # Clean up backgrounded processes and files on exit
-trap 'kill -s TERM "$(jobs -p)" 2> /dev/null; '"rm -f $progf $tempf" \
-    EXIT HUP INT TERM
+cleanup () {
+    kill -s TERM $(jobs -p) 2> /dev/null
+    rm -f $progf ${tempf[*]}
+}
+trap cleanup EXIT HUP INT TERM
 
 # Validate command-line arguments -- after this we know they're valid
 # numbers, no need for quotes
@@ -64,54 +68,83 @@ fi
 
 echo "N = $tsize, M <= $tmaxm" >&2
 
+# Perform one 'generation' from all results from smaller sizes into a
+# new size.
+newGeneration () {
+    destSize=$1
+
+    echo >&2
+    echo "================ Generating Size $size" >&2
+
+# Store working records in a shared memory tempfile
+    dest=$(mktemp /dev/shm/rec.XXXXXX.$destSize)
+    tempf[destSize]=$dest
+    $utilpath/create $size 0 $tmaxm 0 "" $dest || exit 1
+
 # Whenever we run a work job, we'll background it, keep its PID, then
 # launch a loop for progress updates and background that as well. We'll
 # wait for the work program to end, then kill the loop.
 
-# Get the base nullifiable sets (size-3)
-echo >&2
-echo "================ Finding Base Sets" >&2
+# Do the Expansive work, marking off all supersets of precarious sets
+# and mutations of precarious sets in range. In classic, just expand the
+# previous record
+    srcSize=3
+    if [ $classic -ne 0 ] && [ $destSize -gt 3 ]
+    then
+        srcSize=$((destSize - 1))
+    fi
+    while [ $srcSize -lt $destSize ]
+    do
+        echo "Expanding Size $srcSize                " >&2
 
-$utilpath/create 3 0 $tmaxm 0 "" $tempf || exit 1
+        $utilpath/baseUp $srcSize ${tempf[srcSize]} $destSize $dest \
+            p p $th $progf & curwork=$!
+        progLoop $curwork $progf & curloop=$!
+        wait $curwork || exit 1
+        kill $curloop
 
-$utilpath/weed 3 $tempf 0 0 $th $progf & curwork=$!
-progLoop $curwork $progf & curloop=$!
-wait $curwork || exit 1
-kill $curloop
+        srcSize=$((srcSize + 1))
+    done
 
-# Iteratively make generations, going up in size
+# Now do the Reductive work, testing what remains, assuming no supersets
+# were missed or in-range mutations. In classic, only do this for the
+# last generation and do a blanket test
+    if [ $classic -eq 0 ] || [ $destSize -eq $tsize ]
+    then
+        echo "Testing Remaining Sets                " >&2
+
+        if [ $classic -eq 0 ]
+        then
+            $utilpath/topDown $destSize $dest 0 $tmaxm $th $progf \
+                & curwork=$!
+        else
+            $utilpath/topDown -s $destSize $dest 0 0 $th $progf \
+                & curwork=$!
+        fi
+        progLoop $curwork $progf & curloop=$!
+        wait $curwork || exit 1
+        kill $curloop
+    fi
+}
+
+# Start from size 3 and keep generating set records of higher sizes
 size=3
-while [ $size -lt $tsize ]
+while [ $size -le $tsize ]
 do
-    echo >&2
-    echo "================ Expanding Size $size" >&2
-
-    $utilpath/gen -c $size $tempf $tempf $th $progf & curwork=$!
-    progLoop $curwork $progf & curloop=$!
-    wait $curwork || exit 1
-    kill $curloop
-
+    newGeneration $size || exit 1
     size=$((size + 1))
 done
-
-# Weed out any remaining nullifiable sets
-echo >&2
-echo "================ Testing Remaining Sets" >&2
-
-$utilpath/weed $tsize $tempf 0 0 $th $progf & curwork=$!
-progLoop $curwork $progf & curloop=$!
-wait $curwork || exit 1
-kill $curloop
 
 # Print out the resulting innullifiable sets
 echo >&2
 echo "================ Result" >&2
-$utilpath/eval $tsize $tempf || exit 1
+tempout=${tempf[tsize]}
+$utilpath/eval $tsize $tempout i || exit 1
 
 # Copy output
 if [ -n "$output" ]
 then
-    mv $tempf "$output" || exit 1
+    mv $tempout "$output" || exit 1
 fi
 
 exit 0
