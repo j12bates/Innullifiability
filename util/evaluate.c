@@ -55,6 +55,7 @@ const char *usage =
         "Usage: %s [-s] recSize rec.dat mode "
                 "[threads [filters [fixed]]]\n"
         "   -s      Short: No Printing Sets\n";
+        // TODO: lexicographic indices as an option
 
 int main(int argc, char **argv)
 {
@@ -85,7 +86,10 @@ int main(int argc, char **argv)
     if (mode == 'n') bits |= ONLY_SUP;
     else if (mode == 'b') mask = BISECT;
     else if (mode == 'p') mask = BISECT | ONLY_SUP;
-    else if (mode == 'i') mask = BISECT | ONLY_SUP, bits = 0;
+    else if (mode == 'i') {
+        mask = ONLY_SUP | BISECT;
+        bits = 0;
+    }
     else return 0;
 
     // Count Fixed Values

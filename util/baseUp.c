@@ -250,6 +250,9 @@ void *threadOp(void *arg)
     // Get Thread Number
     size_t mod = prog - progv;
 
+    // TODO: rework everything so that this can be done in one query, so
+    // there aren't two different cycles of progress tracking.
+
     // Query the Record to Perform Superset Expansion
     if (sup) {
         res = sr_query_parallel(src, supMask, supBits,

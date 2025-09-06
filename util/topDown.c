@@ -25,21 +25,23 @@
 // of mutative expansion on any bisectable sets we have, as this would
 // otherwise require testing the entire record.
 
-// In general, a nullifiable set is guaranteed to have a nullifiable
-// first-order contraction. If we did a thorough mutative expansion, we
-// know that guaranteed precarious contraction of any remaining
-// nullifiable set is either not in that range, or a non-set (something
-// with double-values). In the case of the ideal expansion, the non-set
-// possibility is already taken care of by expanding all precarious 3-
-// sets, and in the weak test case, this is taken care of by testing all
-// 3-subsets at the start. We can simply configure the test to discard
-// first-order contractions that fall within the expanded range, to not
-// waste time testing them further.
+// In general, any remaining nullifiable set is guaranteed to have a
+// nullifiable first-order contraction. In the case of the ideal
+// expansion, we can further say that this guaranteed set will be
+// precarious. If we thoroughly mutated all precarious sets in a range
+// and marked off the results, we can even further say that the set
+// won't be in that expansion range. We can simply configure the test to
+// discard first-order contractions that fall within that range.
 
-// In some case where a mistake was made in configuring the expanded
-// range, there is an option to ignore any marking of known
-// bisectability, and simply re-test any set that isn't already marked
-// as being bisectable.
+// Bisectability is marked off as being tested regardless of the result.
+// This way, if a test were to be interrupted, it can be resumed without
+// redoing all the work to try to bisect a non-bisectable set. There may
+// also be some rare indeterminate cases where a full enumeration of
+// contractions wasn't possible, so for these sets the 'tested' mark is
+// not given. In some case where a mistake was made in configuring the
+// expanded range, there is an option to ignore any marking of known
+// non-bisectability, and simply re-test any set that isn't marked as
+// being bisectable.
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -81,6 +83,8 @@ sigset_t progmask;
 // Options
 bool testAllUntested;
 bool reTest;
+
+// Progress Options
 bool progExport;
 bool intProg;
 
@@ -309,6 +313,8 @@ void *threadOp(void *arg)
 
     return NULL;
 }
+
+// ============ PROGRESS/SIGNALS
 
 // Thread Function for Intercepting Signals
 void *threadHandler(void *arg)
