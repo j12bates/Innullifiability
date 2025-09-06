@@ -81,14 +81,19 @@ def compress(file, node):
 
 # run the expansion process, Base-Up util
 # returns success boolean
-def expand(src, dest, supers, mutate, node):
+def expand(src, dest, supers, mutate, ideal, node):
     (srcN, _, _, _) = getRange(src)
     (destN, _, _, _) = getRange(dest)
     if not supers and not mutate:
         return True
 
+    supMode = 'p' if supers else '-'
+    mutMode = 'p' if mutate else '-'
+    if not ideal and supers:
+        supMode = 'n'
+
     args = numajob(node) + [f"{configs.BIN_DIR}/baseUp", str(srcN), src, str(destN), dest,
-            'p' if supers else '-', 'p' if mutate else '-', str(configs.THREADS_PER_JOB)]
+            supMode, mutMode, str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
     return not fail
@@ -105,7 +110,7 @@ def reduce(dest, minM, maxM, weak, node):
     return not fail
 
 # returns a dictionary of all valid M-values mapped to number of sets for each
-def inspectByM(dest, node):
+def inspectByM(dest, mode, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     if fixed:
         minM = maxM = fixed[-1]
@@ -113,7 +118,7 @@ def inspectByM(dest, node):
     MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
     filters = ' '.join([str(M) for M in MRange])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, "i", "1", filters]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode, "1", filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:

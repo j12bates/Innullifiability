@@ -53,7 +53,7 @@ def countInANotInB(recA, recB):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, node):
-    (srcDir) = params
+    (srcDir, ideal) = params
     mutate = True
     supers = True
 
@@ -104,7 +104,7 @@ def expandJob(params, dest, node):
 
 # run the appropriate command
         res = expand(src, dest, supers and not skip_supers,
-                     mutate and not skip_mutate, node)
+                     mutate and not skip_mutate, ideal, node)
         if not res:
             return False
 
@@ -119,11 +119,11 @@ def reduceJob(params, dest, node):
 
 # writes one record inspection result to the working file
 def inspectJob(params, dest, node):
-    (outfile) = params
+    (outfile, mode) = params
     shortFname = dest.split('/')[-1]
 
 # perform an inspection
-    tableM = inspectByM(dest, node)
+    tableM = inspectByM(dest, mode, node)
     if tableM == None:
         return False
 
@@ -320,7 +320,7 @@ def readLog(dirname):
     return (N, minM, maxM, swept)
 
 # ====== EXPANSIVE TASK CONFIGURATION
-def taskExpand(srcDir):
+def taskExpand(srcDir, ideal):
     global tasks, outlines
 
 # load source directory information
@@ -336,12 +336,14 @@ def taskExpand(srcDir):
         return False
 
 # configure this task
-    tasks.append({'f': expandJob, 'params': (srcDir)})
+    tasks.append({'f': expandJob, 'params': (srcDir, ideal)})
 
 # set up a new line to output into the destination log
     logline = f"EXPD: N_{N} M_{minM}_{maxM} [from {srcDir}]"
-    if not swept:
-        logline += " WARN: source not marked SWEPT"
+    if ideal:
+        logline += " IDEAL."
+        if not swept:
+            logline += " WARN: source not marked SWEPT"
     outlines += [logline]
 
     return True
@@ -359,13 +361,15 @@ def taskReduce(minM, maxM, weak):
         return False
 
 # set up a new line to output into the destination log
-    logline = f"RTST: M_{minM}_{maxM}{' WEAK' if weak else ''}"
+    logline = f"RTST: M_{minM}_{maxM}"
+    if weak:
+        logline += " WEAK"
     outlines += [logline]
 
     return True
 
 # ====== DIRECTORY INSPECTION TASK CONFIGURATION
-def taskInspect(fileid):
+def taskInspect(fileid, mode):
     global tasks, outlines
     outfile = f"{destDir}/insp-{fileid}.txt"
 
@@ -374,13 +378,21 @@ def taskInspect(fileid):
     f.close()
 
 # configure this task
-    tasks.append({'f': inspectJob, 'params': (outfile), 'f_end': finalizeInspection})
+    tasks.append({'f': inspectJob, 'params': (outfile, mode), 'f_end': finalizeInspection})
+
+# set up a new line to output into the destination log
+    logline = f"INSP: {fileid}"
+    if mode == 'i':
+        logline += " INNULL"
+    elif mode == 'p':
+        logline += " PRECAR"
+    outlines += [logline]
 
     return True
 
 # take the working file for inspection and translate it into a nice readable output file
 def finalizeInspection(params):
-    (outfile) = params
+    (outfile, mode) = params
     workfile = f"{outfile}.working"
 
 # read in data from the working file, process through it all
@@ -437,14 +449,18 @@ def usage():
     name = sys.argv[0]
     print(f"Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
-    print(f"EXPAND  -- x src")
-    print(f"REDUCE  -- r minM maxM")
-    print(f"INSPECT -- i fileID")
+    print(f"Ideal Expansion         -- x src")
+    print(f"Reductive Test          -- r minM maxM")
+    print(f"Generation Expansion    -- g src")
+    print(f"Weed-Out Test           -- w")
+    print(f"Inspect Innullifiables  -- i fileID")
+    print(f"Inspect Precarious      -- p fileID")
 
     return True
 
 # interpret and configure a task from the command line arguments
 # returns number of arguments used, or 0 if invalid
+# TODO: have the program figure out from the log what kind of test to do
 def interpretTask(argIdx):
     global recN
 
@@ -456,23 +472,34 @@ def interpretTask(argIdx):
     if res:
         (recN, _, _, _) = res
 
-# Mass Expansive Processing
+# Ideal Expansion of Precarious Sets
     if mode == 'x' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        res = taskExpand(srcDir)
+        res = taskExpand(srcDir, True)
         return 2 * res
 
-# Mass Reductive Processing
+# Reductive Testing Post-Ideal Expansion
     elif mode == 'r' and argsRemaining >= 3:
         minM = int(taskArgs[1])
         maxM = int(taskArgs[2])
-        res = taskReduce(minM, maxM, True)
+        res = taskReduce(minM, maxM, False)
         return 3 * res
 
-# Directory Inspection
-    elif mode == 'i' and argsRemaining >= 2:
+# Classic 'Generation' Expansion
+    elif mode == 'g' and argsRemaining >= 2:
+        srcDir = taskArgs[1]
+        res = taskExpand(srcDir, False)
+        return 2 * res
+
+# Weak 'Weed-out' Testing
+    elif mode == 'w':
+        res = taskReduce(0, 0, True)
+        return 1 * res
+
+# Directory Inspection of Innullifiable/Precarious Sets
+    elif mode in ['i', 'p'] and argsRemaining >= 2:
         fileid = taskArgs[1]
-        res = taskInspect(fileid)
+        res = taskInspect(fileid, mode)
         return 2 * res
 
 # Invalid Task Character
