@@ -27,8 +27,9 @@ SR_Base *rec;
 size_t size;
 char *fname;
 
-// Whether to List Out Sets
+// Whether to List Out Sets/Indices
 bool disp;
+bool dispIdx;
 
 // Set Selection
 char mode;
@@ -52,10 +53,10 @@ unsigned long filterFixed[4] = {0};
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-s] recSize rec.dat mode "
+        "Usage: %s [-si] recSize rec.dat mode "
                 "[threads [filters [fixed]]]\n"
-        "   -s      Short: No Printing Sets\n";
-        // TODO: lexicographic indices as an option
+        "   -s      Short: No Printing Sets\n"
+        "   -i      Print Indices along with Sets\n";
 
 int main(int argc, char **argv)
 {
@@ -70,7 +71,9 @@ int main(int argc, char **argv)
                &size, &fname, &mode,
                &threads, &filterValue, &filterFixed));
 
-        CK_IFACE_FN(optHandle("s", false, usage, argc, argv, &disp));
+        CK_IFACE_FN(optHandle("si", false, usage, argc, argv,
+                    &disp, &dispIdx));
+        dispIdx = !dispIdx;
     }
 
     // Validate Thread Count
@@ -190,6 +193,8 @@ void *threadOp(void *arg)
 // Take a set and do all the counting we need, print if necessary
 void countSet(const unsigned long *set, size_t size, char bits)
 {
+    size_t setToIdx(const unsigned long *, size_t);
+
     // Check if fixed values match
     for (size_t i = 0; i < filterFixedCt; i++) {
         unsigned long fixed = filterFixed[filterFixedCt - i - 1];
@@ -207,8 +212,47 @@ print:
     if (disp) {
         for (size_t i = 0; i < size; i++)
             printf("%4lu", set[i]);
+        if (dispIdx)
+            printf("%24lu", setToIdx(set, size));
         printf("\n");
     }
 
     return;
+}
+
+// Compute Index from Set
+// Returns the index, no error checking
+size_t setToIdx(const unsigned long *set, size_t size)
+{
+    unsigned long long binom(size_t, size_t);
+
+    size_t idx = 0;
+
+    // Go from most significant (highest) to least
+    for (size_t vals = size; vals > 0; vals--)
+    {
+        // Get set value, decrement since we're not using zero, add
+        // combinations to index
+        size_t m = set[vals - 1] - 1;
+        idx += binom(m, vals);
+    }
+
+    return idx;
+}
+
+// Binomial Coefficient
+unsigned long long binom(size_t m, size_t n)
+{
+    // Zero Case
+    if (m < n) return 0;
+
+    // Total Ordered Combinations, Permutations
+    unsigned long long total = 1, perms = 1;
+    for (size_t i = 0; i < n; i++)
+    {
+        total *= m - i;
+        perms *= i + 1;
+    }
+
+    return total / perms;
 }
