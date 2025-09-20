@@ -15,9 +15,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdatomic.h>
-
-#include <pthread.h>
 
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
@@ -27,23 +24,23 @@ SR_Base *rec;
 size_t size;
 char *fname;
 
-// Whether to List Out Sets/Indices
+// Whether to List Out Sets
 bool disp;
-bool dispIdx;
+
+// Whether to Deal in Lexicographic Indices
+bool lexicog;
 
 // Set Selection
 char mode;
 char mask = 0, bits = BISECT;
 
-// Number of Threads
-size_t threads = 1;
-
 // Set Counts (also for thread IDs)
-volatile size_t *countv = NULL;
+size_t *countv = NULL;
 
-// Filtering: arrays for fixed values and high-value filters, and a
-// thread-safe array for counting matches
-volatile _Atomic size_t filterMatch[1024] = {0};
+// Filtering: arrays for fixed values and high-value filters, and an
+// array for counting matches. Alternatively this could be index bucket
+// markers.
+size_t filterMatch[1024] = {0};
 
 size_t filterCt = 0;
 unsigned long filterValue[1024] = {0};
@@ -53,10 +50,14 @@ unsigned long filterFixed[4] = {0};
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-si] recSize rec.dat mode "
-                "[threads [filters [fixed]]]\n"
+        "Usage: %s [-sl] recSize rec.dat mode [filters [fixed]]\n"
         "   -s      Short: No Printing Sets\n"
-        "   -i      Print Indices along with Sets\n";
+        "By default, filters can be a space-separated list of M-values,"
+        " with up to four fixed values above them.\n"
+        "   -l      Lexicographic Indices: Filtering and Display\n"
+        "With this option, lexicographic indices are now displayed"
+        " alongside printed sets, and filters can be a space-separated"
+        " list of index cutoff values in ascending order.\n";
 
 int main(int argc, char **argv)
 {
@@ -64,25 +65,15 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[7] = {PARAM_SIZE, PARAM_FNAME, PARAM_CHAR,
-                PARAM_CT, PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
+        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_CHAR,
+                PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
 
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
-               &size, &fname, &mode,
-               &threads, &filterValue, &filterFixed));
+               &size, &fname, &mode, &filterValue, &filterFixed));
 
-        CK_IFACE_FN(optHandle("si", false, usage, argc, argv,
-                    &disp, &dispIdx));
-        dispIdx = !dispIdx;
-    }
-
-    // Validate Thread Count
-    if (threads < 1) {
-        fprintf(stderr, "Error: Must use at least 1 thread\n");
-        return 1;
-    } else if (threads > 1 && disp) {
-        fprintf(stderr, "Sets not printed under multithreading\n");
-        disp = false;
+        CK_IFACE_FN(optHandle("sl", false, usage, argc, argv,
+                    &disp, &lexicog));
+        lexicog = !lexicog;
     }
 
     // Interpret Mode Character
@@ -126,36 +117,19 @@ int main(int argc, char **argv)
 
     if (disp) printf("\n");
 
-    // Launch Threads to do the Computing
+    // For every unmarked set, count it and print
+    size_t count = 0;
     {
-        void *threadOp(void *);
+        void countSet(const unsigned long *, size_t, char);
 
-        // Arrays for Threads and Counts
-        pthread_t th[threads];
-        countv = calloc(threads, sizeof(size_t));
-        CK_PTR(countv);
-
-        // Iteratively Create Threads
-        for (size_t i = 0; i < threads; i++) {
-            errno = pthread_create(th + i, NULL, &threadOp,
-                    (void *) (countv + i));
-            CK_NO(errno);
-        }
-
-        // Iteratively Join Threads
-        for (size_t i = 0; i < threads; i++) {
-            errno = pthread_join(th[i], NULL);
-            CK_NO(errno);
-        }
+        ssize_t res = sr_query(rec, mask, bits, NULL, &countSet);
+        CK_RES(res);
+        count = (size_t) res;
     }
 
-    // Total Up all the Sets
-    size_t count = 0;
-    for (size_t i = 0; i < threads; i++) count += countv[i];
-    free((void *) countv);
+    if (disp) printf("\n");
 
     // Print the Counts: Each Filter (if any), and Total
-    if (disp) printf("\n");
     if (filterCt) printf("filters -- ");
     for (size_t i = 0; i < filterCt; i++)
         printf("%zu ", filterMatch[i]);
@@ -168,54 +142,48 @@ int main(int argc, char **argv)
     return 0;
 }
 
-// Thread Function for Scanning the Record & Outputting
-void *threadOp(void *arg)
-{
-    void countSet(const unsigned long *, size_t, char);
-
-    // Argument is a Reference for Count Output
-    size_t *count = (size_t *) arg;
-
-    // Get Thread Number
-    size_t mod = count - countv;
-
-    // For every unmarked set, count it and print
-    ssize_t res = sr_query_parallel(rec, mask, bits,
-            threads, mod, NULL, &countSet);
-    CK_RES(res);
-
-    // Store Set Count
-    *count = res;
-
-    return NULL;
-}
-
 // Take a set and do all the counting we need, print if necessary
 void countSet(const unsigned long *set, size_t size, char bits)
 {
     size_t setToIdx(const unsigned long *, size_t);
 
-    // Check if fixed values match
-    for (size_t i = 0; i < filterFixedCt; i++) {
-        unsigned long fixed = filterFixed[filterFixedCt - i - 1];
-        if (!fixed) break;
-        if (set[size - i - 1] != fixed) goto print;
+    // Filter by Values
+    if (!lexicog)
+    {
+        // Check if fixed values match
+        for (size_t i = 0; i < filterFixedCt; i++) {
+            unsigned long fixed = filterFixed[filterFixedCt - i - 1];
+            if (!fixed) break;
+            if (set[size - i - 1] != fixed) goto print;
+        }
+
+        // Match against the M-value filters
+        for (size_t i = 0; i < filterCt; i++)
+            if (set[size - filterFixedCt - 1] == filterValue[i])
+                filterMatch[i]++;
     }
 
-    // Match against the M-value filters
-    for (size_t i = 0; i < filterCt; i++)
-        if (set[size - filterFixedCt - 1] == filterValue[i])
-            atomic_fetch_add(filterMatch + i, 1);
+    // Filter by Index
+    else
+    {
+        // Compute the lexicographic index
+        size_t lexicogIdx = setToIdx(set, size);
 
-    // Print set to standard output if required
+        // Match against index filters
+        for (size_t i = 0; i < filterCt; i++)
+            if (lexicogIdx <= (size_t) filterValue[i]) {
+                filterMatch[i]++;
+                break;
+            }
+    }
+
+    // Print to standard output if required
 print:
-    if (disp) {
-        for (size_t i = 0; i < size; i++)
-            printf("%4lu", set[i]);
-        if (dispIdx)
-            printf("%24lu", setToIdx(set, size));
-        printf("\n");
-    }
+    if (!disp) return;
+
+    for (size_t i = 0; i < size; i++) printf("%4lu", set[i]);
+    if (lexicog) printf("%24lu", setToIdx(set, size));
+    printf("\n");
 
     return;
 }
