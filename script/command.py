@@ -118,7 +118,7 @@ def inspectByM(dest, mode, node):
     MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
     filters = ' '.join([str(M) for M in MRange])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode, "1", filters]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode, filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:
@@ -129,5 +129,28 @@ def inspectByM(dest, mode, node):
     for i in range(len(MRange)):
         M = MRange[i]
         table[M] = int(strCounts[i])
+
+    return table
+
+# returns a dictionary of buckets of lexicographic indices and their set counts
+def inspectByIdx(dest, mode, node):
+    (destN, minM, maxM, fixed) = getRange(dest)
+    table = {}
+    idxIncr = configs.IDX_BUCKET_SIZE
+    idxBuckets = configs.IDX_BUCKET_COUNT
+    cutoffs = range(idxIncr, idxIncr * idxBuckets + 1, idxIncr)
+    filters = ' '.join([str(c) for c in cutoffs])
+
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode, filters]
+    print(argsToCmd(args))
+    count = subprocess.run(args, capture_output = True, text = True)
+    if count.returncode:
+        return False
+
+# form this into a table of buckets
+    strCounts = count.stdout.split('\n')[0].split(' ')[2:]
+    for i in range(len(cutoffs)):
+        c = cutoffs[i]
+        table[c] = int(strCounts[i])
 
     return table

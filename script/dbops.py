@@ -122,19 +122,30 @@ def inspectJob(params, dest, node):
     (outfile, mode) = params
     shortFname = dest.split('/')[-1]
 
-# perform an inspection
+# perform an inspection by M-values
     tableM = inspectByM(dest, mode, node)
     if tableM == None:
         return False
 
 # write a line for total count
     count = sum(tableM.values())
-    lines = [f"Rec    ---- {shortFname:<32} -- {count:>12}"]
+    lines = [f"Rec             ---- {shortFname:<32} -- {count:>12}"]
 
 # write a line for each M-value
     for M in tableM:
         count = tableM[M]
-        lines += [f"ZpartM {M:>4} {shortFname:<32} -- {count:>12}"]
+        lines += [f"ZpartM          {M:>4} {shortFname:<32} -- {count:>12}"]
+
+# perform an inspection by Index Buckets
+    tableIdx = inspectByIdx(dest, mode, node)
+    if tableIdx == None:
+        return False
+
+# write a line for each Index Bucket
+    for c in tableIdx:
+        if tableIdx[c]:
+            count = tableIdx[c]
+            lines += [f"ZpartI  {c:>12} {shortFname:<32} -- {count:>12}"]
 
 # write this to the working file (preserved on task interruption), not the output file
     workfile = f"{outfile}.working"
@@ -403,6 +414,7 @@ def finalizeInspection(params):
     seenSignatures = []
     finalLines = []
     tableM = {}
+    tableIdx = {}
     for line in lines:
         tokens = line.split()
         signature = ' '.join(tokens[0:3])
@@ -417,6 +429,14 @@ def finalizeInspection(params):
         if tokens[0] == "Rec":
             finalLines.append(line)
 
+# sum together Index Bucket counts across all records
+        elif tokens[0] == "ZpartI":
+            c = tokens[1]
+            count = int(tokens[4])
+            if not c in tableIdx:
+                tableIdx[c] = 0
+            tableIdx[c] += count
+
 # sum together M-value counts across all records
         elif tokens[0] == "ZpartM":
             M = tokens[1]
@@ -425,13 +445,22 @@ def finalizeInspection(params):
                 tableM[M] = 0
             tableM[M] += count
 
+# enter a total count line for each Index Bucket
+    idxIncr = configs.IDX_BUCKET_SIZE
+    for c in tableIdx:
+        prevC = int(c) - idxIncr + 1
+        # n = c // idxIncr      # for alphabetization
+        count = tableIdx[c]
+        finalLines.append(f"Idx. {prevC:>12} - {c:>12} -- {count:>12}")
+
 # enter a total count line for each M-value concerned
     for M in tableM:
         count = tableM[M]
         finalLines.append(f"M {M:>4} -- {count:>12}")
 
 # dividing lines
-    finalLines.append("A===== M-VALUE COUNTS ======")
+    finalLines.append("A====== INDEX COUNTS =======")
+    finalLines.append("L===== M-VALUE COUNTS ======")
     finalLines.append("P===== RECORD COUNTS =======")
 
 # sort lines and write them to the final output file
