@@ -12,6 +12,12 @@
 // output in a space-separated list. The filters are on the M-value, or
 // a_{n-k} with k fixed values, also set through a space-separated list.
 
+// Furthermore, this program can deal in set lexicographic indices. With
+// one command-line option enabled, it'll print indices alongside the
+// set representations, and the M-value filter list becomes a list of
+// cutoff values for index buckets, into which sets are counted. Fixed
+// values ignored.
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,18 +106,19 @@ int main(int argc, char **argv)
     }
 
     // Count to Last Valid Filter
-    for (size_t i = 0; i < 1024; i++)
+    for (size_t i = 0; i < 1024; i++) {
         if (filterValue[i]) filterCt = i + 1;
+        if (lexicog && i && filterValue[i - 1] >= filterValue[i]) {
+            fprintf(stderr, "Error: Invalid index bucket list\n");
+            return 1;
+        }
+    }
 
     // ============ Import Record
     rec = sr_initialize(size);
     CK_PTR(rec);
 
     CK_IFACE_FN(openImport(rec, fname));
-
-    // Display Infos
-    fprintf(stderr, "rec  - Size: %2zu; M: %4lu to %4lu\n",
-            size, sr_getMinM(rec), sr_getMaxM(rec));
 
     // ============ Query Record to Print Sets
 
@@ -169,7 +176,7 @@ void countSet(const unsigned long *set, size_t size, char bits)
         // Compute the lexicographic index
         size_t lexicogIdx = setToIdx(set, size);
 
-        // Match against index filters
+        // Match against index bucket cutoffs
         for (size_t i = 0; i < filterCt; i++)
             if (lexicogIdx <= (size_t) filterValue[i]) {
                 filterMatch[i]++;

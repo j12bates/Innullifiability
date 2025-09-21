@@ -1,6 +1,6 @@
 // ============================ CREATE NEW =============================
 
-// Copyright (c) 2023, Jacob Bates
+// Copyright (c) 2023-25, Jacob Bates
 // SPDX-License-Identifier: BSD-2-Clause
 
 // This program creates a blank record file with a specified Variable
@@ -87,9 +87,6 @@ int main(int argc, char **argv)
     }
 
     // ============ Create Record and Export
-    fprintf(stderr, "Creating... Size: %2zu; M: %4lu to %4lu\n",
-            varSize, minm, maxm);
-
     rec = sr_initialize(varSize + fixedSize);
     CK_PTR(rec);
 
