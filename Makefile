@@ -8,39 +8,31 @@ OBJ		:= obj
 TARGET	:= bin
 
 SRC		:= util
-SRC_X	:= extra
 LIB		:= lib
 
 OBJ_IFACE	:= $(OBJ)/iface.o
 OBJ_SETREC	:= $(OBJ)/setRec.o
 OBJ_EXPAND	:= $(OBJ)/expand.o
-OBJ_MULTI	:= $(OBJ)/multi.o
-OBJ_NULTEST	:= $(OBJ)/exTest.o
+OBJ_REDUCE	:= $(OBJ)/reduce.o
+OBJ_TESTS	:= $(OBJ)/tests.o
 
-SRC_GEN		:= $(SRC)/generation.c
-SRC_MSUP	:= $(SRC)/multisup.c
-SRC_WEED	:= $(SRC)/weed.c
+SRC_BASEUP	:= $(SRC)/baseUp.c
+SRC_TOPDOWN	:= $(SRC)/topDown.c
 SRC_EVAL	:= $(SRC)/evaluate.c
 SRC_CREATE	:= $(SRC)/create.c
 
 DEP_UTIL	:= $(OBJ_IFACE) $(OBJ_SETREC)
-DEP_GEN		:= $(OBJ_EXPAND)
-DEP_MSUP	:= $(OBJ_MULTI)
-DEP_WEED	:= $(OBJ_NULTEST)
+DEP_BASEUP	:= $(OBJ_EXPAND)
+DEP_TOPDOWN	:= $(OBJ_REDUCE) $(OBJ_TESTS)
 DEP_EVAL	:=
 DEP_CREATE	:=
 
-GEN			:= $(TARGET)/gen
-MSUP		:= $(TARGET)/msup
-WEED		:= $(TARGET)/weed
+BASEUP		:= $(TARGET)/baseUp
+TOPDOWN		:= $(TARGET)/topDown
 EVAL		:= $(TARGET)/eval
 CREATE		:= $(TARGET)/create
 
-SRC_COUNT	:= $(SRC_X)/count.c
-COUNT		:= $(TARGET)/count
-
-UTILS		:= $(GEN) $(MSUP) $(WEED) $(EVAL) $(CREATE)
-EXTRA		:= $(COUNT)
+UTILS		:= $(BASEUP) $(TOPDOWN) $(EVAL) $(CREATE)
 
 .PHONY: all out debug clean utils dirs
 
@@ -50,11 +42,9 @@ out: CCFLAGS += $(OPFLAGS)
 out: utils
 
 debug: CCFLAGS += $(DBFLAGS)
-debug: utils extra
+debug: utils
 
 utils: dirs $(UTILS)
-
-extra: $(EXTRA)
 
 dirs:
 	mkdir -p $(OBJ) $(TARGET)
@@ -65,16 +55,10 @@ clean:
 $(OBJ)/%.o: $(LIB)/%.c
 	$(CC) $(CCFLAGS) -c $< -o $@
 
-$(GEN): $(DEP_GEN) $(SRC_GEN)
-$(MSUP): $(DEP_MSUP) $(SRC_MSUP)
-$(WEED): $(DEP_WEED) $(SRC_WEED)
+$(BASEUP): $(DEP_BASEUP) $(SRC_BASEUP)
+$(TOPDOWN): $(DEP_TOPDOWN) $(SRC_TOPDOWN)
 $(EVAL): $(DEP_EVAL) $(SRC_EVAL)
 $(CREATE): $(DEP_CREATE) $(SRC_CREATE)
 
-$(COUNT): $(SRC_COUNT)
-
 $(UTILS): $(DEP_UTIL)
-	$(CC) $(CCFLAGS) $^ -o $@
-
-$(EXTRA):
 	$(CC) $(CCFLAGS) $^ -o $@
