@@ -108,6 +108,7 @@ int main(int argc, char **argv)
     // Count to Last Valid Filter
     for (size_t i = 0; i < 1024; i++) {
         if (filterValue[i]) filterCt = i + 1;
+        else continue;
         if (lexicog && i && filterValue[i - 1] >= filterValue[i]) {
             fprintf(stderr, "Error: Invalid index bucket list\n");
             return 1;
