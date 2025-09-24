@@ -133,11 +133,11 @@ def inspectByM(dest, mode, node):
     return table
 
 # returns a dictionary of buckets of lexicographic indices and their set counts
-def inspectByIdx(dest, mode, node):
+def inspectByIdx(dest, idxBuckets, idxIncr, mode, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     table = {}
-    idxIncr = configs.IDX_BUCKET_SIZE
-    idxBuckets = configs.IDX_BUCKET_COUNT
+
+# index bucket cutoff values
     cutoffs = range(idxIncr, idxIncr * idxBuckets + 1, idxIncr)
     filters = ' '.join([str(c) for c in cutoffs])
 
@@ -150,7 +150,6 @@ def inspectByIdx(dest, mode, node):
 # form this into a table of buckets
     strCounts = count.stdout.split('\n')[0].split(' ')[2:]
     for i in range(len(cutoffs)):
-        c = cutoffs[i]
-        table[c] = int(strCounts[i])
+        table[i + 1] = int(strCounts[i])
 
     return table
