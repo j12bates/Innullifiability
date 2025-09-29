@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <pthread.h>
+
 #include "../lib/iface.h"
 #include "../lib/setRec.h"
 
@@ -30,18 +32,18 @@ SR_Base *rec;
 size_t size;
 char *fname;
 
-// Whether to List Out Sets
+// Whether to Display Sets
 bool disp;
 
-// Whether to Deal in Lexicographic Indices
+// Whether to Filter by Lexicographic Indices (and print if applicable)
 bool lexicog;
 
 // Set Selection
 char mode;
 char mask = 0, bits = BISECT;
 
-// Set Counts (also for thread IDs)
-size_t *countv = NULL;
+// Number of Threads
+size_t threads = 1;
 
 // Filtering: arrays for fixed values and high-value filters, and an
 // array for counting matches. Alternatively this could be index bucket
@@ -54,9 +56,15 @@ size_t filterMatch[FILTER_CT_MAX] = {0};
 size_t filterFixedCt = 0;
 unsigned long filterFixed[4] = {0};
 
+// Thread Set Counting Vectors
+size_t *countv = NULL;
+size_t **filterMatchv = NULL;
+_Thread_local size_t threadno;
+
 // Usage Format String
 const char *usage =
-        "Usage: %s [-sl] recSize rec.dat mode [filters [fixed]]\n"
+        "Usage: %s [-sl] recSize rec.dat mode "
+                "[threads [filters [fixed]]]\n"
         "   -s      Short: No Printing Sets\n"
         "By default, filters can be a space-separated list of M-values"
         " in ascending order, with up to four fixed values above"
@@ -72,11 +80,11 @@ int main(int argc, char **argv)
 
     // Parse arguments, show usage on invalid
     {
-        const Param params[6] = {PARAM_SIZE, PARAM_FNAME, PARAM_CHAR,
-                PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
+        const Param params[7] = {PARAM_SIZE, PARAM_FNAME, PARAM_CHAR,
+                PARAM_CT, PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
 
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
-               &size, &fname, &mode, &filter, &filterFixed));
+               &size, &fname, &mode, &threads, &filter, &filterFixed));
 
         CK_IFACE_FN(optHandle("sl", false, usage, argc, argv,
                     &disp, &lexicog));
@@ -92,6 +100,15 @@ int main(int argc, char **argv)
         bits = 0;
     }
     else return 0;
+
+    // Validate Thread Count
+    if (threads < 1) {
+        fprintf(stderr, "Error: Must use at least 1 thread\n");
+        return 1;
+    } else if (threads > 1 && disp) {
+        disp = false;
+        fprintf(stderr, "Sets not printed under multithreading\n");
+    }
 
     // Count Fixed Values
     unsigned long pFixed = 0;
@@ -126,19 +143,50 @@ int main(int argc, char **argv)
 
     if (disp) printf("\n");
 
-    // For every unmarked set, count it and print
-    size_t count = 0;
+    // Launch Threads to do the Computing
     {
-        void countSet(const unsigned long *, size_t, char);
+        void *threadOp(void *);
 
-        ssize_t res = sr_query(rec, mask, bits, NULL, &countSet);
-        CK_RES(res);
-        count = (size_t) res;
+        // Arrays for threads and the count vectors
+        pthread_t th[threads];
+        countv = calloc(threads, sizeof(size_t));
+        CK_PTR(countv);
+        filterMatchv = calloc(threads, sizeof(size_t *));
+        CK_PTR(countv);
+        for (size_t i = 0; i < threads; i++) {
+            filterMatchv[i] = calloc(filterCt, sizeof(size_t));
+            CK_PTR(filterMatchv[i]);
+        }
+
+        // Iteratively Create Threads
+        for (size_t i = 0; i < threads; i++) {
+            errno = pthread_create(th + i, NULL, &threadOp,
+                    (void *) (countv + i));
+            CK_NO(errno);
+        }
+
+        // Iteratively Join Threads
+        for (size_t i = 0; i < threads; i++) {
+            errno = pthread_join(th[i], NULL);
+            CK_NO(errno);
+        }
     }
 
-    if (disp) printf("\n");
+    // Total Up all the Sets
+    size_t count = 0;
+    for (size_t i = 0; i < threads; i++) count += countv[i];
+    free(countv);
+
+    // Total Up all the Filter Matches
+    for (size_t i = 0; i < threads; i++) {
+        for (size_t slot = 0; slot < filterCt; slot++)
+            filterMatch[slot] += filterMatchv[i][slot];
+        free(filterMatchv[i]);
+    }
+    free(filterMatchv);
 
     // Print the Counts: Each Filter (if any), and Total
+    if (disp) printf("\n");
     if (filterCt) printf("filters -- ");
     for (size_t i = 0; i < filterCt; i++)
         printf("%zu ", filterMatch[i]);
@@ -151,6 +199,29 @@ int main(int argc, char **argv)
     return 0;
 }
 
+// Thread Function for Scanning and Outputting
+void *threadOp(void *arg)
+{
+    void countSet(const unsigned long *, size_t, char);
+
+    // Argument is a Reference for Count Output
+    size_t *count = (size_t *) arg;
+
+    // Get Thread Number
+    threadno = count - countv;
+
+    // For every set marked the specified way, count it and print as
+    // appropriate
+    ssize_t res = sr_query_parallel(rec, mask, bits,
+            threads, threadno, NULL, &countSet);
+    CK_RES(res);
+
+    // Store set count
+    *count = res;
+
+    return NULL;
+}
+
 // Take a set and do all the counting we need, print if necessary
 void countSet(const unsigned long *set, size_t size, char bits)
 {
@@ -161,7 +232,7 @@ void countSet(const unsigned long *set, size_t size, char bits)
     // Our filters are in ascending order, so we can keep a shortcut to
     // the one we're "currently on." Then once we've gone through them
     // all, skip all the filtering logic.
-    static size_t slot = 0;             // ensure thread-local in future
+    static _Thread_local size_t slot = 0;
     if (slot == filterCt) goto print;
 
     // Filter by Values
@@ -180,7 +251,7 @@ void countSet(const unsigned long *set, size_t size, char bits)
         // Match against M-value filters
         while (mValue > (unsigned long) filter[slot])
             if (++slot == filterCt) goto print;
-        if (mValue == filter[slot]) filterMatch[slot]++;
+        if (mValue == filter[slot]) filterMatchv[threadno][slot]++;
     }
 
     // Filter by Index
@@ -192,7 +263,7 @@ void countSet(const unsigned long *set, size_t size, char bits)
         // Match against index bucket cutoffs
         while (lexicogIdx > filter[slot])
             if (++slot == filterCt) goto print;
-        if (lexicogIdx <= filter[slot]) filterMatch[slot]++;
+        if (lexicogIdx <= filter[slot]) filterMatchv[threadno][slot]++;
     }
 
     // Print to standard output if required
