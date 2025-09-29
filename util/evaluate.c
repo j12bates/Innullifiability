@@ -46,10 +46,10 @@ size_t *countv = NULL;
 // Filtering: arrays for fixed values and high-value filters, and an
 // array for counting matches. Alternatively this could be index bucket
 // markers.
-size_t filterMatch[1024] = {0};
-
+#define FILTER_CT_MAX 1024
 size_t filterCt = 0;
-unsigned long filterValue[1024] = {0};
+size_t filter[FILTER_CT_MAX] = {0};
+size_t filterMatch[FILTER_CT_MAX] = {0};
 
 size_t filterFixedCt = 0;
 unsigned long filterFixed[4] = {0};
@@ -58,8 +58,9 @@ unsigned long filterFixed[4] = {0};
 const char *usage =
         "Usage: %s [-sl] recSize rec.dat mode [filters [fixed]]\n"
         "   -s      Short: No Printing Sets\n"
-        "By default, filters can be a space-separated list of M-values,"
-        " with up to four fixed values above them.\n"
+        "By default, filters can be a space-separated list of M-values"
+        " in ascending order, with up to four fixed values above"
+        " them.\n"
         "   -l      Lexicographic Indices: Filtering and Display\n"
         "With this option, lexicographic indices are now displayed"
         " alongside printed sets, and filters can be a space-separated"
@@ -75,7 +76,7 @@ int main(int argc, char **argv)
                 PARAM_VAL_LIST, PARAM_VAL_LIST, PARAM_END};
 
         CK_IFACE_FN(argParse(params, 3, usage, argc, argv,
-               &size, &fname, &mode, &filterValue, &filterFixed));
+               &size, &fname, &mode, &filter, &filterFixed));
 
         CK_IFACE_FN(optHandle("sl", false, usage, argc, argv,
                     &disp, &lexicog));
@@ -105,12 +106,12 @@ int main(int argc, char **argv)
         pFixed = filterFixed[i];
     }
 
-    // Count to Last Valid Filter
-    for (size_t i = 0; i < 1024; i++) {
-        if (filterValue[i]) filterCt = i + 1;
-        else continue;
-        if (lexicog && i && filterValue[i - 1] >= filterValue[i]) {
-            fprintf(stderr, "Error: Invalid index bucket list\n");
+    // Count filters until we reach a zero (end of the list)
+    for (size_t i = 0; i < FILTER_CT_MAX; i++) {
+        if (filter[i]) filterCt = i + 1;
+        else break;
+        if (i && filter[i - 1] >= filter[i]) {
+            fprintf(stderr, "Error: Invalid filter list\n");
             return 1;
         }
     }
@@ -155,6 +156,14 @@ void countSet(const unsigned long *set, size_t size, char bits)
 {
     size_t setToIdx(const unsigned long *, size_t);
 
+    // Both metrics we filter by, index and M-value, increase as we
+    // progress down the record, and the Query function works in order.
+    // Our filters are in ascending order, so we can keep a shortcut to
+    // the one we're "currently on." Then once we've gone through them
+    // all, skip all the filtering logic.
+    static size_t slot = 0;             // ensure thread-local in future
+    if (slot == filterCt) goto print;
+
     // Filter by Values
     if (!lexicog)
     {
@@ -165,10 +174,13 @@ void countSet(const unsigned long *set, size_t size, char bits)
             if (set[size - i - 1] != fixed) goto print;
         }
 
-        // Match against the M-value filters
-        for (size_t i = 0; i < filterCt; i++)
-            if (set[size - filterFixedCt - 1] == filterValue[i])
-                filterMatch[i]++;
+        // Retrieve M-value
+        unsigned long mValue = set[size - filterFixedCt - 1];
+
+        // Match against M-value filters
+        while (mValue > (unsigned long) filter[slot])
+            if (++slot == filterCt) goto print;
+        if (mValue == filter[slot]) filterMatch[slot]++;
     }
 
     // Filter by Index
@@ -178,11 +190,9 @@ void countSet(const unsigned long *set, size_t size, char bits)
         size_t lexicogIdx = setToIdx(set, size);
 
         // Match against index bucket cutoffs
-        for (size_t i = 0; i < filterCt; i++)
-            if (lexicogIdx <= (size_t) filterValue[i]) {
-                filterMatch[i]++;
-                break;
-            }
+        while (lexicogIdx > filter[slot])
+            if (++slot == filterCt) goto print;
+        if (lexicogIdx <= filter[slot]) filterMatch[slot]++;
     }
 
     // Print to standard output if required
