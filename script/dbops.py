@@ -483,8 +483,8 @@ def usage():
     print(f"Reductive Test          -- r minM maxM")
     print(f"Generation Expansion    -- g src")
     print(f"Weed-Out Test           -- w")
-    print(f"Inspect Innullifiables  -- i fileID")
-    print(f"Inspect Precarious      -- p fileID")
+    print(f"Inspect Innullifiables  -- i fileID buckets size")
+    print(f"Inspect Precarious      -- p fileID buckets size")
 
     return True
 

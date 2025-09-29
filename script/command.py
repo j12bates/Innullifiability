@@ -92,7 +92,7 @@ def expand(src, dest, supers, mutate, ideal, node):
     if not ideal and supers:
         supMode = 'n'
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/baseUp", str(srcN), src, str(destN), dest,
+    args = numajob(node) + [f"{configs.BIN_DIR}/baseUp", "-", str(srcN), src, str(destN), dest,
             supMode, mutMode, str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
     fail = subprocess.call(args)
@@ -102,7 +102,7 @@ def expand(src, dest, supers, mutate, ideal, node):
 # returns success boolean
 def reduce(dest, minM, maxM, weak, node):
     (destN, _, _, _) = getRange(dest)
-    opts = '-' + ('s' if weak else '')
+    opts = "-s" if weak else "-"
     args = numajob(node) + [f"{configs.BIN_DIR}/topDown", opts, str(destN), dest,
             str(minM), str(maxM), str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))
@@ -118,7 +118,8 @@ def inspectByM(dest, mode, node):
     MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
     filters = ' '.join([str(M) for M in MRange])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode, filters]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode,
+            str(configs.THREADS_PER_JOB), filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:
@@ -141,7 +142,8 @@ def inspectByIdx(dest, idxBuckets, idxIncr, mode, node):
     cutoffs = range(idxIncr, idxIncr * idxBuckets + 1, idxIncr)
     filters = ' '.join([str(c) for c in cutoffs])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode, filters]
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode,
+            str(configs.THREADS_PER_JOB), filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:
