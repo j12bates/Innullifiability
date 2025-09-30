@@ -13,6 +13,14 @@ def recSize(N, minM, maxM, fixed):
     k = N - len(fixed)
     return math.comb(maxM, k) - math.comb(max(0, minM - 1), k)
 
+# compute the lexicographic starting index of a range
+def recStartIdx(N, minM, maxM, fixed):
+    idx = recSize(N, 0, max(0, minM - 1), fixed)
+    while fixed != []:
+        mVal = fixed.pop(0)
+        idx += recSize(N, 0, mVal - 1, fixed)
+    return idx
+
 # returns (N, minM, maxM, fixed), or False if no successor
 # This will take in the range info from the previous record, and figure out a successor range, as
 # large as possible while keeping to a size restriction.

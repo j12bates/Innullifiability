@@ -119,7 +119,7 @@ def reduceJob(params, dest, node):
 
 # writes one record inspection result to the working file
 def inspectJob(params, dest, node):
-    (outfile, idxBuckets, idxIncr, mode) = params
+    (outfile, bucketSize, mode) = params
     shortFname = dest.split('/')[-1]
 
 # perform an inspection by M-values
@@ -137,7 +137,7 @@ def inspectJob(params, dest, node):
         lines += [f"ZpartM  {M:>4} {shortFname:<32} -- {count:>12}"]
 
 # perform an inspection by Index Buckets
-    tableIdx = inspectByIdx(dest, idxBuckets, idxIncr, mode, node)
+    tableIdx = inspectByIdx(dest, bucketSize, mode, node)
     if tableIdx == None:
         return False
 
@@ -380,7 +380,7 @@ def taskReduce(minM, maxM, weak):
     return True
 
 # ====== DIRECTORY INSPECTION TASK CONFIGURATION
-def taskInspect(fileid, idxBuckets, idxIncr, mode):
+def taskInspect(fileid, bucketSize, mode):
     global tasks, outlines
     outfile = f"{destDir}/insp-{fileid}.txt"
 
@@ -389,7 +389,7 @@ def taskInspect(fileid, idxBuckets, idxIncr, mode):
     f.close()
 
 # configure this task
-    tasks.append({'f': inspectJob, 'params': (outfile, idxBuckets, idxIncr, mode),
+    tasks.append({'f': inspectJob, 'params': (outfile, bucketSize, mode),
                   'f_end': finalizeInspection})
 
 # set up a new line to output into the destination log
@@ -404,7 +404,7 @@ def taskInspect(fileid, idxBuckets, idxIncr, mode):
 
 # take the working file for inspection and translate it into a nice readable output file
 def finalizeInspection(params):
-    (outfile, idxBuckets, idxIncr, mode) = params
+    (outfile, bucketSize, mode) = params
     workfile = f"{outfile}.working"
 
 # read in data from the working file, process through it all
@@ -450,8 +450,8 @@ def finalizeInspection(params):
     for c in tableIdx:
         count = tableIdx[c]
         c = int(c)
-        idxBegin = (c - 1) * idxIncr + 1
-        idxEnd = c * idxIncr
+        idxBegin = (c - 1) * bucketSize + 1
+        idxEnd = c * bucketSize
         finalLines.append(f"Idx. {idxBegin:>12} - {idxEnd:>12} -- {count:>12}")
 
 # enter a total count line for each M-value concerned
@@ -483,8 +483,8 @@ def usage():
     print(f"Reductive Test          -- r minM maxM")
     print(f"Generation Expansion    -- g src")
     print(f"Weed-Out Test           -- w")
-    print(f"Inspect Innullifiables  -- i fileID buckets size")
-    print(f"Inspect Precarious      -- p fileID buckets size")
+    print(f"Inspect Innullifiables  -- i fileID size")
+    print(f"Inspect Precarious      -- p fileID size")
 
     return True
 
@@ -529,10 +529,9 @@ def interpretTask(argIdx):
 # Directory Inspection of Innullifiable/Precarious Sets
     elif mode in ['i', 'p'] and argsRemaining >= 2:
         fileid = taskArgs[1]
-        idxBuckets = int(taskArgs[2])
-        idxIncr = int(taskArgs[3])
-        res = taskInspect(fileid, idxBuckets, idxIncr, mode)
-        return 4 * res
+        bucketSize = int(taskArgs[2])
+        res = taskInspect(fileid, bucketSize, mode)
+        return 3 * res
 
 # Invalid Task Character
     else:

@@ -1,6 +1,7 @@
 import subprocess
 import os
 import configs
+from dbcreate import recSize, recStartIdx
 
 # COMMANDS
 
@@ -45,7 +46,6 @@ def argsToCmd(args):
         newArgs.append(newArg)
     return ' '.join(newArgs)
 
-# TODO: get rid of the unused threads parameter
 # ====== COMMAND EXECUTION
 # command words for NUMA job
 def numajob(node):
@@ -134,24 +134,47 @@ def inspectByM(dest, mode, node):
     return table
 
 # returns a dictionary of buckets of lexicographic indices and their set counts
-def inspectByIdx(dest, idxBuckets, idxIncr, mode, node):
+def inspectByIdx(dest, bucketSize, mode, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     table = {}
 
 # index bucket cutoff values
-    cutoffs = range(idxIncr, idxIncr * idxBuckets + 1, idxIncr)
-    filters = ' '.join([str(c) for c in cutoffs])
+    startIdx = recStartIdx(destN, minM, maxM, fixed)
+    endIdx = startIdx + recSize(destN, minM, maxM, fixed)
+    firstBucket = max(0, (startIdx - 1)) // bucketSize + 1
+    lastBucket = max(0, (endIdx - 2)) // bucketSize + 1
+    cutoffs = range(firstBucket * bucketSize, lastBucket * bucketSize + 1, bucketSize)
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode,
-            str(configs.THREADS_PER_JOB), filters]
-    print(argsToCmd(args))
-    count = subprocess.run(args, capture_output = True, text = True)
-    if count.returncode:
-        return False
+# there's a limit on the number of buckets the utility program will read into
+    offset = 0
+    filterCtMax = 1024
+    skipFirst = False
+    while True:
+        offsetTop = offset + filterCtMax
+        if offsetTop > len(cutoffs):
+            offsetTop = len(cutoffs)
+
+        filters = ' '.join([str(c) for c in cutoffs[offset:offsetTop]])
+        args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode,
+                str(configs.THREADS_PER_JOB), filters]
+        print(argsToCmd(args))
+        count = subprocess.run(args, capture_output = True, text = True)
+        if count.returncode:
+            return False
 
 # form this into a table of buckets
-    strCounts = count.stdout.split('\n')[0].split(' ')[2:]
-    for i in range(len(cutoffs)):
-        table[i + 1] = int(strCounts[i])
+        strCounts = count.stdout.split('\n')[0].split(' ')[2:-1]
+        for i in range(len(strCounts)):
+            if i == 0 and skipFirst:
+                continue
+            table[firstBucket + offset + i] = int(strCounts[i])
+
+# if we have more buckets to fill, do this all again with the next frame of cutoffs, but keep one
+# below to absorb the already-counted sets
+        if offsetTop < len(cutoffs):
+            offset += filterCtMax - 1
+            skipFirst = True
+        else:
+            break
 
     return table
