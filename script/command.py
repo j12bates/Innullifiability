@@ -123,7 +123,7 @@ def inspectByM(dest, mode, node):
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
     if count.returncode:
-        return False
+        return None
 
 # form this into a table of M-value vs. count
     strCounts = count.stdout.split('\n')[0].split(' ')[2:]
@@ -160,7 +160,7 @@ def inspectByIdx(dest, bucketSize, mode, node):
         print(argsToCmd(args))
         count = subprocess.run(args, capture_output = True, text = True)
         if count.returncode:
-            return False
+            return None
 
 # form this into a table of buckets
         strCounts = count.stdout.split('\n')[0].split(' ')[2:-1]

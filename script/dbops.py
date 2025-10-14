@@ -53,9 +53,12 @@ def countInANotInB(recA, recB):
 
 # expand a directory completely into a single record file
 def expandJob(params, dest, node):
-    (srcDir, ideal) = params
-    mutate = True
+    (srcDir, ideal, mutate, mutMinM, mutMaxM) = params
     supers = True
+    if not ideal:
+        mutate = True
+    elif mutate:
+        supers = False
 
     srcIdx = 0
 
@@ -76,6 +79,13 @@ def expandJob(params, dest, node):
         src = getRecFname(srcDir, srcIdx)
         if not src:
             break
+
+        srcIdx += 1
+
+# ideal mutative expansions: check if this source contains sets in the M-range we want to mutate
+        (_, minM, maxM, fixed) = getRange(src)
+        if ideal and mutate and not (maxM > mutMinM and minM < mutMaxM):
+            continue
 
 # Unmet Required Values: values that must be in destination sets and do not appear in source sets;
 # Poking Values: values that always appear in source sets and cannot be in destination sets;
@@ -107,8 +117,6 @@ def expandJob(params, dest, node):
                      mutate and not skip_mutate, ideal, node)
         if not res:
             return False
-
-        srcIdx += 1
 
     return True
 
@@ -331,7 +339,7 @@ def readLog(dirname):
     return (N, minM, maxM, swept)
 
 # ====== EXPANSIVE TASK CONFIGURATION
-def taskExpand(srcDir, ideal):
+def taskExpand(srcDir, ideal, mutate, mutMinM, mutMaxM):
     global tasks, outlines
 
 # load source directory information
@@ -347,7 +355,7 @@ def taskExpand(srcDir, ideal):
         return False
 
 # configure this task
-    tasks.append({'f': expandJob, 'params': (srcDir, ideal)})
+    tasks.append({'f': expandJob, 'params': (srcDir, ideal, mutate, mutMinM, mutMaxM)})
 
 # set up a new line to output into the destination log
     logline = f"EXPD: N_{N} M_{minM}_{maxM} [from {srcDir}]"
@@ -479,10 +487,11 @@ def usage():
     name = sys.argv[0]
     print(f"Usage: {name} dest [task1] [task2] ...")
     print("Tasks can be configured this way:")
-    print(f"Ideal Expansion         -- x src")
-    print(f"Reductive Test          -- r minM maxM")
-    print(f"Generation Expansion    -- g src")
-    print(f"Weed-Out Test           -- w")
+    print(f"Ideal Supersets         -- s src")
+    print(f"Ideal Mutations         -- m src minM maxM")
+    print(f"Ideal Reductive Test    -- r minM maxM")
+    print(f"Blanket Expansion       -- g src")
+    print(f"Blanket Weeding Test    -- w")
     print(f"Inspect Innullifiables  -- i fileID size")
     print(f"Inspect Precarious      -- p fileID size")
 
@@ -502,26 +511,34 @@ def interpretTask(argIdx):
     if res:
         (recN, _, _, _) = res
 
-# Ideal Expansion of Precarious Sets
-    if mode == 'x' and argsRemaining >= 2:
+# Ideal Expansion: Supersets of Precarious Sets
+    if mode == 's' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        res = taskExpand(srcDir, True)
+        res = taskExpand(srcDir, True, False, 0, 0)
         return 2 * res
 
-# Reductive Testing Post-Ideal Expansion
+# Ideal Expansion: Mutations of Precarious Sets
+    if mode == 'm' and argsRemaining >= 4:
+        srcDir = taskArgs[1]
+        minM = int(taskArgs[2])
+        maxM = int(taskArgs[3])
+        res = taskExpand(srcDir, True, True, minM, maxM)
+        return 4 * res
+
+# Ideal Reductive Testing for Precarity after Mutative Expansion
     elif mode == 'r' and argsRemaining >= 3:
         minM = int(taskArgs[1])
         maxM = int(taskArgs[2])
         res = taskReduce(minM, maxM, False)
         return 3 * res
 
-# Classic 'Generation' Expansion
-    elif mode == 'g' and argsRemaining >= 2:
+# Classic 'Generation' Blanket Expansion of Nullifiable Sets (except Mutations of Supersets)
+    elif mode == 'x' and argsRemaining >= 2:
         srcDir = taskArgs[1]
-        res = taskExpand(srcDir, False)
+        res = taskExpand(srcDir, False, False, 0, 0)
         return 2 * res
 
-# Weak 'Weed-out' Testing
+# Weak 'Weeding' Blanket Testing for Nullifiability
     elif mode == 'w':
         res = taskReduce(0, 0, True)
         return 1 * res
