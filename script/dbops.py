@@ -458,8 +458,8 @@ def finalizeInspection(params):
     for c in tableIdx:
         count = tableIdx[c]
         c = int(c)
-        idxBegin = (c - 1) * bucketSize + 1
-        idxEnd = c * bucketSize
+        idxBegin = (c - 1) * bucketSize
+        idxEnd = c * bucketSize - 1
         finalLines.append(f"Idx. {idxBegin:>12} - {idxEnd:>12} -- {count:>12}")
 
 # enter a total count line for each M-value concerned

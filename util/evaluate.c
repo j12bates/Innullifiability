@@ -15,8 +15,8 @@
 // Furthermore, this program can deal in set lexicographic indices. With
 // one command-line option enabled, it'll print indices alongside the
 // set representations, and the M-value filter list becomes a list of
-// cutoff values for index buckets, into which sets are counted. Fixed
-// values ignored.
+// cutoff values for index buckets, into which sets are counted. Bucket
+// cutoffs are non-inclusive. The fixed value list is meaningless here.
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -261,9 +261,9 @@ void countSet(const unsigned long *set, size_t size, char bits)
         size_t lexicogIdx = setToIdx(set, size);
 
         // Match against index bucket cutoffs
-        while (lexicogIdx > filter[slot])
+        while (lexicogIdx >= filter[slot])
             if (++slot == filterCt) goto print;
-        if (lexicogIdx <= filter[slot]) filterMatchv[threadno][slot]++;
+        if (lexicogIdx < filter[slot]) filterMatchv[threadno][slot]++;
     }
 
     // Print to standard output if required
