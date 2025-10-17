@@ -1,5 +1,6 @@
-import subprocess
+import math
 import os
+import subprocess
 import configs
 from dbcreate import recSize, recStartIdx
 
@@ -110,7 +111,7 @@ def reduce(dest, minM, maxM, weak, node):
     return not fail
 
 # returns a dictionary of all valid M-values mapped to number of sets for each
-def inspectByM(dest, mode, node):
+def inspectByM(dest, setSpec, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     if fixed:
         minM = maxM = fixed[-1]
@@ -118,7 +119,7 @@ def inspectByM(dest, mode, node):
     MRange = [M for M in range(minM, maxM + 1) if M != 0] # zeroes invalid
     filters = ' '.join([str(M) for M in MRange])
 
-    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, mode,
+    args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-s", str(destN), dest, setSpec,
             str(configs.THREADS_PER_JOB), filters]
     print(argsToCmd(args))
     count = subprocess.run(args, capture_output = True, text = True)
@@ -134,28 +135,46 @@ def inspectByM(dest, mode, node):
     return table
 
 # returns a dictionary of buckets of lexicographic indices and their set counts
-def inspectByIdx(dest, bucketSize, mode, node):
+def inspectByIdx(dest, setSpec, bucketSize, bucketLog, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     table = {}
 
-# index bucket cutoff values
+# the lexicographic start and end indices for this record
     startIdx = recStartIdx(destN, minM, maxM, fixed)
     endIdx = startIdx + recSize(destN, minM, maxM, fixed)
-    firstBucket = max(0, (startIdx - 1)) // bucketSize + 1
-    lastBucket = max(0, (endIdx - 2)) // bucketSize + 1
-    cutoffs = range(firstBucket * bucketSize, lastBucket * bucketSize + 1, bucketSize)
 
-# there's a limit on the number of buckets the utility program will read into
+# index j is in bucket n    iff  c_{n - 1} <= j < c_n
+# because all indices under the first cutoff (c_0) go in the first bucket (n = 0)
+
+# logarithmic cutoffs: c_n = 2^n * N    ->  index j is in bucket floor(log2(j / n)) + 1
+#                                           except when j < n, in which j is in bucket 0
+# linear cutoffs: c_n = (n + 1) * N     ->  index j is in bucket floor(j / N)
+    if bucketLog:
+        firstBucketNo = 0 if startIdx < bucketSize else \
+                int(math.floor(math.log2(startIdx / bucketSize))) + 1
+        lastBucketNo = 0 if endIdx < bucketSize else \
+                int(math.floor(math.log2((endIdx - 1) / bucketSize))) + 1
+    else:
+        firstBucketNo = startIdx // bucketSize
+        lastBucketNo = (endIdx - 1) // bucketSize
+
+# generate the cutoffs we need to define the buckets for this record
+    cutoffBucketNos = range(firstBucketNo, lastBucketNo + 1)
+    if bucketLog:
+        cutoffs = [2**n * bucketSize for n in cutoffBucketNos]
+    else:
+        cutoffs = [(n + 1) * bucketSize for n in cutoffBucketNos]
+
+# there's a limit of 1024 buckets the utility program will read into
     offset = 0
     filterCtMax = 1024
     skipFirst = False
     while True:
-        offsetTop = offset + filterCtMax
-        if offsetTop > len(cutoffs):
-            offsetTop = len(cutoffs)
+        offsetTop = min(offset + filterCtMax, len(cutoffs))
 
+# execute the command with our frame of cutoff filters
         filters = ' '.join([str(c) for c in cutoffs[offset:offsetTop]])
-        args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, mode,
+        args = numajob(node) + [f"{configs.BIN_DIR}/eval", "-sl", str(destN), dest, setSpec,
                 str(configs.THREADS_PER_JOB), filters]
         print(argsToCmd(args))
         count = subprocess.run(args, capture_output = True, text = True)
@@ -167,12 +186,12 @@ def inspectByIdx(dest, bucketSize, mode, node):
         for i in range(len(strCounts)):
             if i == 0 and skipFirst:
                 continue
-            table[firstBucket + offset + i] = int(strCounts[i])
+            table[firstBucketNo + offset + i] = int(strCounts[i])
 
 # if we have more buckets to fill, do this all again with the next frame of cutoffs, but keep one
 # below to absorb the already-counted sets
         if offsetTop < len(cutoffs):
-            offset += filterCtMax - 1
+            offset = offsetTop - 1
             skipFirst = True
         else:
             break

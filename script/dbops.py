@@ -126,40 +126,50 @@ def reduceJob(params, dest, node):
     return reduce(dest, minM, maxM, weak, node)
 
 # writes one record inspection result to the working file
+workingFileLock = threading.Lock()
 def inspectJob(params, dest, node):
-    (outfile, bucketSize, mode) = params
+    global workingFileLock
+    (outfile, setSpec, filterMode, bucketSize, bucketLog) = params
     shortFname = dest.split('/')[-1]
 
+    lines = []
+
 # perform an inspection by M-values
-    tableM = inspectByM(dest, mode, node)
-    if tableM == None:
-        return False
+    tableM = None
+    if filterMode in ['r', 'm']:
+        tableM = inspectByM(dest, setSpec, node)
+        if tableM == None:
+            return False
 
 # write a line for total count
-    count = sum(tableM.values())
-    lines = [f"Rec     ---- {shortFname:<32} -- {count:>12}"]
+    if filterMode == 'r':
+        count = sum(tableM.values())
+        lines += [f"Rec     ---- {shortFname:<32} -- {count:>12}"]
 
 # write a line for each M-value
-    for M in tableM:
-        count = tableM[M]
-        lines += [f"ZpartM  {M:>4} {shortFname:<32} -- {count:>12}"]
+    if filterMode == 'm':
+        for M in tableM:
+            count = tableM[M]
+            lines += [f"ZpartM  {M:>4} {shortFname:<32} -- {count:>12}"]
 
 # perform an inspection by Index Buckets
-    tableIdx = inspectByIdx(dest, bucketSize, mode, node)
-    if tableIdx == None:
-        return False
+    if filterMode == 'l':
+        tableIdx = inspectByIdx(dest, setSpec, bucketSize, bucketLog, node)
+        if tableIdx == None:
+            return False
 
 # write a line for each Index Bucket (numbered)
-    for c in tableIdx:
-        if tableIdx[c]:
-            count = tableIdx[c]
-            lines += [f"ZpartI  {c:>4} {shortFname:<32} -- {count:>12}"]
+        for n in tableIdx:
+            if tableIdx[n]:
+                count = tableIdx[n]
+                lines += [f"ZpartI  {n:>4} {shortFname:<32} -- {count:>12}"]
 
 # write this to the working file (preserved on task interruption), not the output file
     workfile = f"{outfile}.working"
-    f = open(workfile, 'a')
-    f.writelines([line + '\n' for line in lines])
-    f.close()
+    with workingFileLock:
+        f = open(workfile, 'a')
+        f.writelines([line + '\n' for line in lines])
+        f.close()
 
     return True
 
@@ -388,7 +398,7 @@ def taskReduce(minM, maxM, weak):
     return True
 
 # ====== DIRECTORY INSPECTION TASK CONFIGURATION
-def taskInspect(fileid, bucketSize, mode):
+def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog):
     global tasks, outlines
     outfile = f"{destDir}/insp-{fileid}.txt"
 
@@ -397,14 +407,15 @@ def taskInspect(fileid, bucketSize, mode):
     f.close()
 
 # configure this task
-    tasks.append({'f': inspectJob, 'params': (outfile, bucketSize, mode),
+    tasks.append({'f': inspectJob,
+                  'params': (outfile, setSpec, filterMode, bucketSize, bucketLog),
                   'f_end': finalizeInspection})
 
 # set up a new line to output into the destination log
     logline = f"INSP: {fileid}"
-    if mode == 'i':
+    if setSpec == 'i':
         logline += " INNULL"
-    elif mode == 'p':
+    elif setSpec == 'p':
         logline += " PRECAR"
     outlines += [logline]
 
@@ -412,12 +423,13 @@ def taskInspect(fileid, bucketSize, mode):
 
 # take the working file for inspection and translate it into a nice readable output file
 def finalizeInspection(params):
-    (outfile, bucketSize, mode) = params
+    (outfile, setSpec, filterMode, bucketSize, bucketLog) = params
     workfile = f"{outfile}.working"
 
 # read in data from the working file, process through it all
     f = open(workfile, 'r')
     lines = [line.strip() for line in f.readlines()]
+    lines.reverse()
     f.close()
 
     seenSignatures = []
@@ -429,7 +441,7 @@ def finalizeInspection(params):
         signature = ' '.join(tokens[0:3])
 
 # we don't want to show a 'Rec' line twice or double-count sets... we could have line duplicates
-# from an interruption/resumption
+# from an interruption/resumption. since we reversed the list of lines, we count only the last ones
         if signature in seenSignatures:
             continue
         seenSignatures.append(signature)
@@ -440,11 +452,11 @@ def finalizeInspection(params):
 
 # sum together Index Bucket counts across all records
         elif tokens[0] == "ZpartI":
-            c = tokens[1]
+            n = tokens[1]
             count = int(tokens[4])
-            if not c in tableIdx:
-                tableIdx[c] = 0
-            tableIdx[c] += count
+            if not n in tableIdx:
+                tableIdx[n] = 0
+            tableIdx[n] += count
 
 # sum together M-value counts across all records
         elif tokens[0] == "ZpartM":
@@ -455,22 +467,21 @@ def finalizeInspection(params):
             tableM[M] += count
 
 # enter a total count line for each Index Bucket
-    for c in tableIdx:
-        count = tableIdx[c]
-        c = int(c)
-        idxBegin = (c - 1) * bucketSize
-        idxEnd = c * bucketSize - 1
-        finalLines.append(f"Idx. {idxBegin:>12} - {idxEnd:>12} -- {count:>12}")
+    for n in tableIdx:
+        count = tableIdx[n]
+        n = int(n)
+        if bucketLog:
+            idxBegin = 0 if n == 0 else 2**(n - 1) * bucketSize
+            cutoff = 2**n * bucketSize
+        else:
+            idxBegin = n * bucketSize
+            cutoff = (n + 1) * bucketSize
+        finalLines.append(f"Idx. {idxBegin:>12} - {(cutoff - 1):>12} -- {count:>12}")
 
 # enter a total count line for each M-value concerned
     for M in tableM:
         count = tableM[M]
         finalLines.append(f"M {M:>4} -- {count:>12}")
-
-# dividing lines
-    finalLines.append("A====== INDEX COUNTS =======")
-    finalLines.append("L===== M-VALUE COUNTS ======")
-    finalLines.append("P===== RECORD COUNTS =======")
 
 # sort lines and write them to the final output file
     finalLines.sort()
@@ -486,14 +497,13 @@ def finalizeInspection(params):
 def usage():
     name = sys.argv[0]
     print(f"Usage: {name} dest [task1] [task2] ...")
-    print("Tasks can be configured this way:")
+    print(f"Tasks can be configured this way:")
     print(f"Ideal Supersets         -- s src")
     print(f"Ideal Mutations         -- m src minM maxM")
     print(f"Ideal Reductive Test    -- r minM maxM")
     print(f"Blanket Expansion       -- g src")
     print(f"Blanket Weeding Test    -- w")
-    print(f"Inspect Innullifiables  -- i fileID size")
-    print(f"Inspect Precarious      -- p fileID size")
+    print(f"Inspect                 -- i fileID i/p r/m/l [[l]bucket]")
 
     return True
 
@@ -544,11 +554,26 @@ def interpretTask(argIdx):
         return 1 * res
 
 # Directory Inspection of Innullifiable/Precarious Sets
-    elif mode in ['i', 'p'] and argsRemaining >= 2:
+    elif mode == 'i' and argsRemaining >= 4:
         fileid = taskArgs[1]
-        bucketSize = int(taskArgs[2])
-        res = taskInspect(fileid, bucketSize, mode)
-        return 3 * res
+        setSpec = taskArgs[2]
+        filterMode = taskArgs[3]
+
+        bucketSize = 0
+        bucketLog = False
+        if filterMode == 'l':
+            if argsRemaining >= 5:
+                bucket = taskArgs[4]
+                if bucket[0] == 'l':
+                    bucketLog = True
+                    bucket = bucket[1:]
+                bucketSize = int(bucket)
+            else:
+                print(f"Bucket Size Needed")
+                return 0
+
+        res = taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog)
+        return (4 + (filterMode == 'l')) * res
 
 # Invalid Task Character
     else:
