@@ -83,8 +83,9 @@ def expandJob(params, dest, node):
         srcIdx += 1
 
 # ideal mutative expansions: check if this source contains sets in the M-range we want to mutate
-        (_, minM, maxM, fixed) = getRange(src)
-        if ideal and mutate and not (maxM > mutMinM and minM < mutMaxM):
+        (_, srcMinM, srcMaxM, fixed) = getRange(src)
+        src_contains_sets_in_mutMRange = (srcMaxM >= mutMinM and srcMinM <= mutMaxM)
+        if ideal and mutate and not src_contains_sets_in_mutMRange:
             continue
 
 # Unmet Required Values: values that must be in destination sets and do not appear in source sets;
