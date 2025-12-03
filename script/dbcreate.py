@@ -16,9 +16,9 @@ def recSize(N, minM, maxM, fixed):
 # compute the lexicographic starting index of a range
 def recStartIdx(N, minM, maxM, fixed):
     idx = recSize(N, 0, max(0, minM - 1), fixed)
-    while fixed != []:
-        mVal = fixed.pop(0)
-        idx += recSize(N, 0, mVal - 1, fixed)
+    for i in range(len(fixed)):
+        mVal = fixed[i]
+        idx += recSize(N, 0, mVal - 1, fixed[(i + 1):])
     return idx
 
 # returns (N, minM, maxM, fixed), or False if no successor
