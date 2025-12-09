@@ -135,7 +135,7 @@ def inspectByM(dest, setSpec, node):
     return table
 
 # returns a dictionary of buckets of lexicographic indices and their set counts
-def inspectByIdx(dest, setSpec, bucketSize, bucketLog, node):
+def inspectByIdx(dest, setSpec, bucketSize, bucketLog, base, node):
     (destN, minM, maxM, fixed) = getRange(dest)
     table = {}
 
@@ -144,16 +144,16 @@ def inspectByIdx(dest, setSpec, bucketSize, bucketLog, node):
     endIdx = startIdx + recSize(destN, minM, maxM, fixed)
 
 # index j is in bucket n    iff  c_{n - 1} <= j < c_n
-# because all indices under the first cutoff (c_0) go in the first bucket (n = 0)
+# because all indices under the n = 0 cutoff (c_0) go in the n = 0 bucket
 
-# logarithmic cutoffs: c_n = 2^n * N    ->  index j is in bucket floor(log2(j / n)) + 1
-#                                           except when j < n, in which j is in bucket 0
+# logarithmic cutoffs: c_n = b^n * N    ->  index j is in bucket floor(log_b(j / N)) + 1
+#                                           except when j < N, in which j is in bucket 0
 # linear cutoffs: c_n = (n + 1) * N     ->  index j is in bucket floor(j / N)
     if bucketLog:
         firstBucketNo = 0 if startIdx < bucketSize else \
-                int(math.floor(math.log2(startIdx / bucketSize))) + 1
+                int(math.floor(math.log(startIdx / bucketSize, base))) + 1
         lastBucketNo = 0 if endIdx < bucketSize else \
-                int(math.floor(math.log2((endIdx - 1) / bucketSize))) + 1
+                int(math.floor(math.log((endIdx - 1) / bucketSize, base))) + 1
     else:
         firstBucketNo = startIdx // bucketSize
         lastBucketNo = (endIdx - 1) // bucketSize
@@ -161,7 +161,7 @@ def inspectByIdx(dest, setSpec, bucketSize, bucketLog, node):
 # generate the cutoffs we need to define the buckets for this record
     cutoffBucketNos = range(firstBucketNo, lastBucketNo + 1)
     if bucketLog:
-        cutoffs = [2**n * bucketSize for n in cutoffBucketNos]
+        cutoffs = [int(math.floor(base**n * bucketSize)) for n in cutoffBucketNos]
     else:
         cutoffs = [(n + 1) * bucketSize for n in cutoffBucketNos]
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright (c) 2024, Jacob Bates
+# Copyright (c) 2024-25, Jacob Bates
 # SPDX-License-Identifier: BSD-2-Clause
 
 import math
@@ -132,7 +132,7 @@ def reduceJob(params, dest, node):
 workingFileLock = threading.Lock()
 def inspectJob(params, dest, node):
     global workingFileLock
-    (outfile, setSpec, filterMode, bucketSize, bucketLog) = params
+    (outfile, setSpec, filterMode, bucketSize, bucketLog, base) = params
     shortFname = dest.split('/')[-1]
 
     lines = []
@@ -157,7 +157,7 @@ def inspectJob(params, dest, node):
 
 # perform an inspection by Index Buckets
     if filterMode == 'l':
-        tableIdx = inspectByIdx(dest, setSpec, bucketSize, bucketLog, node)
+        tableIdx = inspectByIdx(dest, setSpec, bucketSize, bucketLog, base, node)
         if tableIdx == None:
             return False
 
@@ -401,7 +401,7 @@ def taskReduce(minM, maxM, weak):
     return True
 
 # ====== DIRECTORY INSPECTION TASK CONFIGURATION
-def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog):
+def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog, base):
     global tasks, outlines
     outfile = f"{destDir}/insp-{fileid}.txt"
 
@@ -411,7 +411,7 @@ def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog):
 
 # configure this task
     tasks.append({'f': inspectJob,
-                  'params': (outfile, setSpec, filterMode, bucketSize, bucketLog),
+                  'params': (outfile, setSpec, filterMode, bucketSize, bucketLog, base),
                   'f_end': finalizeInspection})
 
 # set up a new line to output into the destination log
@@ -426,7 +426,7 @@ def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog):
 
 # take the working file for inspection and translate it into a nice readable output file
 def finalizeInspection(params):
-    (outfile, setSpec, filterMode, bucketSize, bucketLog) = params
+    (outfile, setSpec, filterMode, bucketSize, bucketLog, base) = params
     workfile = f"{outfile}.working"
 
 # read in data from the working file, process through it all
@@ -474,17 +474,17 @@ def finalizeInspection(params):
         count = tableIdx[n]
         n = int(n)
         if bucketLog:
-            idxBegin = 0 if n == 0 else 2**(n - 1) * bucketSize
-            cutoff = 2**n * bucketSize
+            idxBegin = 0 if n == 0 else int(math.floor(base**(n - 1) * bucketSize))
+            cutoff = int(math.floor(base**n * bucketSize))
         else:
             idxBegin = n * bucketSize
             cutoff = (n + 1) * bucketSize
-        finalLines.append(f"Idx. {idxBegin:>12} - {(cutoff - 1):>12} -- {count:>12}")
+        finalLines.append(f"Idx. {idxBegin:>16} - {(cutoff - 1):>16} -- {count:>16}")
 
 # enter a total count line for each M-value concerned
     for M in tableM:
         count = tableM[M]
-        finalLines.append(f"M {M:>4} -- {count:>12}")
+        finalLines.append(f"M {M:>4} -- {count:>16}")
 
 # sort lines and write them to the final output file
     finalLines.sort()
@@ -506,7 +506,7 @@ def usage():
     print(f"Ideal Reductive Test    -- r minM maxM")
     print(f"Blanket Expansion       -- g src")
     print(f"Blanket Weeding Test    -- w")
-    print(f"Inspect                 -- i fileID i/p r/m/l [[l]bucket]")
+    print(f"Inspect                 -- i fileID i/p r/m/l [[b/q]bucketSize]")
 
     return True
 
@@ -564,18 +564,24 @@ def interpretTask(argIdx):
 
         bucketSize = 0
         bucketLog = False
+        base = 0
         if filterMode == 'l':
             if argsRemaining >= 5:
                 bucket = taskArgs[4]
-                if bucket[0] == 'l':
+                if bucket[0] == 'b':
                     bucketLog = True
+                    base = 2
+                elif bucket[0] == 'q':
+                    bucketLog = True
+                    base = 2**(1 / 4)
+                if bucketLog:
                     bucket = bucket[1:]
                 bucketSize = int(bucket)
             else:
                 print(f"Bucket Size Needed")
                 return 0
 
-        res = taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog)
+        res = taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog, base)
         return (4 + (filterMode == 'l')) * res
 
 # Invalid Task Character
