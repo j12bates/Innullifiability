@@ -7,23 +7,20 @@
 // innullifiable sets. It takes in one destination record, and it scans
 // across, reductively testing sets whose nullifiability isn't known.
 
-// After performing an ideal expansion, marking off all non-precarious
-// sets, there is no reason to test for bisectable subsets, so this
-// program by default tests bisectability only. Usually we don't care
-// that we know the bisectability of every set, including the supersets,
-// so we only perform the test by default on unmarked sets, not a
-// superset and not an already known mutation.
+// After performing an ideal expansion, marking off all supersets of
+// nullifiable sets, there is no reason to test for bisectable subsets,
+// so this program by default tests bisectability only. Usually we don't
+// care that we know the bisectability of every set, including the
+// supersets, so we only perform the test by default on unmarked sets,
+// not a superset and not an already known mutation.
 
-// If the ideal expansion was infeasible though, we can instead perform
-// a 'weak' test, which also tests subsets for bisectability. This test
-// will mark off the set by whatever it found first. We can think of
-// this as a general nullifiability test, no expansion assumed.
-
-// On the other hand, if we care about the bisectability of every single
-// set, we can perform a 'strong' test, which will test every set whose
-// bisectability isn't known. Generally it's a good idea to run any kind
-// of mutative expansion on any bisectable sets we have, as this would
-// otherwise require testing the entire record.
+// If the ideal expansion was infeasible though, we can enable subset
+// testing. We can do this in a 'strong' or 'weak' way. In the strong
+// case, for any remaining set, the program will conclude whether or not
+// it has a nullifiable subset, and optionally if it's bisectable. In
+// the weak case, the program will mark down whatever it discovers
+// first. So if one cares about precarious sets, a strong test would be
+// ideal as it would take care of marking off any nullifiable supersets.
 
 // In general, any remaining nullifiable set is guaranteed to have a
 // nullifiable first-order contraction. In the case of the ideal
@@ -69,8 +66,9 @@ bool inRange = false;
 bool testSubs = false;
 size_t progrSize = 4;
 
-// What sets to test?
-char mask = TESTED_BISECT | ONLY_SUP;
+// By default, test sets we haven't nullified
+char mask = TESTED_BISECT | SUPER;
+char bits = 0;
 
 // Number of Threads
 size_t threads = 1;
@@ -81,22 +79,26 @@ char *progFname = NULL;
 sigset_t progmask;
 
 // Options
-bool testAllUntested;
-bool reTest;
+bool subStrong, subWeak;
+bool testAllUntested, reTest;
 
 // Progress Options
-bool progExport;
-bool intProg;
+bool progExport, intProg;
 
 // Usage Format String
 const char *usage =
-        "Usage: %s [-usrxi] recSize rec.dat [minm maxm threads "
+        "Usage: %s [-swurxi] recSize rec.dat [minm maxm threads "
                 "[prog.out]]\n"
         "By default, the program tests any totally unmarked sets for "
                 "bisectability only,\n"
         "assuming thorough mutative expansion from the given M-range.\n"
-        "   -u      Test all Sets with Unknown Bisectability (Strong)\n"
-        "   -s      Test Subsets, Stopping on Positive Result (Weak)\n"
+        "The following options open up testing for nullifiable "
+                "subsets:\n"
+        "   -s      Halt Only on Concluding Subset Test (Strong)\n"
+        "   -w      Halt on Positive Result for Either Subsets or "
+                "Bisectability (Weak)\n"
+        "Bisectability Testing Options:\n"
+        "   -u      Test All Sets with Unknown Bisectability\n"
         "   -r      Re-Test Any Sets Marked as Non-Bisectable\n"
         "Progress Updates:\n"
         "   -x      Export Current Output Record on Progress Update\n"
@@ -114,8 +116,8 @@ int main(int argc, char **argv)
         CK_IFACE_FN(argParse(params, 2, usage, argc, argv,
                 &size, &fname, &minm, &maxm, &threads, &progFname));
 
-        CK_IFACE_FN(optHandle("usrxi", true, usage, argc, argv,
-                &testAllUntested, &testSubs, &reTest,
+        CK_IFACE_FN(optHandle("swurxi", true, usage, argc, argv,
+                &subStrong, &subWeak, &testAllUntested, &reTest,
                 &progExport, &intProg));
     }
 
@@ -130,10 +132,11 @@ int main(int argc, char **argv)
     if (size <= 4) progrSize = size - 1;
 
     // Set up the set selector bitmask
-    if (testAllUntested && testSubs) {
-        fprintf(stderr, "Error: Options -us are Mutually Exclusive\n");
+    if (subStrong && subWeak) {
+        fprintf(stderr, "Error: Options -sw are Mutually Exclusive\n");
         return 1;
     }
+    testSubs = subStrong || subWeak;
     if (testAllUntested) mask = TESTED_BISECT;
     if (reTest) mask = (mask & ~TESTED_BISECT) | BISECT;
 
@@ -215,6 +218,10 @@ int main(int argc, char **argv)
 
 // Individual Set Nullifiability Testing/Marking
 
+// Little global variable to keep track of bisectability before
+// finishing the subset test (strong test)
+_Thread_local bool g_bisectableMemory = false;
+
 // Set comes here direct from the record.
 void testElim(const unsigned long *set, size_t size, char bits)
 {
@@ -223,54 +230,41 @@ void testElim(const unsigned long *set, size_t size, char bits)
     int progrAndBase(const unsigned long *, size_t, size_t);
     int testElimSub(const unsigned long *, size_t);
 
-    // Perform Preliminary Subset Tests
-    if (testSubs) for (size_t i = 3; i <= progrSize; i++)
+    // Perform Preliminary Subset Tests. We can always terminate on
+    // finding a nullifiable subset.
+    if (testSubs) for (size_t i = 3; i <= progrSize && i < size; i++)
         c |= 2 * bisectSubs(set, size, i, size);
     if (c) goto mark;
 
     // If we're at the base-case, simply do the test. The subsets will
-    // have been automatically tested
+    // have been automatically tested (progrSize = 4)
+    res = 0;
     if (size == 3) c |= bisect(set[0], set[1], set[2], 0, 3);
     else if (size == 4) c |= bisect(set[0], set[1], set[2], set[3], 4);
 
     // Larger sizes require reduction
-    else if (!c)
+    else
     {
         // Exhaustively run the test on recursively-generated
         // contractions
+        g_bisectableMemory = false;
         res = contraction(set, size, minm, maxm, inRange, 4,
                 &progrAndBase, &c);
         CK_RES(res);
+        c |= g_bisectableMemory;
     }
 
 mark:
     // Mark the appropriate bits in the record. If 'res' is zero, that
-    // must mean the contractions were fully enumerated and tested
-    char mark   = ((!res && !c) || size <= 4) * (TESTED_BISECT)
+    // must mean the bisectability test was executed and wasn't faulty
+    bool negative = !res && !c; // a definite negative test result
+    char mark   = negative * (TESTED_BISECT)
                 | !!(c & 1) * (TESTED_BISECT | BISECT | NULLIF)
-                | !!(c & 2) * (ONLY_SUP | NULLIF);
+                | !!(c & 2) * (SUPER | NULLIF);
     res = sr_mark(rec, set, size, mark);
     CK_RES(res);
 
     return;
-}
-
-// Testing a First-Order Subset
-int testElimSub(const unsigned long *set, size_t size)
-{
-    int c = 0;
-    int progrAndBase(const unsigned long *, size_t, size_t);
-
-    // If we're at the base-case, simply do the test. There are no new
-    // subsets compared to before the reduction
-    if (size == 4) return bisect(set[0], set[1], set[2], set[3], 4);
-
-    // Otherwise, exhaustively test
-    int res = contraction(set, size, minm, maxm, inRange, 4,
-            &progrAndBase, &c);
-    CK_RES(res);
-
-    return res;
 }
 
 // Progressive and Base-Case Tests
@@ -292,6 +286,13 @@ int progrAndBase(const unsigned long *set, size_t size, size_t newIdx)
             superset |= bisectSubs(set, size, i, size);
     }
 
+    // For a strong test, keep a bisectable result without interrupting
+    // the contractions. Then it'll only return when a subset is found
+    if (subStrong) {
+        g_bisectableMemory |= bisectable;
+        bisectable = 0;
+    }
+
     return bisectable + 2 * superset;
 }
 
@@ -307,7 +308,7 @@ void *threadOp(void *arg)
     size_t mod = prog - progv;
 
     // For every unmarked set, run exhaustive test
-    ssize_t res = sr_query_parallel(rec, mask, 0,
+    ssize_t res = sr_query_parallel(rec, mask, bits,
             threads, mod, prog, &testElim);
     CK_RES(res);
 

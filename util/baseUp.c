@@ -123,15 +123,15 @@ int main(int argc, char **argv)
     }
 
     // Interpret Mode Characters
-    if (supMode == 'n') supBits |= ONLY_SUP;
+    if (supMode == 'n') supBits |= SUPER;
     else if (supMode == 'b') supMask = BISECT;
-    else if (supMode == 'p') supMask = BISECT | ONLY_SUP;
+    else if (supMode == 'p') supMask = BISECT | SUPER;
     else sup = false;
 
     if (srcSize + 1 != destSize) mut = false;
-    else if (mutMode == 'n') mutBits |= ONLY_SUP;
+    else if (mutMode == 'n') mutBits |= SUPER;
     else if (mutMode == 'b') mutMask = BISECT;
-    else if (mutMode == 'p') mutMask = BISECT | ONLY_SUP;
+    else if (mutMode == 'p') mutMask = BISECT | SUPER;
     else mut = false;
 
     // Validate Thread Count
@@ -287,7 +287,7 @@ void handleMut(const unsigned long *set, size_t size, char bits)
 
     // Mutation preserves bisectability and the property of being a
     // superset, so we will mark appropriately
-    int setMarkIdx = !!(bits & ONLY_SUP) + 2 * !!(bits & BISECT) - 1;
+    int setMarkIdx = !!(bits & SUPER) + 2 * !!(bits & BISECT) - 1;
     mutate(set, size, noFixedSeg_minM, noFixedSeg_maxM, true, true,
             elim[setMarkIdx]);
 
@@ -306,7 +306,7 @@ void handleSup(const unsigned long *set, size_t size, char bits)
 
 void elimSup(const unsigned long *set, size_t size)
 {
-    int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP);
+    int res = sr_mark(dest, set, size, NULLIF | SUPER);
     CK_RES(res);
 
     return;
@@ -322,7 +322,7 @@ void elimBisect(const unsigned long *set, size_t size)
 
 void elimSupBisect(const unsigned long *set, size_t size)
 {
-    int res = sr_mark(dest, set, size, NULLIF | ONLY_SUP
+    int res = sr_mark(dest, set, size, NULLIF | SUPER
             | BISECT | TESTED_BISECT);
     CK_RES(res);
 

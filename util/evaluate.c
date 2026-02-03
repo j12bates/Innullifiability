@@ -92,11 +92,11 @@ int main(int argc, char **argv)
     }
 
     // Interpret Mode Character
-    if (mode == 'n') bits |= ONLY_SUP;
+    if (mode == 'n') bits |= SUPER;
     else if (mode == 'b') mask = BISECT;
-    else if (mode == 'p') mask = BISECT | ONLY_SUP;
+    else if (mode == 'p') mask = BISECT | SUPER;
     else if (mode == 'i') {
-        mask = ONLY_SUP | BISECT;
+        mask = SUPER | BISECT;
         bits = 0;
     }
     else return 0;
