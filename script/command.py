@@ -101,9 +101,9 @@ def expand(src, dest, supers, mutate, ideal, node):
 
 # run the reduction process, Top-Down util
 # returns success boolean
-def reduce(dest, minM, maxM, weak, node):
+def reduce(dest, minM, maxM, testSubset, node):
     (destN, _, _, _) = getRange(dest)
-    opts = "-s" if weak else "-"
+    opts = "-s" if testSubset else "-"
     args = numajob(node) + [f"{configs.BIN_DIR}/topDown", opts, str(destN), dest,
             str(minM), str(maxM), str(configs.THREADS_PER_JOB)]
     print(argsToCmd(args))

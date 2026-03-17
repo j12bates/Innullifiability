@@ -125,8 +125,8 @@ def expandJob(params, dest, node):
 
 # perform reductive testing on a single record
 def reduceJob(params, dest, node):
-    (minM, maxM, weak) = params
-    return reduce(dest, minM, maxM, weak, node)
+    (minM, maxM, testSubset) = params
+    return reduce(dest, minM, maxM, testSubset, node)
 
 # writes one record inspection result to the working file
 workingFileLock = threading.Lock()
@@ -381,11 +381,11 @@ def taskExpand(srcDir, ideal, mutate, mutMinM, mutMaxM):
     return True
 
 # ====== REDUCTIVE TASK CONFIGURATION
-def taskReduce(minM, maxM, weak):
+def taskReduce(minM, maxM, testSubset):
     global tasks, outlines
 
 # configure this task
-    tasks.append({'f': reduceJob, 'params': (minM, maxM, weak)})
+    tasks.append({'f': reduceJob, 'params': (minM, maxM, testSubset)})
 
 # check if parameters are fine
     if minM > maxM:
@@ -394,7 +394,7 @@ def taskReduce(minM, maxM, weak):
 
 # set up a new line to output into the destination log
     logline = f"RTST: M_{minM}_{maxM}"
-    if weak:
+    if testSubset:
         logline += " WEAK"
     outlines += [logline]
 
@@ -500,12 +500,14 @@ def finalizeInspection(params):
 def usage():
     name = sys.argv[0]
     print(f"Usage: {name} dest [task1] [task2] ...")
-    print(f"Tasks can be configured this way:")
+    print(f"IDEAL TASKS     -- expand only prec. sets, test assuming no nullif. subset")
     print(f"Ideal Supersets         -- s src")
     print(f"Ideal Mutations         -- m src minM maxM")
     print(f"Ideal Reductive Test    -- r minM maxM")
+    print(f"BLANKET TASKS   -- supersets on all nullif., mutations only on prec.,")
+    print(f"                   test thoroughly for subsets and optionally for bisect.")
     print(f"Blanket Expansion       -- g src")
-    print(f"Blanket Weeding Test    -- w")
+    print(f"Blanket Test            -- w")
     print(f"Inspect                 -- i fileID i/p r/m/l [[b/q]bucketSize]")
 
     return True
@@ -551,7 +553,7 @@ def interpretTask(argIdx):
         res = taskExpand(srcDir, False, False, 0, 0)
         return 2 * res
 
-# Weak 'Weeding' Blanket Testing for Nullifiability
+# 'Weeding' Blanket Testing for Nullifiability + Subsets
     elif mode == 'w':
         res = taskReduce(0, 0, True)
         return 1 * res
