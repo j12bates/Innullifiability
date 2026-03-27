@@ -364,18 +364,27 @@ def taskExpand(srcDir, ideal, mutate, mutMinM, mutMaxM):
 
 # check if directory is valid to expand
     if N >= recN:
-        print(f"Task Parameters Invalid [Expand from {srcDir}]")
+        print(f"Task Parameters Invalid [Expand from {srcDir}], Source too Big")
         return False
 
 # configure this task
     tasks.append({'f': expandJob, 'params': (srcDir, ideal, mutate, mutMinM, mutMaxM)})
 
 # set up a new line to output into the destination log
-    logline = f"EXPD: N_{N} M_{minM}_{maxM} [from {srcDir}]"
     if ideal:
-        logline += " IDEAL."
-        if not swept:
-            logline += " WARN: source not marked SWEPT"
+        logline = ( f"Expanded {'Mutations' if mutate else 'Supersets'} of "
+                    f"Precarious n = {N} Sets, "
+                  )
+    else:
+        logline = ( f"Blanket Expanded Nullifiable n = {N} Sets "
+                    f"(mutations only on precarious)"
+                  )
+    if mutate or not ideal:
+        logline +=  f"M from {mutMinM} to {mutMaxM}, "
+    logline +=    (
+                    f"given from {srcDir} "
+                    f"[{'not ' if not swept else ''}labelled SWEPT]."
+                  )
     outlines += [logline]
 
     return True
@@ -389,13 +398,14 @@ def taskReduce(minM, maxM, testSubset):
 
 # check if parameters are fine
     if minM > maxM:
-        print(f"Task Parameters Invalid [Weed in {minM}-{maxM}]")
+        print(f"Task Parameters Invalid [Reduce in {minM}-{maxM}], Range Backwards")
         return False
 
 # set up a new line to output into the destination log
-    logline = f"RTST: M_{minM}_{maxM}"
-    if testSubset:
-        logline += " WEAK"
+    logline = ( f"Reduced Unmarked Sets, "
+                f"Testing for {'General Nullifiability' if testSubset else 'Bisectability'}, "
+                f"no Nullif. Contractions with M from {minM} to {maxM}"
+              )
     outlines += [logline]
 
     return True
@@ -415,11 +425,12 @@ def taskInspect(fileid, setSpec, filterMode, bucketSize, bucketLog, base):
                   'f_end': finalizeInspection})
 
 # set up a new line to output into the destination log
-    logline = f"INSP: {fileid}"
+    logline = f"Inspected "
     if setSpec == 'i':
-        logline += " INNULL"
+        logline += "Unmarked (or Innull.) Sets, "
     elif setSpec == 'p':
-        logline += " PRECAR"
+        logline += "Precarious Sets, "
+    logline += f"Logged in insp-{fileid}.txt"
     outlines += [logline]
 
     return True
